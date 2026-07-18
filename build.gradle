@@ -12,6 +12,7 @@ repositories {
 }
 
 def runeLiteVersion = "1.12.32"
+def pluginMainClass = "com.customhpbar.CustomHpBarPluginTest"
 def rlRepoDir = "${System.properties['user.home']}/.runelite/repository2"
 
 dependencies {
@@ -60,7 +61,7 @@ task runClient(type: JavaExec, dependsOn: jar) {
     )
     mainClass = "net.runelite.client.RuneLite"
     args "--developer-mode"
-    jvmArgs "-ea", "-Xmx512m", "-Xss2m"
+    jvmArgs "-ea", "-Xmx2048m", "-Xss2m"
 }
 
 task runPlugin(type: JavaExec) {
@@ -68,6 +69,6 @@ task runPlugin(type: JavaExec) {
     description = "Launch RuneLite with this plugin loaded via ExternalPluginManager, using the Maven-resolved client jar"
 
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = "com.customhpbar.CustomHpBarPluginTest"
-    jvmArgs "-ea", "-Xmx512m", "-Xss2m"
+    mainClass = pluginMainClass
+    jvmArgs "-ea", "-Xmx2048m", "-Xss2m"
 }
