@@ -10,7 +10,8 @@ tracking, and status-effect coloring for poison/venom/burn/bleed.
   width/height/corners/border/colors/font/text settings.
 - **Precise NPC HP**, not the native bar's coarse ratio/scale bucket. Tracked by accumulating
   hitsplat damage against a known max HP (bundled dataset, ~4,000 NPCs, sourced from the OSRS
-  Wiki), self-correcting against the native ratio if it ever drifts.
+  Wiki), self-correcting against the native ratio if it ever drifts. NPCs not in the dataset
+  (max HP unknown) show a percentage instead of a number, regardless of Display Mode.
 - **Status effect coloring** - the bar tints while an NPC (or you) is poisoned, envenomed,
   burning, or bleeding, the same idea as the native HP orb changing appearance. Colors are
   sampled from the actual hitsplat sprites on the OSRS Wiki, not guessed. Your own poison/venom

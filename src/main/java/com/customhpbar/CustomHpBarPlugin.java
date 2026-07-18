@@ -653,8 +653,7 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		if (actor instanceof NPC)
 		{
-			NPC npc = (NPC) actor;
-			return !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId()) && matchesFilter(npc.getName());
+			return isTrackedNpc((NPC) actor);
 		}
 		if (!(actor instanceof Player))
 		{
@@ -670,7 +669,24 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	boolean matchesNpcFilter(NPC npc)
 	{
-		return !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId()) && matchesFilter(npc.getName());
+		return isTrackedNpc(npc);
+	}
+
+	/**
+	 * Combat level 0 excludes every non-attackable NPC - bankers, shop owners, fishing spots,
+	 * pets (yours or another player's) - without needing to name/ID them individually. This is
+	 * the same signal used in onInteractingChanged above to distinguish real combat from
+	 * non-combat interactions like a Quetzal's "Travel" option, confirmed against
+	 * InteractHighlightPlugin's own source. Gated behind onlyShowCombatNpcNames() (default on)
+	 * rather than being unconditional - a blanket hardcoded exclusion turned out to be more
+	 * opinionated than wanted, so it's a toggle instead. Checked before the user-configurable
+	 * npcFilter blacklist either way.
+	 */
+	private boolean isTrackedNpc(NPC npc)
+	{
+		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
+			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
+			&& matchesFilter(npc.getName());
 	}
 
 	/**

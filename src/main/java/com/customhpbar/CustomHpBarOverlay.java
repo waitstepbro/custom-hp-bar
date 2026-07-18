@@ -385,10 +385,22 @@ class CustomHpBarOverlay extends Overlay
 
 		if (border > 0)
 		{
+			// BasicStroke draws centered on the given path, so stroking `outline` directly would
+			// put half the border width outside (x, y, w, h) entirely - over whatever's behind
+			// the bar, never touched by the background fill above - and half inside it. Since
+			// the default border color is translucent, that outer half blends with the game
+			// scene while the inner half blends with Background Color, producing a visibly
+			// mismatched ring that shifts whenever Background Color changes. Insetting the
+			// stroked path by half the border width makes the stroke span exactly [x, x+border]
+			// (etc. on each side) - fully inside (x, y, w, h) and fully backed by the background
+			// fill, matching what innerW/innerH above already assume.
+			float half = border / 2f;
+			RoundRectangle2D borderPath = new RoundRectangle2D.Float(
+				x + half, y + half, w - border, h - border, Math.max(0, arc - border), Math.max(0, arc - border));
 			Stroke previousStroke = g.getStroke();
 			g.setStroke(new BasicStroke(border));
 			g.setColor(style.borderColor);
-			g.draw(outline);
+			g.draw(borderPath);
 			g.setStroke(previousStroke);
 		}
 	}

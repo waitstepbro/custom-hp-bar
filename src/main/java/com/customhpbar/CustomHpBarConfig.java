@@ -45,7 +45,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetDisplayMode",
 		name = "Display Mode",
-		description = "Show HP as a raw number, a percentage, or both",
+		description = "Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with " +
+			"unknown max HP.",
 		section = TARGET_SECTION,
 		position = 0
 	)
@@ -57,7 +58,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBarWidth",
 		name = "Bar Width",
-		description = "Width of the bar in pixels (at the zoom level the plugin started at, if scaling with zoom)",
+		description = "Width of the bar in pixels",
 		section = TARGET_SECTION,
 		position = 1
 	)
@@ -70,14 +71,14 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBarHeight",
 		name = "Bar Height",
-		description = "Height of the bar in pixels (at the zoom level the plugin started at, if scaling with zoom)",
+		description = "Height of the bar in pixels",
 		section = TARGET_SECTION,
 		position = 2
 	)
 	@Range(min = 4, max = 30)
 	default int targetBarHeight()
 	{
-		return 8;
+		return 10;
 	}
 
 	@ConfigItem(
@@ -90,7 +91,7 @@ public interface CustomHpBarConfig extends Config
 	@Range(min = 0, max = 12)
 	default int targetCornerRadius()
 	{
-		return 0;
+		return 2;
 	}
 
 	@ConfigItem(
@@ -145,53 +146,51 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetVerticalOffset",
 		name = "Vertical Offset",
-		description = "Pixels to shift the bar upward (positive) or downward (negative) from its centered position",
+		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = TARGET_SECTION,
 		position = 8
 	)
 	@Range(min = -50, max = 100)
 	default int targetVerticalOffset()
 	{
-		return 0;
+		return 5;
 	}
 
 	@ConfigItem(
 		keyName = "targetFontFamily",
 		name = "Font",
-		description = "Typeface used for the HP text. The RuneScape options use the game's own bundled UI font.",
+		description = "Typeface for the HP text - RuneScape options use the game's own UI font.",
 		section = TARGET_SECTION,
 		position = 9
 	)
 	default FontFamily targetFontFamily()
 	{
-		return FontFamily.RUNESCAPE_BOLD;
+		return FontFamily.SYSTEM_DEFAULT;
 	}
 
 	@ConfigItem(
 		keyName = "targetFontStyle",
 		name = "Font Style",
-		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already a " +
-			"dedicated bold typeface, not a synthetic bolding of the regular one.",
+		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already bold.",
 		section = TARGET_SECTION,
 		position = 10
 	)
 	default FontStyle targetFontStyle()
 	{
-		return FontStyle.PLAIN;
+		return FontStyle.BOLD;
 	}
 
 	@ConfigItem(
 		keyName = "targetFontSize",
 		name = "Font Size",
-		description = "Size of the HP number text (at the zoom level the plugin started at, if scaling with zoom). " +
-			"Smaller sizes are harder to read - see Text Outline below.",
+		description = "Size of the HP number text. Smaller sizes are harder to read - see Text Outline below.",
 		section = TARGET_SECTION,
 		position = 11
 	)
 	@Range(min = 6, max = 20)
 	default int targetFontSize()
 	{
-		return 7;
+		return 11;
 	}
 
 	@ConfigItem(
@@ -209,8 +208,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetTextOutline",
 		name = "Text Outline",
-		description = "Full outline around the text instead of a single drop shadow - improves readability at " +
-			"small sizes or busy backgrounds. Recommended to leave on.",
+		description = "Full outline around the text for readability at small sizes. Recommended on.",
 		section = TARGET_SECTION,
 		position = 13
 	)
@@ -222,8 +220,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetTextVerticalNudge",
 		name = "Text Vertical Nudge",
-		description = "Shifts the HP text down (positive) or up (negative) if it looks off-center - text " +
-			"rendering varies slightly between fonts.",
+		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = TARGET_SECTION,
 		position = 14
 	)
@@ -236,27 +233,37 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showNpcName",
 		name = "Show NPC Name",
-		description = "Draws the NPC's name above its HP bar. Uses the Target Bar's font/outline settings above " +
-			"- color is separate (see NPC Name Color below).",
+		description = "Draws the NPC's name above its HP bar. Color is set separately below.",
 		section = TARGET_SECTION,
 		position = 15
 	)
 	default boolean showNpcName()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 		keyName = "alwaysShowNpcName",
 		name = "Always Show NPC Name",
-		description = "Shows the NPC name at all times, not just while its HP bar is showing (in combat). " +
-			"Requires 'Show NPC Name' above.",
+		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name' above.",
 		section = TARGET_SECTION,
 		position = 16
 	)
 	default boolean alwaysShowNpcName()
 	{
-		return false;
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "onlyShowCombatNpcNames",
+		name = "Only Show Combat NPC Names",
+		description = "Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names.",
+		section = TARGET_SECTION,
+		position = 17
+	)
+	default boolean onlyShowCombatNpcNames()
+	{
+		return true;
 	}
 
 	@ConfigItem(
@@ -264,20 +271,19 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, independent of the HP number's Text Color above.",
 		section = TARGET_SECTION,
-		position = 17
+		position = 18
 	)
 	default Color npcNameColor()
 	{
-		return Color.WHITE;
+		return new Color(255, 255, 0);
 	}
 
 	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
-		description = "Tints the bar while the NPC is poisoned, envenomed, burning, or bleeding - inferred from " +
-			"hitsplats, since NPCs don't expose a queryable status effect state.",
+		description = "Tints the bar while poisoned, envenomed, burning, or bleeding.",
 		section = TARGET_SECTION,
-		position = 18
+		position = 19
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -287,23 +293,21 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetPoisonColor",
 		name = "Poison Color",
-		description = "Bar fill color while poisoned. Sampled from the actual Poison hitsplat sprite " +
-			"(oldschool.runescape.wiki/w/Hitsplat) - pure green, no blue.",
+		description = "Bar fill color while poisoned.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 20
 	)
 	default Color targetPoisonColor()
 	{
-		return new Color(0, 145, 0);
+		return new Color(0, 176, 0);
 	}
 
 	@ConfigItem(
 		keyName = "targetVenomColor",
 		name = "Venom Color",
-		description = "Bar fill color while envenomed. Sampled from the actual Venom hitsplat sprite - a dark " +
-			"teal, despite RuneLite's own constant name implying plain dark green.",
+		description = "Bar fill color while envenomed - a dark teal, not plain green.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 21
 	)
 	default Color targetVenomColor()
 	{
@@ -313,10 +317,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBurnColor",
 		name = "Burn Color",
-		description = "Bar fill color while burning. Sampled from the actual Burn hitsplat sprite - a " +
-			"red-orange gradient.",
+		description = "Bar fill color while burning.",
 		section = TARGET_SECTION,
-		position = 21
+		position = 22
 	)
 	default Color targetBurnColor()
 	{
@@ -326,10 +329,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBleedColor",
 		name = "Bleed Color",
-		description = "Bar fill color while bleeding. Sampled from the actual Bleed hitsplat sprite - a vivid " +
-			"red, brighter than a dark blood-red.",
+		description = "Bar fill color while bleeding.",
 		section = TARGET_SECTION,
-		position = 22
+		position = 23
 	)
 	default Color targetBleedColor()
 	{
@@ -347,13 +349,13 @@ public interface CustomHpBarConfig extends Config
 	)
 	default boolean showForSelf()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 		keyName = "selfDisplayMode",
 		name = "Self Display Mode",
-		description = "Display mode used for your own bar. Only applies when 'Show for Self' is on.",
+		description = "Display mode for your own bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 1
 	)
@@ -377,8 +379,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerDisplayMode",
 		name = "Other Players' Display Mode",
-		description = "Display mode for other players' bars (requires 'Show for Other Players'). Always shows " +
-			"percent regardless - other players' max HP isn't available client-side.",
+		description = "Display mode for other players' bars (always percent - their max HP isn't available). " +
+			"Requires 'Show for Other Players'.",
 		section = PLAYER_SECTION,
 		position = 3
 	)
@@ -390,7 +392,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarWidth",
 		name = "Bar Width",
-		description = "Width of the bar in pixels (at the zoom level the plugin started at, if scaling with zoom)",
+		description = "Width of the bar in pixels",
 		section = PLAYER_SECTION,
 		position = 4
 	)
@@ -403,14 +405,14 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarHeight",
 		name = "Bar Height",
-		description = "Height of the bar in pixels (at the zoom level the plugin started at, if scaling with zoom)",
+		description = "Height of the bar in pixels",
 		section = PLAYER_SECTION,
 		position = 5
 	)
 	@Range(min = 4, max = 30)
 	default int playerBarHeight()
 	{
-		return 8;
+		return 10;
 	}
 
 	@ConfigItem(
@@ -423,7 +425,7 @@ public interface CustomHpBarConfig extends Config
 	@Range(min = 0, max = 12)
 	default int playerCornerRadius()
 	{
-		return 0;
+		return 2;
 	}
 
 	@ConfigItem(
@@ -478,53 +480,51 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerVerticalOffset",
 		name = "Vertical Offset",
-		description = "Pixels to shift the bar upward (positive) or downward (negative) from its centered position",
+		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = PLAYER_SECTION,
 		position = 11
 	)
 	@Range(min = -50, max = 100)
 	default int playerVerticalOffset()
 	{
-		return 0;
+		return 15;
 	}
 
 	@ConfigItem(
 		keyName = "playerFontFamily",
 		name = "Font",
-		description = "Typeface used for the HP text. The RuneScape options use the game's own bundled UI font.",
+		description = "Typeface for the HP text - RuneScape options use the game's own UI font.",
 		section = PLAYER_SECTION,
 		position = 12
 	)
 	default FontFamily playerFontFamily()
 	{
-		return FontFamily.RUNESCAPE_BOLD;
+		return FontFamily.SYSTEM_DEFAULT;
 	}
 
 	@ConfigItem(
 		keyName = "playerFontStyle",
 		name = "Font Style",
-		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already a " +
-			"dedicated bold typeface, not a synthetic bolding of the regular one.",
+		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already bold.",
 		section = PLAYER_SECTION,
 		position = 13
 	)
 	default FontStyle playerFontStyle()
 	{
-		return FontStyle.PLAIN;
+		return FontStyle.BOLD;
 	}
 
 	@ConfigItem(
 		keyName = "playerFontSize",
 		name = "Font Size",
-		description = "Size of the HP number text (at the zoom level the plugin started at, if scaling with zoom). " +
-			"Smaller sizes are harder to read - see Text Outline below.",
+		description = "Size of the HP number text. Smaller sizes are harder to read - see Text Outline below.",
 		section = PLAYER_SECTION,
 		position = 14
 	)
 	@Range(min = 6, max = 20)
 	default int playerFontSize()
 	{
-		return 7;
+		return 11;
 	}
 
 	@ConfigItem(
@@ -542,8 +542,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerTextOutline",
 		name = "Text Outline",
-		description = "Full outline around the text instead of a single drop shadow - improves readability at " +
-			"small sizes or busy backgrounds. Recommended to leave on.",
+		description = "Full outline around the text for readability at small sizes. Recommended on.",
 		section = PLAYER_SECTION,
 		position = 16
 	)
@@ -555,8 +554,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerTextVerticalNudge",
 		name = "Text Vertical Nudge",
-		description = "Shifts the HP text down (positive) or up (negative) if it looks off-center - text " +
-			"rendering varies slightly between fonts.",
+		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
 		position = 17
 	)
@@ -569,22 +567,19 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
-		description = "Draws a second bar for your Prayer points, anchored beneath your HP bar. Mirrors the " +
-			"Player Bar's size/shape/font settings above. Requires 'Show for Self'.",
+		description = "Draws a second bar for your Prayer points beneath your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 18
 	)
 	default boolean showPrayerBar()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
-		description = "Tints your bar while poisoned, envenomed, burning, or bleeding. Poison/Venom use your " +
-			"character's exact state; Burn/Bleed are inferred from hitsplats instead (no exact signal exists " +
-			"for those). Requires 'Show for Self'.",
+		description = "Tints your bar while poisoned, envenomed, burning, or bleeding. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 19
 	)
@@ -596,8 +591,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfPoisonColor",
 		name = "Poison Color",
-		description = "Bar fill color while poisoned. Sampled from the actual Poison hitsplat sprite " +
-			"(oldschool.runescape.wiki/w/Hitsplat) - pure green, no blue.",
+		description = "Bar fill color while poisoned.",
 		section = PLAYER_SECTION,
 		position = 20
 	)
@@ -609,8 +603,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfVenomColor",
 		name = "Venom Color",
-		description = "Bar fill color while envenomed. Sampled from the actual Venom hitsplat sprite - a dark " +
-			"teal, despite RuneLite's own constant name implying plain dark green.",
+		description = "Bar fill color while envenomed - a dark teal, not plain green.",
 		section = PLAYER_SECTION,
 		position = 21
 	)
@@ -622,8 +615,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfBurnColor",
 		name = "Burn Color",
-		description = "Bar fill color while burning. Sampled from the actual Burn hitsplat sprite - a " +
-			"red-orange gradient.",
+		description = "Bar fill color while burning.",
 		section = PLAYER_SECTION,
 		position = 22
 	)
@@ -635,8 +627,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfBleedColor",
 		name = "Bleed Color",
-		description = "Bar fill color while bleeding. Sampled from the actual Bleed hitsplat sprite - a vivid " +
-			"red, brighter than a dark blood-red.",
+		description = "Bar fill color while bleeding.",
 		section = PLAYER_SECTION,
 		position = 23
 	)
@@ -650,13 +641,14 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "scaleWithZoom",
 		name = "Scale With Zoom",
-		description = "Grow/shrink bars and text as you zoom in/out, matching how the actor model itself scales.",
+		description = "Grow/shrink bars and text with camera zoom. Sizes below are exact at the zoom level " +
+			"you're at when the plugin starts, and scale relative to that as you zoom in/out.",
 		section = BEHAVIOR_SECTION,
 		position = 0
 	)
 	default boolean scaleWithZoom()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
@@ -676,14 +668,13 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "hideNativeBar",
 		name = "Hide Native Health Bar",
-		description = "Replaces the game's built-in health bar sprites with a transparent one. Applies to " +
-			"every actor, not just filtered NPCs - sprite overrides are client-wide, not per-actor.",
+		description = "Hides the game's built-in health bar for every actor, not just filtered NPCs.",
 		section = BEHAVIOR_SECTION,
 		position = 2
 	)
 	default boolean hideNativeBar()
 	{
-		return false;
+		return true;
 	}
 
 	// ==================== NPC filter ====================
@@ -691,8 +682,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Filter",
-		description = "Comma-separated NPC names to hide (a blacklist - everything else still shows). " +
-			"Supports wildcards (skele*). Leave blank to show all.",
+		description = "Comma-separated NPC names to hide (blacklist, supports skele* wildcards). Leave blank " +
+			"to show all.",
 		section = FILTER_SECTION,
 		position = 0
 	)
