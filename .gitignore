@@ -11,6 +11,7 @@ AGENTS.local.md
 build/
 .gradle/
 out/
+bin/
 *.class
 
 # IDE
