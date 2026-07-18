@@ -1,0 +1,73 @@
+plugins {
+    id "java"
+    id "checkstyle"
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        url = "https://repo.runelite.net"
+    }
+    mavenCentral()
+}
+
+def runeLiteVersion = "1.12.32"
+def rlRepoDir = "${System.properties['user.home']}/.runelite/repository2"
+
+dependencies {
+    compileOnly group: "net.runelite", name: "client", version: runeLiteVersion
+
+    compileOnly "org.projectlombok:lombok:1.18.30"
+    annotationProcessor "org.projectlombok:lombok:1.18.30"
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation group: "net.runelite", name: "client", version: runeLiteVersion
+    testImplementation group: "net.runelite", name: "jshell", version: runeLiteVersion
+}
+
+group = "com.customhpbar"
+version = "1.0-SNAPSHOT"
+
+compileJava {
+    options.encoding = "UTF-8"
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+checkstyle {
+    maxWarnings = 0
+    toolVersion = "8.45.1"
+    showViolations = true
+    ignoreFailures = false
+}
+
+def rlClientVersion = "1.12.33"
+
+task runClient(type: JavaExec, dependsOn: jar) {
+    group = "runelite"
+    description = "Launch RuneLite in developer mode with this plugin loaded"
+
+    def repoDir = file(rlRepoDir)
+    // Include all non-versioned JARs, then pin specific versions to avoid conflicts
+    // when multiple RuneLite versions coexist in repository2.
+    def versionedPrefix = ~/^(client|runelite-api|injected-client)-.+\.jar$/
+    def baseJars = fileTree(dir: repoDir, include: "*.jar").filter { !it.name.matches(versionedPrefix) }
+    classpath = baseJars + files(
+        new File(repoDir, "client-${rlClientVersion}.jar"),
+        new File(repoDir, "runelite-api-${rlClientVersion}-runtime.jar"),
+        new File(repoDir, "injected-client-${rlClientVersion}.jar"),
+        jar.archiveFile.get().asFile
+    )
+    mainClass = "net.runelite.client.RuneLite"
+    args "--developer-mode"
+    jvmArgs "-ea", "-Xmx512m", "-Xss2m"
+}
+
+task runPlugin(type: JavaExec) {
+    group = "runelite"
+    description = "Launch RuneLite with this plugin loaded via ExternalPluginManager, using the Maven-resolved client jar"
+
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "com.customhpbar.CustomHpBarPluginTest"
+    jvmArgs "-ea", "-Xmx512m", "-Xss2m"
+}

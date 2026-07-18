@@ -1,0 +1,26 @@
+# AI assistant / agent files - not meant for the public repo
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+AGENTS.local.md
+.claude/
+.cursorrules
+.windsurfrules
+
+# Gradle / build output
+build/
+.gradle/
+out/
+*.class
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Stray local scratch files
+compile_out.txt
