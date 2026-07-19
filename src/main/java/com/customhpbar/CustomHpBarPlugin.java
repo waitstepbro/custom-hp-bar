@@ -15,6 +15,7 @@ import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.client.callback.ClientThread;
@@ -146,6 +147,15 @@ public class CustomHpBarPlugin extends Plugin
 	/** Cached compiled filter patterns to avoid regex compilation on every tracking check. */
 	private String cachedFilterString = "";
 	private List<Pattern> cachedPatterns = new ArrayList<>();
+
+	/**
+	 * The actor targeted by the player's most recent actor-targeted menu click, and whether that
+	 * click was "Attack" specifically - see isGenuineAttackTarget()'s doc comment for why this
+	 * exists. Always just the single most recent click; naturally overwritten (not explicitly
+	 * cleared) by the next one, so a later real Attack click on the same actor un-suppresses it.
+	 */
+	private Actor pendingClickActor;
+	private boolean pendingClickIsAttack;
 
 	@Provides
 	CustomHpBarConfig provideConfig(ConfigManager configManager)
@@ -294,6 +304,41 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		Actor actor = event.getMenuEntry().getActor();
+		if (actor != null)
+		{
+			pendingClickActor = actor;
+			pendingClickIsAttack = "attack".equalsIgnoreCase(event.getMenuOption());
+		}
+	}
+
+	/**
+	 * Whether actor should be treated as a genuine attack target right now. getCombatLevel() > 0
+	 * excludes actors that can never be attacked at all (bankers, Quetzals, quest NPCs, etc.) -
+	 * see onInteractingChanged's original reasoning below - but it can't tell an actual Attack
+	 * click apart from any other menu option on an actor that *can* also be attacked. Reported
+	 * symptom: the target bar appearing from clicking Pickpocket on a Man, which has a positive
+	 * combat level (it's a real, if weak, combat target) despite the click having nothing to do
+	 * with combat. pendingClickActor/pendingClickIsAttack (set from the actual clicked menu
+	 * option in onMenuOptionClicked) catches this: if the most recent actor-targeted click was on
+	 * this exact actor and wasn't "Attack", that overrides the combat-level signal. This only
+	 * ever suppresses a click-driven false positive - it does nothing when the player never
+	 * clicked this actor at all (e.g. being aggroed and auto-retaliating), since pendingClickActor
+	 * wouldn't be this actor in that case, so that path still falls through to the combat-level
+	 * check unaffected.
+	 */
+	private boolean isGenuineAttackTarget(Actor actor)
+	{
+		if (actor.getCombatLevel() <= 0)
+		{
+			return false;
+		}
+		return actor != pendingClickActor || pendingClickIsAttack;
+	}
+
+	@Subscribe
 	public void onInteractingChanged(InteractingChanged event)
 	{
 		Actor source = event.getSource();
@@ -304,17 +349,13 @@ public class CustomHpBarPlugin extends Plugin
 		// target means the player actually started interacting with something.
 		//
 		// getInteracting() is also set by non-combat interactions - dialogue with an NPC,
-		// trading, following, or a transport NPC's own menu option (e.g. clicking "Travel" on a
-		// Quetzal) - which fire this exact same event with a non-null target, with nothing in
-		// the event itself distinguishing them from an actual attack. Reported symptom: the
-		// self bar appearing just from clicking Travel on a Quetzal, not from any combat at
-		// all. getCombatLevel() > 0 filters these out - the same signal core RuneLite's own
-		// InteractHighlight plugin uses for exactly this "was this an attack" distinction
-		// (confirmed in its source: `attacked = target != null && target.getCombatLevel() > 0`).
-		// Every non-combat NPC (Quetzal, bankers, quest NPCs, other transport NPCs, etc.) has
-		// combat level 0, so this excludes all of them while never excluding a real target -
-		// attackable NPCs and players always report a positive combat level.
-		if (source != client.getLocalPlayer() || target == null || target.getCombatLevel() <= 0)
+		// trading, following, pickpocketing, or a transport NPC's own menu option (e.g. clicking
+		// "Travel" on a Quetzal) - which fire this exact same event with a non-null target, with
+		// nothing in the event itself distinguishing them from an actual attack. isGenuineAttack
+		// Target() filters these out (see its doc comment) - both the "never attackable at all"
+		// case (Quetzal, bankers) and the "attackable, but this click wasn't Attack" case
+		// (Pickpocket on a Man).
+		if (source != client.getLocalPlayer() || target == null || !isGenuineAttackTarget(target))
 		{
 			return;
 		}
@@ -348,11 +389,12 @@ public class CustomHpBarPlugin extends Plugin
 		Actor localPlayer = client.getLocalPlayer();
 		if (localPlayer != null)
 		{
-			// Same non-combat-interaction exclusion as onInteractingChanged (see its comment) -
-			// this fallback would otherwise keep re-tracking a lingering interacting reference
-			// left over from a Quetzal/dialogue/etc. interaction on every subsequent tick.
+			// Same isGenuineAttackTarget() exclusion as onInteractingChanged (see its doc comment)
+			// - this fallback would otherwise keep re-tracking a lingering interacting reference
+			// left over from a Quetzal/Pickpocket/dialogue/etc. interaction on every subsequent
+			// tick, undoing onInteractingChanged's own suppression of exactly that click.
 			Actor interacting = localPlayer.getInteracting();
-			if (interacting != null && interacting.getCombatLevel() > 0
+			if (interacting != null && isGenuineAttackTarget(interacting)
 					&& isTrackedType(interacting) && !trackedActors.containsKey(interacting))
 			{
 				trackedActors.put(interacting, currentTick);
