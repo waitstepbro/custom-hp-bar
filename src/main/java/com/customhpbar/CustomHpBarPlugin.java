@@ -157,14 +157,7 @@ public class CustomHpBarPlugin extends Plugin
 	protected void startUp()
 	{
 		overlayManager.add(overlay);
-		if (config.hideNativeBar())
-		{
-			clientThread.invokeLater(() -> applySpriteOverride(NativeHealthBarSprites.ALL));
-		}
-		if (config.showPrayerBar())
-		{
-			clientThread.invokeLater(() -> applySpriteOverride(NativeHealthBarSprites.PRAYER));
-		}
+		clientThread.invokeLater(this::syncNativeBarOverrides);
 	}
 
 	@Override
@@ -175,7 +168,6 @@ public class CustomHpBarPlugin extends Plugin
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
-		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.PRAYER));
 	}
 
 	@Subscribe
@@ -186,31 +178,34 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		if ("hideNativeBar".equals(event.getKey()))
+		if ("hideNativeBar".equals(event.getKey()) || "showPrayerBar".equals(event.getKey()))
 		{
-			if (config.hideNativeBar())
-			{
-				clientThread.invokeLater(() -> applySpriteOverride(NativeHealthBarSprites.ALL));
-			}
-			else
-			{
-				clientThread.invokeLater(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
-			}
+			clientThread.invokeLater(this::syncNativeBarOverrides);
 		}
-		else if ("showPrayerBar".equals(event.getKey()))
+	}
+
+	/**
+	 * Recomputes the full native-sprite-override state from hideNativeBar and showPrayerBar
+	 * together, rather than each toggle independently adding/removing just its own sprite set.
+	 * NativeHealthBarSprites.ALL already includes PRAYER's sprites (which include SHIELD's), so
+	 * an earlier version where each toggle only touched its own array had a real bug: turning
+	 * showPrayerBar off while hideNativeBar stayed on removed the Prayer/Shield sprites from the
+	 * override map entirely, making the native prayer and shield bars reappear even though
+	 * hideNativeBar still wanted every native bar hidden (and the same bug in reverse for
+	 * toggling hideNativeBar off while showPrayerBar stayed on). Clearing everything first and
+	 * reapplying exactly what both flags currently want avoids that - one source of truth for
+	 * the whole override map instead of two toggles independently poking it.
+	 */
+	private void syncNativeBarOverrides()
+	{
+		removeSpriteOverride(NativeHealthBarSprites.ALL);
+		if (config.hideNativeBar())
 		{
-			// The native prayer bar is a separate purple-colored variant of the same overhead-
-			// bar system the HP bar uses, shown whenever prayer points change - independent of
-			// hideNativeBar, which is about the hitpoints-colored bars. Without this, enabling
-			// our own prayer bar still left the native one appearing on top of/next to it.
-			if (config.showPrayerBar())
-			{
-				clientThread.invokeLater(() -> applySpriteOverride(NativeHealthBarSprites.PRAYER));
-			}
-			else
-			{
-				clientThread.invokeLater(() -> removeSpriteOverride(NativeHealthBarSprites.PRAYER));
-			}
+			applySpriteOverride(NativeHealthBarSprites.ALL);
+		}
+		else if (config.showPrayerBar())
+		{
+			applySpriteOverride(NativeHealthBarSprites.PRAYER);
 		}
 	}
 
