@@ -30,6 +30,7 @@ import javax.inject.Inject;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -380,7 +381,6 @@ public class CustomHpBarPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		int currentTick = client.getTickCount();
-		int persistTicks = (int) Math.round(config.persistDuration() * (1000.0 / MS_PER_TICK));
 
 		// The local player (and whoever they're fighting) may need to start being tracked
 		// without a fresh HitsplatApplied/InteractingChanged event ever firing - e.g. "Show
@@ -424,11 +424,18 @@ public class CustomHpBarPlugin extends Plugin
 				trackedActors.put(actor, currentTick);
 				cacheHp(actor);
 			}
-			else if (currentTick - lastSeen > persistTicks)
+			else if (currentTick - lastSeen > persistTicks(actor))
 			{
 				evict(actor);
 			}
 		});
+	}
+
+	/** NPCs and players persist independently - see targetPersistDuration/playerPersistDuration's config descriptions. */
+	private int persistTicks(Actor actor)
+	{
+		int seconds = actor instanceof NPC ? config.targetPersistDuration() : config.playerPersistDuration();
+		return (int) Math.round(seconds * (1000.0 / MS_PER_TICK));
 	}
 
 	private void evict(Actor actor)
@@ -570,96 +577,153 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Ticks after a status-effect hitsplat that its color stays active for bar tinting, wherever
-	 * a hitsplat is the only signal available (see lastPoisonTick's doc comment) - i.e. how long
-	 * a cured/expired effect can keep showing its color before this catches up. Deliberately
-	 * shorter than PoisonPlugin.POISON_TICK_MILLIS (18200ms, the known player poison-tick cadence,
-	 * used as the initial estimate) - tightened to ~5s on request, trading a bit of flicker risk
-	 * (if an actual tick interval turns out longer than this) for less lag after the effect
-	 * really ends, since no confirmed NPC/Burn/Bleed tick cadence exists to tune against anyway.
+	 * Ticks after a Poison/Venom/Bleed hitsplat that its color/icon stays active for bar tinting,
+	 * wherever a hitsplat is the only signal available (see lastPoisonTick's doc comment) - i.e.
+	 * how long a cured/expired effect can keep showing before this catches up. Went through two
+	 * rounds of "still too quick" reports: originally matched PoisonPlugin.POISON_TICK_MILLIS
+	 * (18200ms, the known player poison-tick cadence) exactly, tightened to 8 ticks (~4.8s) on an
+	 * earlier request, then loosened to 15 ticks (~9s) as a middle ground when 8 proved too
+	 * aggressive - still not enough. Settled back on the original cadence-matched value (31
+	 * ticks, ~18.6s) rather than guessing at another intermediate number - it's the one value
+	 * here actually backed by a confirmed real interval, rather than picked by feel.
+	 *
+	 * Deliberately not used for Burn (see BURN_STATUS_TICKS) - Burn is a short, instantly-applied
+	 * DoT that only lasts a handful of ticks, nothing like Poison/Venom's long between-hit
+	 * cadence, so sharing this window meant Burn's indicator stayed lit far longer than the
+	 * effect actually did.
 	 */
-	private static final int STATUS_EFFECT_TICKS = 8;
+	private static final int STATUS_EFFECT_TICKS = 31;
+
+	/**
+	 * Ticks after a Burn hitsplat that its color/icon stays active - much shorter than
+	 * STATUS_EFFECT_TICKS since Burn applies instantly and only lasts a handful of ticks, not
+	 * Poison/Venom's long between-hit cadence.
+	 */
+	private static final int BURN_STATUS_TICKS = 10;
 
 	/** VarPlayerID.POISON value at and above which the player is envenomed rather than poisoned - matches PoisonPlugin's own VENOM_THRESHOLD. */
 	private static final int VENOM_THRESHOLD = 1_000_000;
 
+	enum StatusEffect
+	{
+		VENOM, POISON, BURN, BLEED
+	}
+
 	/**
-	 * Bar fill color for an actor currently affected by a status effect, or null if none applies
-	 * (or the relevant config toggle is off). Only NPCs and the local player are handled - other
-	 * players' status coloring wasn't asked for, so it's out of scope here (their poison/venom
-	 * varp isn't readable from this client anyway; only Burn/Bleed could work the same way NPCs
-	 * do, via hitsplats, if that's ever wanted).
+	 * Every status effect currently active for actor at once (or empty if none apply) - pure
+	 * detection, independent of whether the bar-tint or debuff-icon config toggles are on (each
+	 * consumer checks its own toggle before calling this, since the two are independently
+	 * configurable - see statusEffectColor and CustomHpBarOverlay's showStatusIcons). The single
+	 * source of truth both consumers build on, so they can never disagree about what's actually
+	 * active. An actor can genuinely have more than one at once (e.g. bled while envenomed),
+	 * which the icon row shows side by side - the bar tint can only show one color, so
+	 * currentStatusEffect() picks a single winner in venom > poison > burn > bleed priority from
+	 * this set. Only NPCs and the local player are handled - other players' status wasn't asked
+	 * for, so it's out of scope here (their poison/venom varp isn't readable from this client
+	 * anyway; only Burn/Bleed could work the same way NPCs do, via hitsplats, if that's ever
+	 * wanted).
 	 */
-	Color statusEffectColor(Actor actor)
+	Set<StatusEffect> activeStatusEffects(Actor actor)
 	{
 		int currentTick = client.getTickCount();
+		EnumSet<StatusEffect> active = EnumSet.noneOf(StatusEffect.class);
 
 		if (actor instanceof NPC)
 		{
-			if (!config.targetColorByStatusEffect())
-			{
-				return null;
-			}
-			return hitsplatStatusColor(actor, currentTick,
-				config.targetVenomColor(), config.targetPoisonColor(),
-				config.targetBurnColor(), config.targetBleedColor());
+			addIfActive(active, StatusEffect.VENOM, lastVenomTick.get(actor), currentTick);
+			addIfActive(active, StatusEffect.POISON, lastPoisonTick.get(actor), currentTick);
 		}
-
-		if (actor == client.getLocalPlayer())
+		else if (actor == client.getLocalPlayer())
 		{
-			if (!config.selfColorByStatusEffect())
-			{
-				return null;
-			}
-
 			// Poison/Venom have an exact signal for the local player - prefer it over the
-			// hitsplat heuristic used for every other case in this method.
+			// hitsplat heuristic used everywhere else in this method. Mutually exclusive by
+			// construction (the varp can't be both at once), unlike Burn/Bleed below.
 			int poison = client.getVarpValue(VarPlayerID.POISON);
 			if (poison >= VENOM_THRESHOLD)
 			{
-				return config.selfVenomColor();
+				active.add(StatusEffect.VENOM);
 			}
-			if (poison > 0)
+			else if (poison > 0)
 			{
-				return config.selfPoisonColor();
+				active.add(StatusEffect.POISON);
 			}
-
-			return hitsplatStatusColor(actor, currentTick, null, null, config.selfBurnColor(), config.selfBleedColor());
+		}
+		else
+		{
+			return active;
 		}
 
+		addIfActive(active, StatusEffect.BURN, lastBurnTick.get(actor), currentTick);
+		addIfActive(active, StatusEffect.BLEED, lastBleedTick.get(actor), currentTick);
+		return active;
+	}
+
+	private static void addIfActive(EnumSet<StatusEffect> active, StatusEffect effect, Integer lastTick, int currentTick)
+	{
+		int window = effect == StatusEffect.BURN ? BURN_STATUS_TICKS : STATUS_EFFECT_TICKS;
+		if (withinStatusWindow(lastTick, currentTick, window))
+		{
+			active.add(effect);
+		}
+	}
+
+	private static boolean withinStatusWindow(Integer lastTick, int currentTick, int windowTicks)
+	{
+		return lastTick != null && currentTick - lastTick <= windowTicks;
+	}
+
+	/**
+	 * The single highest-priority effect from activeStatusEffects (venom > poison > burn >
+	 * bleed), for the bar tint - which can only show one color, unlike the icon row. StatusEffect
+	 * is declared in exactly this priority order, so values() already iterates it correctly.
+	 */
+	private StatusEffect currentStatusEffect(Actor actor)
+	{
+		Set<StatusEffect> active = activeStatusEffects(actor);
+		for (StatusEffect effect : StatusEffect.values())
+		{
+			if (active.contains(effect))
+			{
+				return effect;
+			}
+		}
 		return null;
 	}
 
 	/**
-	 * Checks the four status hitsplat maps in venom/poison/burn/bleed priority order, returning
-	 * the first one still within STATUS_EFFECT_TICKS of its last hitsplat. Passing null for a
-	 * color skips that check entirely (used to let the local player's exact poison/venom signal
-	 * take priority without this method needing to know why).
+	 * Bar fill color for an actor's current status effect (see currentStatusEffect), or null if
+	 * none applies or the relevant Color By Status Effect toggle is off. That toggle only gates
+	 * the tint - CustomHpBarOverlay's own showStatusIcons() gates the debuff icon row separately,
+	 * since the two were split into independent toggles at the user's request.
 	 */
-	private Color hitsplatStatusColor(Actor actor, int currentTick, Color venomColor, Color poisonColor, Color burnColor, Color bleedColor)
+	Color statusEffectColor(Actor actor)
 	{
-		if (venomColor != null && withinStatusWindow(lastVenomTick.get(actor), currentTick))
+		boolean self = actor == client.getLocalPlayer();
+		boolean tintEnabled = actor instanceof NPC ? config.targetColorByStatusEffect() : self && config.selfColorByStatusEffect();
+		if (!tintEnabled)
 		{
-			return venomColor;
+			return null;
 		}
-		if (poisonColor != null && withinStatusWindow(lastPoisonTick.get(actor), currentTick))
-		{
-			return poisonColor;
-		}
-		if (burnColor != null && withinStatusWindow(lastBurnTick.get(actor), currentTick))
-		{
-			return burnColor;
-		}
-		if (bleedColor != null && withinStatusWindow(lastBleedTick.get(actor), currentTick))
-		{
-			return bleedColor;
-		}
-		return null;
-	}
 
-	private static boolean withinStatusWindow(Integer lastTick, int currentTick)
-	{
-		return lastTick != null && currentTick - lastTick <= STATUS_EFFECT_TICKS;
+		StatusEffect effect = currentStatusEffect(actor);
+		if (effect == null)
+		{
+			return null;
+		}
+
+		switch (effect)
+		{
+			case VENOM:
+				return self ? config.selfVenomColor() : config.targetVenomColor();
+			case POISON:
+				return self ? config.selfPoisonColor() : config.targetPoisonColor();
+			case BURN:
+				return self ? config.selfBurnColor() : config.targetBurnColor();
+			case BLEED:
+				return self ? config.selfBleedColor() : config.targetBleedColor();
+			default:
+				return null;
+		}
 	}
 
 	/**

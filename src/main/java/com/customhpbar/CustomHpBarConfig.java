@@ -291,11 +291,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "targetShowStatusIcon",
+		name = "Show Status Icon",
+		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, or burning.",
+		section = TARGET_SECTION,
+		position = 20
+	)
+	default boolean targetShowStatusIcon()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "targetPoisonColor",
 		name = "Poison Color",
 		description = "Bar fill color while poisoned.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 21
 	)
 	default Color targetPoisonColor()
 	{
@@ -307,7 +319,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Venom Color",
 		description = "Bar fill color while envenomed - a dark teal, not plain green.",
 		section = TARGET_SECTION,
-		position = 21
+		position = 22
 	)
 	default Color targetVenomColor()
 	{
@@ -319,7 +331,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Burn Color",
 		description = "Bar fill color while burning.",
 		section = TARGET_SECTION,
-		position = 22
+		position = 23
 	)
 	default Color targetBurnColor()
 	{
@@ -331,11 +343,25 @@ public interface CustomHpBarConfig extends Config
 		name = "Bleed Color",
 		description = "Bar fill color while bleeding.",
 		section = TARGET_SECTION,
-		position = 23
+		position = 24
 	)
 	default Color targetBleedColor()
 	{
 		return new Color(200, 0, 0);
+	}
+
+	@ConfigItem(
+		keyName = "targetPersistDuration",
+		name = "Persist Duration (seconds)",
+		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
+			"(0 = hide immediately).",
+		section = TARGET_SECTION,
+		position = 25
+	)
+	@Range(min = 0, max = 300)
+	default int targetPersistDuration()
+	{
+		return 5;
 	}
 
 	// ==================== Player bar (self + other players) ====================
@@ -589,11 +615,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "selfShowStatusIcon",
+		name = "Show Status Icon",
+		description = "Shows a debuff icon beneath your bar while poisoned, envenomed, or burning. Requires " +
+			"'Show for Self'.",
+		section = PLAYER_SECTION,
+		position = 20
+	)
+	default boolean selfShowStatusIcon()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "selfPoisonColor",
 		name = "Poison Color",
 		description = "Bar fill color while poisoned.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 21
 	)
 	default Color selfPoisonColor()
 	{
@@ -605,7 +644,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Venom Color",
 		description = "Bar fill color while envenomed - a dark teal, not plain green.",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 22
 	)
 	default Color selfVenomColor()
 	{
@@ -617,7 +656,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Burn Color",
 		description = "Bar fill color while burning.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 23
 	)
 	default Color selfBurnColor()
 	{
@@ -629,11 +668,25 @@ public interface CustomHpBarConfig extends Config
 		name = "Bleed Color",
 		description = "Bar fill color while bleeding.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 24
 	)
 	default Color selfBleedColor()
 	{
 		return new Color(200, 0, 0);
+	}
+
+	@ConfigItem(
+		keyName = "playerPersistDuration",
+		name = "Persist Duration (seconds)",
+		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
+			"(0 = hide immediately).",
+		section = PLAYER_SECTION,
+		position = 25
+	)
+	@Range(min = 0, max = 300)
+	default int playerPersistDuration()
+	{
+		return 5;
 	}
 
 	// ==================== Shared behavior ====================
@@ -652,25 +705,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "persistDuration",
-		name = "Persist Duration (seconds)",
-		description = "How long a bar keeps showing the last known HP after the native bar fades (0 = hide " +
-			"immediately).",
-		section = BEHAVIOR_SECTION,
-		position = 1
-	)
-	@Range(min = 0, max = 300)
-	default int persistDuration()
-	{
-		return 5;
-	}
-
-	@ConfigItem(
 		keyName = "hideNativeBar",
 		name = "Hide Native Health Bar",
 		description = "Hides the game's built-in health bar for every actor, not just filtered NPCs.",
 		section = BEHAVIOR_SECTION,
-		position = 2
+		position = 1
 	)
 	default boolean hideNativeBar()
 	{

@@ -8,6 +8,8 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
+import net.runelite.api.gameval.SpriteID;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -28,7 +30,9 @@ import java.awt.Stroke;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextLayout;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.util.Map;
+import java.util.Set;
 
 class CustomHpBarOverlay extends Overlay
 {
@@ -51,6 +55,7 @@ class CustomHpBarOverlay extends Overlay
 	private final CustomHpBarPlugin plugin;
 	private final CustomHpBarConfig config;
 	private final Client client;
+	private final SpriteManager spriteManager;
 
 	/**
 	 * Camera zoom (Client.getScale()) observed the first time we render, used as the "1.0x"
@@ -62,12 +67,25 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private int baselineZoom = -1;
 
+	/**
+	 * The real Poison/Venom/Burn hitsplat sprites, loaded live from the running client via
+	 * SpriteManager - not bundled copies of the wiki's images, which would mean shipping a copy
+	 * of Jagex's own assets in this plugin's resources. SpriteManager.getSprite() reads from its
+	 * own cache and returns null until the sprite has actually loaded; getSpriteAsync() below
+	 * populates that cache in the background. Cached into these fields too once loaded so repeat
+	 * frames don't need to go back through SpriteManager's own cache lookup at all.
+	 */
+	private BufferedImage poisonIcon;
+	private BufferedImage venomIcon;
+	private BufferedImage burnIcon;
+
 	@Inject
-	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client)
+	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager)
 	{
 		this.plugin = plugin;
 		this.config = config;
 		this.client = client;
+		this.spriteManager = spriteManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.UNDER_WIDGETS);
 	}
@@ -327,11 +345,21 @@ class CustomHpBarOverlay extends Overlay
 			drawLabel(g, style, label, x, y, w, h, zoom, style.textColor);
 		}
 
+		int bottomY = y + h;
 		if (actor == client.getLocalPlayer() && config.showPrayerBar())
 		{
 			// Flush against the bottom edge of the HP bar, same width/style - "mirrors" the
 			// Player Bar profile per the request, rather than getting its own size/shape config.
-			drawPrayerBar(g, style, x, y + h, w, h, border, arc, zoom);
+			drawPrayerBar(g, style, x, bottomY, w, h, border, arc, zoom);
+			bottomY += h;
+		}
+
+		if (showStatusIcons(actor))
+		{
+			// Below whichever bar is currently lowest (HP bar, or the prayer bar beneath it for
+			// the local player) rather than always at the HP bar's own edge, so it doesn't
+			// overlap the prayer bar when both are showing.
+			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
 		}
 
 		// When "Always Show" is on, the dedicated pass in render() is the sole source of NPC
@@ -341,6 +369,130 @@ class CustomHpBarOverlay extends Overlay
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
 		}
+	}
+
+	/**
+	 * Whether the debuff icon row should draw at all for actor - independent of Color By Status
+	 * Effect, per the request to split the two into separate toggles rather than one gating both.
+	 */
+	private boolean showStatusIcons(Actor actor)
+	{
+		if (actor instanceof NPC)
+		{
+			return config.targetShowStatusIcon();
+		}
+		if (actor == client.getLocalPlayer())
+		{
+			return config.selfShowStatusIcon();
+		}
+		return false;
+	}
+
+	/**
+	 * Draws one debuff badge per currently active status effect, left to right starting at the
+	 * bar's left edge and flush against its bottom edge, each one bar-height wide - so e.g. Venom
+	 * and Bleed active at once show as two adjacent icons instead of overlapping. Iterates
+	 * StatusEffect.values() (declared in venom/poison/burn/bleed order) so the left-to-right
+	 * order is always consistent regardless of which effects happen to be active. Effects without
+	 * a wired-up icon (Bleed currently) are silently skipped, and don't reserve any space - only
+	 * effects that actually draw something advance iconX. Uses whatever's currently cached from
+	 * SpriteManager for each icon - silently skips one that hasn't loaded yet.
+	 */
+	private void drawStatusIcons(Graphics2D g, Set<CustomHpBarPlugin.StatusEffect> effects, int x, int bottomY, int size)
+	{
+		if (effects.isEmpty() || size <= 0)
+		{
+			return;
+		}
+
+		int iconX = x;
+		for (CustomHpBarPlugin.StatusEffect effect : CustomHpBarPlugin.StatusEffect.values())
+		{
+			if (!effects.contains(effect))
+			{
+				continue;
+			}
+			BufferedImage icon = statusIcon(effect);
+			if (icon == null)
+			{
+				continue;
+			}
+			g.drawImage(icon, iconX, bottomY, size, size, null);
+			iconX += size;
+		}
+	}
+
+	/**
+	 * Maps a status effect to its debuff icon, or null if it doesn't have one (or none is
+	 * active). Poison, Venom, and Burn are wired up - SpriteID.Hitmark has real, confirmed
+	 * sprite IDs for all three. Bleed doesn't: of Hitmark's 54 total sprite IDs, only 7 have a
+	 * RuneLite-confirmed name, and Bleed isn't one of them - the other ~47 are unnamed `_N`
+	 * entries with no verified meaning, not something to guess-assign without visually
+	 * confirming one in-game first.
+	 */
+	private BufferedImage statusIcon(CustomHpBarPlugin.StatusEffect effect)
+	{
+		if (effect == CustomHpBarPlugin.StatusEffect.POISON)
+		{
+			return poisonIcon();
+		}
+		if (effect == CustomHpBarPlugin.StatusEffect.VENOM)
+		{
+			return venomIcon();
+		}
+		if (effect == CustomHpBarPlugin.StatusEffect.BURN)
+		{
+			return burnIcon();
+		}
+		return null;
+	}
+
+	private BufferedImage poisonIcon()
+	{
+		if (poisonIcon != null)
+		{
+			return poisonIcon;
+		}
+		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.HITSPLAT_GREEN_POISON, 0);
+		if (cached != null)
+		{
+			poisonIcon = cached;
+			return poisonIcon;
+		}
+		spriteManager.getSpriteAsync(SpriteID.Hitmark.HITSPLAT_GREEN_POISON, 0, loaded -> poisonIcon = loaded);
+		return null;
+	}
+
+	private BufferedImage venomIcon()
+	{
+		if (venomIcon != null)
+		{
+			return venomIcon;
+		}
+		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.HITSPLAT_DARK_GREEN_VENOM, 0);
+		if (cached != null)
+		{
+			venomIcon = cached;
+			return venomIcon;
+		}
+		spriteManager.getSpriteAsync(SpriteID.Hitmark.HITSPLAT_DARK_GREEN_VENOM, 0, loaded -> venomIcon = loaded);
+		return null;
+	}
+
+	private BufferedImage burnIcon()
+	{
+		if (burnIcon != null)
+		{
+			return burnIcon;
+		}
+		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.BURN_DAMAGE, 0);
+		if (cached != null)
+		{
+			burnIcon = cached;
+			return burnIcon;
+		}
+		spriteManager.getSpriteAsync(SpriteID.Hitmark.BURN_DAMAGE, 0, loaded -> burnIcon = loaded);
+		return null;
 	}
 
 	private void drawPrayerBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)

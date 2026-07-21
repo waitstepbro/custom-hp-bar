@@ -16,13 +16,15 @@ tracking, and status-effect coloring for poison/venom/burn/bleed.
   burning, or bleeding, the same idea as the native HP orb changing appearance. Colors are
   sampled from the actual hitsplat sprites on the OSRS Wiki, not guessed. Your own poison/venom
   state is read exactly (no guessing); everything else is inferred from recent hitsplats.
+- **Debuff icons** - the real Poison/Venom/Burn hitsplat icons, loaded live from the game itself,
+  shown side by side beneath the bar when multiple effects are active at once.
 - **NPC names** above the bar, optionally shown at all times rather than only during combat.
 - **Prayer Bar** - a second bar for your own Prayer points, anchored beneath your HP bar.
 - **Hide the native health bar** entirely (sprite-level override), so only this plugin's bar
   shows.
 - **Zoom scaling** - bars and text grow/shrink with camera zoom, matching the actor model.
 - **Persist duration** - keep showing a bar for a configurable time after the native bar would
-  have faded (e.g. after combat ends).
+  have faded (e.g. after combat ends), set independently for NPCs and players.
 - **NPC filter** - blacklist specific NPCs by name (wildcards supported) so their bar never
   shows.
 
@@ -30,11 +32,11 @@ tracking, and status-effect coloring for poison/venom/burn/bleed.
 
 Settings are grouped into four sections in the plugin's config panel:
 
-- **Target Bar (NPCs)** - size/shape/color/font for the NPC bar, NPC name display, and
-  poison/venom/burn/bleed colors.
+- **Target Bar (NPCs)** - size/shape/color/font for the NPC bar, persist duration, NPC name
+  display, and poison/venom/burn/bleed colors.
 - **Player Bar (You & Others)** - same styling options for the bar drawn over players, plus
   self-only extras: Prayer Bar and status effect colors.
-- **Behavior** - zoom scaling, persist duration, and hiding the native bar.
+- **Behavior** - zoom scaling and hiding the native bar.
 - **NPC Filter** - the blacklist of NPC names to never show a bar for.
 
 Every option has an in-app description - open the plugin's config panel for specifics.
