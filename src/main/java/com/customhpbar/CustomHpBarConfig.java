@@ -281,7 +281,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
-		description = "Tints the bar while poisoned, envenomed, burning, or bleeding.",
+		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_SECTION,
 		position = 19
 	)
@@ -293,7 +293,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetShowStatusIcon",
 		name = "Show Status Icon",
-		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, or burning.",
+		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
+			"or corrupted.",
 		section = TARGET_SECTION,
 		position = 20
 	)
@@ -303,60 +304,12 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetPoisonColor",
-		name = "Poison Color",
-		description = "Bar fill color while poisoned.",
-		section = TARGET_SECTION,
-		position = 21
-	)
-	default Color targetPoisonColor()
-	{
-		return new Color(0, 176, 0);
-	}
-
-	@ConfigItem(
-		keyName = "targetVenomColor",
-		name = "Venom Color",
-		description = "Bar fill color while envenomed - a dark teal, not plain green.",
-		section = TARGET_SECTION,
-		position = 22
-	)
-	default Color targetVenomColor()
-	{
-		return new Color(48, 112, 95);
-	}
-
-	@ConfigItem(
-		keyName = "targetBurnColor",
-		name = "Burn Color",
-		description = "Bar fill color while burning.",
-		section = TARGET_SECTION,
-		position = 23
-	)
-	default Color targetBurnColor()
-	{
-		return new Color(215, 85, 0);
-	}
-
-	@ConfigItem(
-		keyName = "targetBleedColor",
-		name = "Bleed Color",
-		description = "Bar fill color while bleeding.",
-		section = TARGET_SECTION,
-		position = 24
-	)
-	default Color targetBleedColor()
-	{
-		return new Color(200, 0, 0);
-	}
-
-	@ConfigItem(
 		keyName = "targetPersistDuration",
 		name = "Persist Duration (seconds)",
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_SECTION,
-		position = 25
+		position = 21
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -605,7 +558,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
-		description = "Tints your bar while poisoned, envenomed, burning, or bleeding. Requires 'Show for Self'.",
+		description = "Tints a player's bar (yours or others') while poisoned, envenomed, burning, diseased, " +
+			"or corrupted - plus bleeding, for your own bar only.",
 		section = PLAYER_SECTION,
 		position = 19
 	)
@@ -617,8 +571,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfShowStatusIcon",
 		name = "Show Status Icon",
-		description = "Shows a debuff icon beneath your bar while poisoned, envenomed, or burning. Requires " +
-			"'Show for Self'.",
+		description = "Shows a debuff icon beneath a player's bar (yours or others') while poisoned, " +
+			"envenomed, burning, diseased, or corrupted.",
 		section = PLAYER_SECTION,
 		position = 20
 	)
@@ -628,60 +582,12 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "selfPoisonColor",
-		name = "Poison Color",
-		description = "Bar fill color while poisoned.",
-		section = PLAYER_SECTION,
-		position = 21
-	)
-	default Color selfPoisonColor()
-	{
-		return new Color(0, 145, 0);
-	}
-
-	@ConfigItem(
-		keyName = "selfVenomColor",
-		name = "Venom Color",
-		description = "Bar fill color while envenomed - a dark teal, not plain green.",
-		section = PLAYER_SECTION,
-		position = 22
-	)
-	default Color selfVenomColor()
-	{
-		return new Color(48, 112, 95);
-	}
-
-	@ConfigItem(
-		keyName = "selfBurnColor",
-		name = "Burn Color",
-		description = "Bar fill color while burning.",
-		section = PLAYER_SECTION,
-		position = 23
-	)
-	default Color selfBurnColor()
-	{
-		return new Color(215, 85, 0);
-	}
-
-	@ConfigItem(
-		keyName = "selfBleedColor",
-		name = "Bleed Color",
-		description = "Bar fill color while bleeding.",
-		section = PLAYER_SECTION,
-		position = 24
-	)
-	default Color selfBleedColor()
-	{
-		return new Color(200, 0, 0);
-	}
-
-	@ConfigItem(
 		keyName = "playerPersistDuration",
 		name = "Persist Duration (seconds)",
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_SECTION,
-		position = 25
+		position = 21
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()

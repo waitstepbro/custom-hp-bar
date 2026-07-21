@@ -16,6 +16,7 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.util.Text;
 
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -31,6 +32,8 @@ import java.awt.font.FontRenderContext;
 import java.awt.font.TextLayout;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
 
@@ -69,15 +72,24 @@ class CustomHpBarOverlay extends Overlay
 
 	/**
 	 * The real Poison/Venom/Burn hitsplat sprites, loaded live from the running client via
-	 * SpriteManager - not bundled copies of the wiki's images, which would mean shipping a copy
-	 * of Jagex's own assets in this plugin's resources. SpriteManager.getSprite() reads from its
-	 * own cache and returns null until the sprite has actually loaded; getSpriteAsync() below
+	 * SpriteManager rather than bundled as plugin resources. SpriteManager.getSprite() reads from
+	 * its own cache and returns null until the sprite has actually loaded; getSpriteAsync() below
 	 * populates that cache in the background. Cached into these fields too once loaded so repeat
 	 * frames don't need to go back through SpriteManager's own cache lookup at all.
 	 */
 	private BufferedImage poisonIcon;
 	private BufferedImage venomIcon;
 	private BufferedImage burnIcon;
+
+	/**
+	 * Disease/Corruption debuff icons - unlike Poison/Venom/Burn above, these have no confirmed
+	 * SpriteID.Hitmark entry to load live via SpriteManager, so they're bundled resource images
+	 * instead (downloaded from the OSRS Wiki's Disease/Corruption hitsplat pages, at the user's
+	 * explicit request after the SpriteManager-only approach was raised as a concern). Loaded
+	 * once via loadBundledIcon() and cached the same way as the SpriteManager-backed icons.
+	 */
+	private BufferedImage diseaseIcon;
+	private BufferedImage corruptionIcon;
 
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager)
@@ -374,6 +386,8 @@ class CustomHpBarOverlay extends Overlay
 	/**
 	 * Whether the debuff icon row should draw at all for actor - independent of Color By Status
 	 * Effect, per the request to split the two into separate toggles rather than one gating both.
+	 * By actor *type* (any Player vs. NPC), not "is this literally me" - other players share the
+	 * Player Bar profile's toggle, same as they share its styling (see resolveStyle()).
 	 */
 	private boolean showStatusIcons(Actor actor)
 	{
@@ -381,7 +395,7 @@ class CustomHpBarOverlay extends Overlay
 		{
 			return config.targetShowStatusIcon();
 		}
-		if (actor == client.getLocalPlayer())
+		if (actor instanceof Player)
 		{
 			return config.selfShowStatusIcon();
 		}
@@ -424,27 +438,30 @@ class CustomHpBarOverlay extends Overlay
 
 	/**
 	 * Maps a status effect to its debuff icon, or null if it doesn't have one (or none is
-	 * active). Poison, Venom, and Burn are wired up - SpriteID.Hitmark has real, confirmed
-	 * sprite IDs for all three. Bleed doesn't: of Hitmark's 54 total sprite IDs, only 7 have a
-	 * RuneLite-confirmed name, and Bleed isn't one of them - the other ~47 are unnamed `_N`
-	 * entries with no verified meaning, not something to guess-assign without visually
-	 * confirming one in-game first.
+	 * active). Poison/Venom/Burn load live via SpriteManager (real, confirmed SpriteID.Hitmark
+	 * entries exist for all three); Disease/Corruption use bundled resource images instead, since
+	 * no such sprite ID exists for either. Bleed has neither: of Hitmark's 54 total sprite IDs,
+	 * only 7 have a RuneLite-confirmed name, and Bleed isn't one of them - the other ~47 are
+	 * unnamed `_N` entries with no verified meaning, not something to guess-assign without
+	 * visually confirming one in-game first, and no bundled image was requested for it either.
 	 */
 	private BufferedImage statusIcon(CustomHpBarPlugin.StatusEffect effect)
 	{
-		if (effect == CustomHpBarPlugin.StatusEffect.POISON)
+		switch (effect)
 		{
-			return poisonIcon();
+			case POISON:
+				return poisonIcon();
+			case VENOM:
+				return venomIcon();
+			case BURN:
+				return burnIcon();
+			case DISEASE:
+				return diseaseIcon();
+			case CORRUPTION:
+				return corruptionIcon();
+			default:
+				return null;
 		}
-		if (effect == CustomHpBarPlugin.StatusEffect.VENOM)
-		{
-			return venomIcon();
-		}
-		if (effect == CustomHpBarPlugin.StatusEffect.BURN)
-		{
-			return burnIcon();
-		}
-		return null;
 	}
 
 	private BufferedImage poisonIcon()
@@ -493,6 +510,43 @@ class CustomHpBarOverlay extends Overlay
 		}
 		spriteManager.getSpriteAsync(SpriteID.Hitmark.BURN_DAMAGE, 0, loaded -> burnIcon = loaded);
 		return null;
+	}
+
+	private BufferedImage diseaseIcon()
+	{
+		if (diseaseIcon == null)
+		{
+			diseaseIcon = loadBundledIcon("disease_hitsplat.png");
+		}
+		return diseaseIcon;
+	}
+
+	private BufferedImage corruptionIcon()
+	{
+		if (corruptionIcon == null)
+		{
+			corruptionIcon = loadBundledIcon("corruption_hitsplat.png");
+		}
+		return corruptionIcon;
+	}
+
+	/**
+	 * Loads a debuff icon bundled as a plugin resource (src/main/resources/com/customhpbar/) -
+	 * used only for effects with no confirmed live SpriteID to load via SpriteManager instead
+	 * (see poisonIcon()/venomIcon()/burnIcon() for the preferred approach). Returns null on any
+	 * failure (missing resource, corrupt file) rather than throwing - a missing debuff icon just
+	 * means that badge doesn't draw, not a reason to break the whole overlay.
+	 */
+	private static BufferedImage loadBundledIcon(String resourceName)
+	{
+		try (InputStream in = CustomHpBarOverlay.class.getResourceAsStream(resourceName))
+		{
+			return in != null ? ImageIO.read(in) : null;
+		}
+		catch (IOException e)
+		{
+			return null;
+		}
 	}
 
 	private void drawPrayerBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)

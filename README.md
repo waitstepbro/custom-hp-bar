@@ -2,41 +2,46 @@
 
 A RuneLite plugin that replaces the native health bar with a fully custom overlay - HP numbers
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
-tracking, and status-effect coloring for poison/venom/burn/bleed.
+tracking, and status-effect debuffs.
 
 ## Features
 
-- **Custom HP bars** for NPCs (Target Bar) and players (Player Bar), each with independent
-  width/height/corners/border/colors/font/text settings.
-- **Precise NPC HP**, not the native bar's coarse ratio/scale bucket. Tracked by accumulating
-  hitsplat damage against a known max HP (bundled dataset, ~4,000 NPCs, sourced from the OSRS
-  Wiki), self-correcting against the native ratio if it ever drifts. NPCs not in the dataset
-  (max HP unknown) show a percentage instead of a number, regardless of Display Mode.
-- **Status effect coloring** - the bar tints while an NPC (or you) is poisoned, envenomed,
-  burning, or bleeding, the same idea as the native HP orb changing appearance. Colors are
-  sampled from the actual hitsplat sprites on the OSRS Wiki, not guessed. Your own poison/venom
-  state is read exactly (no guessing); everything else is inferred from recent hitsplats.
-- **Debuff icons** - the real Poison/Venom/Burn hitsplat icons, loaded live from the game itself,
-  shown side by side beneath the bar when multiple effects are active at once.
-- **NPC names** above the bar, optionally shown at all times rather than only during combat.
-- **Prayer Bar** - a second bar for your own Prayer points, anchored beneath your HP bar.
+- **Custom HP bars** for NPCs and players, styled completely independently (size, shape, color,
+  font, text).
+- **Precise NPC HP**, not the native bar's coarse ratio/scale bucket - tracked from hitsplat
+  damage against a bundled ~4,000-NPC max-HP dataset, self-correcting if it ever drifts. Falls
+  back to percentage for NPCs not in the dataset.
+- **Status effects** - the bar tints and shows a debuff icon while poisoned, envenomed, burning,
+  diseased, or corrupted (NPCs, players, and other players alike), plus bleeding on your own bar
+  only (Bleed doesn't affect NPCs in OSRS). Colors and icons are sourced from the actual hitsplat
+  sprites, not guessed, and aren't user-configurable. Multiple effects at once show side by side.
+- **NPC names** above the bar, optionally shown at all times rather than only during combat -
+  automatically excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets).
+- **Prayer Bar** for your own Prayer points, anchored beneath your HP bar.
 - **Hide the native health bar** entirely (sprite-level override), so only this plugin's bar
   shows.
-- **Zoom scaling** - bars and text grow/shrink with camera zoom, matching the actor model.
-- **Persist duration** - keep showing a bar for a configurable time after the native bar would
-  have faded (e.g. after combat ends), set independently for NPCs and players.
-- **NPC filter** - blacklist specific NPCs by name (wildcards supported) so their bar never
-  shows.
+- **Zoom scaling**, independent **persist duration** for NPCs vs. players, and an **NPC filter**
+  blacklist (wildcards supported).
 
 ## Configuration
 
-Settings are grouped into four sections in the plugin's config panel:
+Four sections in the plugin's config panel. Every option has its own in-app description - this
+is just an index of what's there.
 
-- **Target Bar (NPCs)** - size/shape/color/font for the NPC bar, persist duration, NPC name
-  display, and poison/venom/burn/bleed colors.
-- **Player Bar (You & Others)** - same styling options for the bar drawn over players, plus
-  self-only extras: Prayer Bar and status effect colors.
-- **Behavior** - zoom scaling and hiding the native bar.
-- **NPC Filter** - the blacklist of NPC names to never show a bar for.
+**Target Bar (NPCs)**
+Display Mode · Bar Width/Height · Corner Radius · Border Width/Color · Bar/Background Color ·
+Vertical Offset · Font/Style/Size · Text Color/Outline/Nudge · Show NPC Name · Always Show NPC
+Name · Only Show Combat NPC Names · NPC Name Color · Color By Status Effect · Show Status Icon ·
+Persist Duration
 
-Every option has an in-app description - open the plugin's config panel for specifics.
+**Player Bar (You & Others)**
+Show for Self/Other Players · Display Mode (self and other players independently) · Bar
+Width/Height · Corner Radius · Border Width/Color · Bar/Background Color · Vertical Offset ·
+Font/Style/Size · Text Color/Outline/Nudge · Show Prayer Bar · Color By Status Effect (applies to
+other players too) · Show Status Icon · Persist Duration
+
+**Behavior**
+Scale With Zoom · Hide Native Health Bar
+
+**NPC Filter**
+Comma-separated NPC names to hide, supports `*` wildcards (e.g. `skele*`)

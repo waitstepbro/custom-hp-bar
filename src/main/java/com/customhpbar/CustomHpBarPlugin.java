@@ -52,10 +52,16 @@ public class CustomHpBarPlugin extends Plugin
 	/**
 	 * Hitsplat types that represent actual HP damage, for precise HP tracking. Deliberately
 	 * conservative - excludes hitsplat types whose target resource isn't confirmed to be HP
-	 * (PRAYER_DRAIN, SANITY_DRAIN/RESTORE, CYAN_UP/DOWN, CORRUPTION, DOOM). Missing a real
-	 * damage type here just means an occasional recalibration snap next ratio update (see
-	 * updatePreciseHp) rather than silently wrong numbers, so being conservative is the safe
-	 * direction to be wrong in.
+	 * (PRAYER_DRAIN, SANITY_DRAIN/RESTORE, CYAN_UP/DOWN, DOOM). Missing a real damage type here
+	 * just means an occasional recalibration snap next ratio update (see updatePreciseHp) rather
+	 * than silently wrong numbers, so being conservative is the safe direction to be wrong in.
+	 *
+	 * DISEASE/DISEASE_BLOCKED and CORRUPTION are deliberately NOT here, unlike an earlier version
+	 * of this set - per the OSRS Wiki's Hitsplat page, Disease "drains a player's stats...
+	 * excluding Hitpoints" and Corruption "drains prayer points," neither actually costs HP, so
+	 * treating them as damage would have applyHitsplatDamage() incorrectly subtract from an NPC's
+	 * tracked precise HP for something that never touched it. They're still tracked for status-
+	 * effect purposes via STATUS_ONLY_HITSPLATS below, just not treated as damage.
 	 */
 	private static final Set<Integer> DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
 		HitsplatID.DAMAGE_ME, HitsplatID.DAMAGE_OTHER,
@@ -66,8 +72,20 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.DAMAGE_MAX_ME, HitsplatID.DAMAGE_MAX_ME_CYAN,
 		HitsplatID.DAMAGE_MAX_ME_ORANGE, HitsplatID.DAMAGE_MAX_ME_YELLOW, HitsplatID.DAMAGE_MAX_ME_WHITE,
 		HitsplatID.DAMAGE_ME_POISE, HitsplatID.DAMAGE_OTHER_POISE, HitsplatID.DAMAGE_MAX_ME_POISE,
-		HitsplatID.POISON, HitsplatID.VENOM, HitsplatID.DISEASE, HitsplatID.DISEASE_BLOCKED,
-		HitsplatID.BURN, HitsplatID.BLEED, HitsplatID.BLOCK_ME, HitsplatID.BLOCK_OTHER
+		HitsplatID.POISON, HitsplatID.VENOM, HitsplatID.BURN, HitsplatID.BLEED,
+		HitsplatID.BLOCK_ME, HitsplatID.BLOCK_OTHER
+	));
+
+	/**
+	 * Hitsplats relevant for status-effect tracking (see trackStatusEffect) but that don't
+	 * represent HP damage, so they're excluded from DAMAGE_HITSPLATS above - kept as a separate
+	 * set rather than just added to DAMAGE_HITSPLATS so isTrackableHitsplat() can still admit
+	 * them without applyHitsplatDamage() treating them as damage. DISEASE_BLOCKED isn't included
+	 * here - it means a disease application was prevented, the opposite of actually being
+	 * diseased, so it shouldn't feed lastDiseaseTick at all.
+	 */
+	private static final Set<Integer> STATUS_ONLY_HITSPLATS = new HashSet<>(Arrays.asList(
+		HitsplatID.DISEASE, HitsplatID.CORRUPTION
 	));
 
 	/**
@@ -132,18 +150,22 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * Tick of the most recent hitsplat of each status-effect type, per actor. Used to infer
-	 * "is this actor currently affected" for bar tinting (see statusEffectColor()) wherever no
-	 * better signal exists. For NPCs, this is the only signal available at all - they don't
-	 * expose a queryable status effect state the way the local player does. For the local
-	 * player, Poison/Venom have an exact signal instead (VarPlayerID.POISON, the same one
+	 * "is this actor currently affected" for bar tinting/icons (see activeStatusEffects())
+	 * wherever no better signal exists. For NPCs and other players, this is the only signal
+	 * available at all - only the local player exposes a queryable status effect state. For the
+	 * local player, Poison/Venom have an exact signal instead (VarPlayerID.POISON, the same one
 	 * RuneLite's own Poison/Status Bars plugins read), so lastPoisonTick/lastVenomTick are only
-	 * actually consulted for NPCs - but Burn/Bleed have no such varp for either actor type, so
-	 * lastBurnTick/lastBleedTick are used for both.
+	 * actually consulted for NPCs and other players - but Burn/Disease/Corruption have no such
+	 * varp for any actor type, and Bleed is local-player-only (doesn't affect NPCs in OSRS), so
+	 * those are used more selectively - see activeStatusEffects() for exactly which actor types
+	 * consult which maps.
 	 */
 	private final Map<Actor, Integer> lastPoisonTick = new ConcurrentHashMap<>();
 	private final Map<Actor, Integer> lastVenomTick = new ConcurrentHashMap<>();
 	private final Map<Actor, Integer> lastBurnTick = new ConcurrentHashMap<>();
 	private final Map<Actor, Integer> lastBleedTick = new ConcurrentHashMap<>();
+	private final Map<Actor, Integer> lastDiseaseTick = new ConcurrentHashMap<>();
+	private final Map<Actor, Integer> lastCorruptionTick = new ConcurrentHashMap<>();
 
 	/** Cached compiled filter patterns to avoid regex compilation on every tracking check. */
 	private String cachedFilterString = "";
@@ -249,10 +271,10 @@ public class CustomHpBarPlugin extends Plugin
 		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
 
-		// Only HP-relevant hitsplats should trigger tracking/caching - a hitsplat existing at
-		// all doesn't mean HP changed (e.g. PRAYER_DRAIN fires its own hitsplat-style number
-		// when praying at an altar or a prayer draining, with nothing to do with HP).
-		if (!isHpRelevantHitsplat(hitsplat.getHitsplatType()))
+		// Only trackable hitsplats should trigger tracking/caching - a hitsplat existing at all
+		// doesn't mean HP changed (e.g. PRAYER_DRAIN fires its own hitsplat-style number when
+		// praying at an altar or a prayer draining, with nothing to do with HP).
+		if (!isTrackableHitsplat(hitsplat.getHitsplatType()))
 		{
 			return;
 		}
@@ -272,10 +294,11 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Records the tick a status-effect hitsplat landed, for any actor - not gated to NPCs, since
-	 * the local player can bleed/burn/be poisoned too and (for Burn/Bleed) has no better signal
-	 * than this either. Harmless to record for actors that never end up consulting these maps
-	 * (e.g. other players, whose status color isn't implemented) - just a few unused entries,
+	 * Records the tick a status-effect hitsplat landed, for any actor - not gated to NPCs or the
+	 * local player, since other players' hitsplats are visible too and this is the only signal
+	 * available for their status effects at all (no varp is readable for anyone but the local
+	 * player). Harmless to record for actors that never end up consulting a given map (e.g.
+	 * lastBleedTick for an NPC, since Bleed is local-player-only) - just a few unused entries,
 	 * cleared normally by evict().
 	 */
 	private void trackStatusEffect(Actor actor, int hitsplatType)
@@ -297,11 +320,21 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			lastBleedTick.put(actor, currentTick);
 		}
+		else if (hitsplatType == HitsplatID.DISEASE)
+		{
+			lastDiseaseTick.put(actor, currentTick);
+		}
+		else if (hitsplatType == HitsplatID.CORRUPTION)
+		{
+			lastCorruptionTick.put(actor, currentTick);
+		}
 	}
 
-	private static boolean isHpRelevantHitsplat(int hitsplatType)
+	private static boolean isTrackableHitsplat(int hitsplatType)
 	{
-		return hitsplatType == HitsplatID.HEAL || DAMAGE_HITSPLATS.contains(hitsplatType);
+		return hitsplatType == HitsplatID.HEAL
+			|| DAMAGE_HITSPLATS.contains(hitsplatType)
+			|| STATUS_ONLY_HITSPLATS.contains(hitsplatType);
 	}
 
 	@Subscribe
@@ -446,6 +479,8 @@ public class CustomHpBarPlugin extends Plugin
 		lastVenomTick.remove(actor);
 		lastBurnTick.remove(actor);
 		lastBleedTick.remove(actor);
+		lastDiseaseTick.remove(actor);
+		lastCorruptionTick.remove(actor);
 		if (actor instanceof NPC)
 		{
 			preciseNpcHp.remove(actor);
@@ -599,14 +634,14 @@ public class CustomHpBarPlugin extends Plugin
 	 * STATUS_EFFECT_TICKS since Burn applies instantly and only lasts a handful of ticks, not
 	 * Poison/Venom's long between-hit cadence.
 	 */
-	private static final int BURN_STATUS_TICKS = 10;
+	private static final int BURN_STATUS_TICKS = 8;
 
 	/** VarPlayerID.POISON value at and above which the player is envenomed rather than poisoned - matches PoisonPlugin's own VENOM_THRESHOLD. */
 	private static final int VENOM_THRESHOLD = 1_000_000;
 
 	enum StatusEffect
 	{
-		VENOM, POISON, BURN, BLEED
+		VENOM, POISON, BURN, BLEED, DISEASE, CORRUPTION
 	}
 
 	/**
@@ -615,29 +650,28 @@ public class CustomHpBarPlugin extends Plugin
 	 * consumer checks its own toggle before calling this, since the two are independently
 	 * configurable - see statusEffectColor and CustomHpBarOverlay's showStatusIcons). The single
 	 * source of truth both consumers build on, so they can never disagree about what's actually
-	 * active. An actor can genuinely have more than one at once (e.g. bled while envenomed),
+	 * active. An actor can genuinely have more than one at once (e.g. burned while envenomed),
 	 * which the icon row shows side by side - the bar tint can only show one color, so
-	 * currentStatusEffect() picks a single winner in venom > poison > burn > bleed priority from
-	 * this set. Only NPCs and the local player are handled - other players' status wasn't asked
-	 * for, so it's out of scope here (their poison/venom varp isn't readable from this client
-	 * anyway; only Burn/Bleed could work the same way NPCs do, via hitsplats, if that's ever
-	 * wanted).
+	 * currentStatusEffect() picks a single winner in venom > poison > burn > bleed > disease >
+	 * corruption priority from this set.
+	 *
+	 * NPCs, the local player, and other players are all handled, but not identically: the local
+	 * player has an exact Poison/Venom signal (VarPlayerID.POISON) unavailable for anyone else,
+	 * so NPCs and other players both fall back to the same hitsplat heuristic used for Burn/
+	 * Disease/Corruption on every actor type. Bleed is local-player-only - it doesn't affect NPCs
+	 * in OSRS, and there's no confirmation it can land on another player as visible to this
+	 * client either, so it's not guessed at for either.
 	 */
 	Set<StatusEffect> activeStatusEffects(Actor actor)
 	{
 		int currentTick = client.getTickCount();
 		EnumSet<StatusEffect> active = EnumSet.noneOf(StatusEffect.class);
 
-		if (actor instanceof NPC)
-		{
-			addIfActive(active, StatusEffect.VENOM, lastVenomTick.get(actor), currentTick);
-			addIfActive(active, StatusEffect.POISON, lastPoisonTick.get(actor), currentTick);
-		}
-		else if (actor == client.getLocalPlayer())
+		if (actor == client.getLocalPlayer())
 		{
 			// Poison/Venom have an exact signal for the local player - prefer it over the
-			// hitsplat heuristic used everywhere else in this method. Mutually exclusive by
-			// construction (the varp can't be both at once), unlike Burn/Bleed below.
+			// hitsplat heuristic used for every other actor type. Mutually exclusive by
+			// construction (the varp can't be both at once), unlike everything else here.
 			int poison = client.getVarpValue(VarPlayerID.POISON);
 			if (poison >= VENOM_THRESHOLD)
 			{
@@ -647,6 +681,13 @@ public class CustomHpBarPlugin extends Plugin
 			{
 				active.add(StatusEffect.POISON);
 			}
+
+			addIfActive(active, StatusEffect.BLEED, lastBleedTick.get(actor), currentTick);
+		}
+		else if (actor instanceof NPC || actor instanceof Player)
+		{
+			addIfActive(active, StatusEffect.VENOM, lastVenomTick.get(actor), currentTick);
+			addIfActive(active, StatusEffect.POISON, lastPoisonTick.get(actor), currentTick);
 		}
 		else
 		{
@@ -654,7 +695,8 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		addIfActive(active, StatusEffect.BURN, lastBurnTick.get(actor), currentTick);
-		addIfActive(active, StatusEffect.BLEED, lastBleedTick.get(actor), currentTick);
+		addIfActive(active, StatusEffect.DISEASE, lastDiseaseTick.get(actor), currentTick);
+		addIfActive(active, StatusEffect.CORRUPTION, lastCorruptionTick.get(actor), currentTick);
 		return active;
 	}
 
@@ -673,9 +715,10 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * The single highest-priority effect from activeStatusEffects (venom > poison > burn >
-	 * bleed), for the bar tint - which can only show one color, unlike the icon row. StatusEffect
-	 * is declared in exactly this priority order, so values() already iterates it correctly.
+	 * The single highest-priority effect from activeStatusEffects (venom > poison > burn > bleed
+	 * > disease > corruption), for the bar tint - which can only show one color, unlike the icon
+	 * row. StatusEffect is declared in exactly this priority order, so values() already iterates
+	 * it correctly.
 	 */
 	private StatusEffect currentStatusEffect(Actor actor)
 	{
@@ -691,15 +734,40 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
+	 * Every status effect color is fixed, sampled directly from the actual hitsplat sprites (see
+	 * the color-sampling history in CLAUDE.md) - not configurable, at the user's explicit request
+	 * to remove that option for all of them, Disease/Corruption included even though those were
+	 * only just added as configurable. Target and Player profiles keep their own separate values
+	 * (matching what were previously their separate configurable defaults) rather than being
+	 * unified into one shared color.
+	 */
+	private static final Color TARGET_POISON_COLOR = new Color(0, 176, 0);
+	private static final Color TARGET_VENOM_COLOR = new Color(48, 112, 95);
+	private static final Color TARGET_BURN_COLOR = new Color(215, 85, 0);
+	private static final Color TARGET_DISEASE_COLOR = new Color(207, 149, 9);
+	private static final Color TARGET_CORRUPTION_COLOR = new Color(127, 61, 205);
+	private static final Color SELF_POISON_COLOR = new Color(0, 145, 0);
+	private static final Color SELF_VENOM_COLOR = new Color(48, 112, 95);
+	private static final Color SELF_BURN_COLOR = new Color(215, 85, 0);
+	private static final Color SELF_BLEED_COLOR = new Color(200, 0, 0);
+	private static final Color SELF_DISEASE_COLOR = new Color(207, 149, 9);
+	private static final Color SELF_CORRUPTION_COLOR = new Color(127, 61, 205);
+
+	/**
 	 * Bar fill color for an actor's current status effect (see currentStatusEffect), or null if
 	 * none applies or the relevant Color By Status Effect toggle is off. That toggle only gates
 	 * the tint - CustomHpBarOverlay's own showStatusIcons() gates the debuff icon row separately,
 	 * since the two were split into independent toggles at the user's request.
+	 *
+	 * Color profile selection is by actor *type* (any Player vs. NPC), not "is this literally
+	 * me" - other players are drawn with the Player Bar's style same as the local player (see
+	 * CustomHpBarOverlay.resolveStyle()), so their status colors should come from the same
+	 * Player-profile values, not the Target profile's.
 	 */
 	Color statusEffectColor(Actor actor)
 	{
-		boolean self = actor == client.getLocalPlayer();
-		boolean tintEnabled = actor instanceof NPC ? config.targetColorByStatusEffect() : self && config.selfColorByStatusEffect();
+		boolean isPlayer = actor instanceof Player;
+		boolean tintEnabled = isPlayer ? config.selfColorByStatusEffect() : config.targetColorByStatusEffect();
 		if (!tintEnabled)
 		{
 			return null;
@@ -714,13 +782,19 @@ public class CustomHpBarPlugin extends Plugin
 		switch (effect)
 		{
 			case VENOM:
-				return self ? config.selfVenomColor() : config.targetVenomColor();
+				return isPlayer ? SELF_VENOM_COLOR : TARGET_VENOM_COLOR;
 			case POISON:
-				return self ? config.selfPoisonColor() : config.targetPoisonColor();
+				return isPlayer ? SELF_POISON_COLOR : TARGET_POISON_COLOR;
 			case BURN:
-				return self ? config.selfBurnColor() : config.targetBurnColor();
+				return isPlayer ? SELF_BURN_COLOR : TARGET_BURN_COLOR;
 			case BLEED:
-				return self ? config.selfBleedColor() : config.targetBleedColor();
+				// Local-player-only (see activeStatusEffects) - Bleed doesn't affect NPCs, and
+				// isn't confirmed to work for other players either.
+				return SELF_BLEED_COLOR;
+			case DISEASE:
+				return isPlayer ? SELF_DISEASE_COLOR : TARGET_DISEASE_COLOR;
+			case CORRUPTION:
+				return isPlayer ? SELF_CORRUPTION_COLOR : TARGET_CORRUPTION_COLOR;
 			default:
 				return null;
 		}
