@@ -4,6 +4,14 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
 tracking, and status-effect debuffs.
 
+## Screenshots
+
+Player and NPC bars together, with the Burn and Venom debuff icons shown beneath the player's
+stacked HP/Prayer bars:
+
+![Burn debuff icon example](images/burn-example.png)
+![Venom debuff icon example](images/venom-example.png)
+
 ## Features
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with its
