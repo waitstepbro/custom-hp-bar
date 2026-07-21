@@ -28,13 +28,15 @@ tracking, and status-effect debuffs.
 
 ## Configuration
 
-Settings are grouped into four sections.
+Settings are grouped into four sections. Bar/text styling and status effect options are
+configured **separately for the Target Bar (NPCs) and Player Bar (You & Others)** - every
+setting in the table below exists twice, once per section, so NPCs and players can look
+completely different if you want. Defaults are the same for both unless noted.
 
-### Target Bar (NPCs)
+### Shared style options (Target Bar and Player Bar, configured independently)
 
 | Setting | Description | Default |
 |---|---|---|
-| Display Mode | Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with unknown max HP. | Number |
 | Bar Width | Width of the bar in pixels | 50 |
 | Bar Height | Height of the bar in pixels | 10 |
 | Corner Radius | Rounds the corners of the bar. 0 = sharp corners, matching the native health bar. | 2 |
@@ -42,22 +44,28 @@ Settings are grouped into four sections.
 | Border Color | Color of the bar's outline | Black (translucent) |
 | Bar Color | Fill color of the bar, matching the native health bar's single green fill | Green |
 | Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
-| Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | 5 |
+| Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | Target: 5 · Player: 15 |
 | Font | Typeface for the HP text - RuneScape options use the game's own UI font | System Default |
 | Font Style | Applied on top of the chosen font. Leave Plain for "RuneScape Bold" - it's already bold. | Bold |
 | Font Size | Size of the HP number text | 11 |
 | Text Color | Color of the HP number | White |
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
+| Color By Status Effect | Tints the bar while poisoned, envenomed, burning, diseased, or corrupted (the Player Bar version also covers bleeding, and applies to other players' bars too) | On |
+| Show Status Icon | Shows a debuff icon beneath the bar for the same effects (Player Bar version also applies to other players' bars) | On |
+| Persist Duration (seconds) | How long a bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
+
+### Target Bar (NPCs) only
+
+| Setting | Description | Default |
+|---|---|---|
+| Display Mode | Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with unknown max HP. | Number |
 | Show NPC Name | Draws the NPC's name above its HP bar | On |
 | Always Show NPC Name | Shows the NPC name at all times, not just in combat. Requires Show NPC Name. | On |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names | On |
 | NPC Name Color | Color of the NPC name text, independent of Text Color above | Yellow |
-| Color By Status Effect | Tints the bar while poisoned, envenomed, burning, diseased, or corrupted | On |
-| Show Status Icon | Shows a debuff icon beneath the bar for the same effects | On |
-| Persist Duration (seconds) | How long an NPC's bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 
-### Player Bar (You & Others)
+### Player Bar (You & Others) only
 
 | Setting | Description | Default |
 |---|---|---|
@@ -65,24 +73,7 @@ Settings are grouped into four sections.
 | Self Display Mode | Display mode for your own bar | Number |
 | Show for Other Players | Draw the player bar over other players | Off |
 | Other Players' Display Mode | Display mode for other players' bars (always percent - their max HP isn't available) | Number |
-| Bar Width | Width of the bar in pixels | 50 |
-| Bar Height | Height of the bar in pixels | 10 |
-| Corner Radius | Rounds the corners of the bar. 0 = sharp corners, matching the native health bar. | 2 |
-| Border Width | Thickness of the bar's outline in pixels. 0 = no border. | 1 |
-| Border Color | Color of the bar's outline | Black (translucent) |
-| Bar Color | Fill color of the bar, matching the native health bar's single green fill | Green |
-| Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
-| Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | 15 |
-| Font | Typeface for the HP text - RuneScape options use the game's own UI font | System Default |
-| Font Style | Applied on top of the chosen font. Leave Plain for "RuneScape Bold" - it's already bold. | Bold |
-| Font Size | Size of the HP number text | 11 |
-| Text Color | Color of the HP number | White |
-| Text Outline | Full outline around the text for readability at small sizes | On |
-| Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
 | Show Prayer Bar | Draws a second bar for your Prayer points beneath your HP bar. Requires Show for Self. | On |
-| Color By Status Effect | Tints a player's bar (yours or others') while poisoned, envenomed, burning, diseased, or corrupted - plus bleeding, for your own bar only | On |
-| Show Status Icon | Shows a debuff icon beneath a player's bar for the same effects | On |
-| Persist Duration (seconds) | How long a player's bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 
 ### Behavior
 
@@ -96,35 +87,3 @@ Settings are grouped into four sections.
 | Setting | Description | Default |
 |---|---|---|
 | NPC Filter | Comma-separated NPC names to hide (blacklist, supports `skele*` wildcards). Leave blank to show all. | (blank) |
-
-## How it works
-
-**Precise NPC HP** is tracked by starting from the native bar's coarse ratio/scale bucket, then
-adjusting that estimate by each hitsplat's exact damage/heal amount in between bucket updates -
-far closer to the NPC's true HP than the bucket alone. This only works for NPCs in the bundled
-~4,000-entry max-HP dataset; anything else falls back to a plain percentage.
-
-**Status effects** - Poison, Venom, Burn, Disease, and Corruption are detected the same way for
-NPCs, yourself, and other players: from recent matching hitsplats (your own Poison/Venom state
-is read exactly instead, since that's directly readable for the local player). Bleed only
-applies to your own bar - it doesn't affect NPCs in OSRS. An actor can have more than one effect
-active at once; the debuff icon row shows all of them side by side, while the bar's tint picks a
-single color in Venom > Poison > Burn > Bleed > Disease > Corruption priority, since a bar can
-only show one fill color at a time.
-
-**Zoom scaling**, when enabled, doesn't scale against a fixed reference - it captures whatever
-zoom level you're at the first time the overlay renders and treats that as the 1.0x baseline, so
-your configured sizes are always exactly right at whatever zoom you actually play at.
-
-**Persist Duration** keeps a bar showing the last known HP for a set number of seconds after the
-native bar itself would stop refreshing (e.g. combat ends), instead of disappearing instantly.
-Re-engaging before that timer runs out resets it. NPCs and players use independent timers.
-
-**Hide Native Health Bar** works by overriding the game's own health/prayer/shield bar sprites
-client-wide - it isn't a per-actor toggle, so turning it on hides the native bar for every actor
-in the game, not just NPCs matching your filter.
-
-**NPC Filter** is a blacklist: anything matching a pattern is hidden, everything else still
-shows. Leave it blank to show every attackable NPC. Non-attackable NPCs (bankers, fishing spots,
-pets, etc.) are excluded separately via "Only Show Combat NPC Names" above, regardless of what's
-in this filter.
