@@ -3,13 +3,20 @@ package com.customhpbar;
 import lombok.AllArgsConstructor;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.client.plugins.itemstats.Effect;
+import net.runelite.client.plugins.itemstats.ItemStatChangesService;
+import net.runelite.client.plugins.itemstats.StatChange;
+import net.runelite.client.plugins.itemstats.StatsChanges;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -52,6 +59,14 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private static final Color PRAYER_COLOR = new Color(60, 130, 220);
 
+	/**
+	 * Alpha applied to a bar's own fill color for its heal/restore preview segment - distinct
+	 * enough from the solid current-value fill to read as "not real yet" without needing a
+	 * separate configurable color (the preview always matches whatever color the bar itself is
+	 * currently showing, status-effect tint included, rather than a fixed independent color).
+	 */
+	private static final int PREVIEW_ALPHA = 110;
+
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
 
@@ -59,6 +74,7 @@ class CustomHpBarOverlay extends Overlay
 	private final CustomHpBarConfig config;
 	private final Client client;
 	private final SpriteManager spriteManager;
+	private final ItemStatChangesService itemStatService;
 
 	/**
 	 * Camera zoom (Client.getScale()) observed the first time we render, used as the "1.0x"
@@ -92,12 +108,14 @@ class CustomHpBarOverlay extends Overlay
 	private BufferedImage corruptionIcon;
 
 	@Inject
-	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager)
+	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
+			ItemStatChangesService itemStatService)
 	{
 		this.plugin = plugin;
 		this.config = config;
 		this.client = client;
 		this.spriteManager = spriteManager;
+		this.itemStatService = itemStatService;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.UNDER_WIDGETS);
 	}
@@ -348,8 +366,21 @@ class CustomHpBarOverlay extends Overlay
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 
 		double hpFraction = (double) ratio / scale;
-		Color statusColor = plugin.statusEffectColor(actor);
-		drawBarShape(g, style, x, y, w, h, border, arc, hpFraction, statusColor != null ? statusColor : style.barColor);
+		Color fillColor = plugin.statusEffectColor(actor);
+		if (fillColor == null)
+		{
+			fillColor = style.barColor;
+		}
+		drawBarShape(g, style, x, y, w, h, border, arc, hpFraction, fillColor);
+
+		if (actor == client.getLocalPlayer() && config.showFoodHealPreview())
+		{
+			// ratio/scale are the local player's real current/max HP (see CustomHpBarPlugin
+			// .readHp), not a bucket - using them directly here avoids re-deriving HP from a
+			// rounded fraction.
+			drawHealPreview(g, x, y, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
+				translucent(fillColor));
+		}
 
 		String label = buildLabel(actor, hpFraction, maxHp);
 		if (label != null)
@@ -381,6 +412,98 @@ class CustomHpBarOverlay extends Overlay
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
 		}
+	}
+
+	/**
+	 * The amount of stat points the item currently under the cursor in the player's inventory
+	 * would restore, for the given stat (Hitpoints or Prayer), or -1 if nothing applicable is
+	 * hovered. Same hover-detection RuneLite's own core "Item Stats" plugin uses
+	 * (ItemStatOverlay): check the last entry in the current menu (the one the cursor is
+	 * actually over), confirm it's an inventory item slot specifically
+	 * (InterfaceID.Inventory.ITEMS), then look up its item ID.
+	 *
+	 * Delegates the actual heal/restore math to ItemStatChangesService (the core "Item Stats"
+	 * plugin's own public API, made available here via @PluginDependency(ItemStatPlugin.class) -
+	 * see CustomHpBarPlugin) rather than a hand-curated per-item table: this handles every food
+	 * and potion correctly, including level/gear-dependent formulas (e.g. Cooked Moss Lizard's
+	 * Cooking/Hunter-scaled heal, Saradomin Brew's Prayer restore, Prayer/Super Restore potions),
+	 * which a fixed-value lookup table could never cover completely. Mirrors
+	 * StatusBarsOverlay.getRestoreValue(String) exactly (confirmed via decompile): find the
+	 * StatChange whose Stat.getName() matches the target skill's name and whose getTheoretical()
+	 * is non-zero, returning that value (0 stays unmatched, so unrelated items or stats the item
+	 * doesn't affect naturally fall through to -1 below).
+	 */
+	private int hoveredRestoreValue(Skill stat)
+	{
+		if (client.isMenuOpen())
+		{
+			return -1;
+		}
+
+		MenuEntry[] entries = client.getMenu().getMenuEntries();
+		if (entries.length == 0)
+		{
+			return -1;
+		}
+
+		Widget widget = entries[entries.length - 1].getWidget();
+		if (widget == null || widget.getId() != InterfaceID.Inventory.ITEMS)
+		{
+			return -1;
+		}
+
+		Effect effect = itemStatService.getItemStatChanges(widget.getItemId());
+		if (effect == null)
+		{
+			return -1;
+		}
+
+		StatsChanges changes = effect.calculate(client);
+		for (StatChange change : changes.getStatChanges())
+		{
+			if (change.getTheoretical() != 0 && change.getStat().getName().equals(stat.getName()))
+			{
+				return change.getTheoretical();
+			}
+		}
+
+		return -1;
+	}
+
+	/**
+	 * Extends a bar (HP or Prayer) past its current fill with a preview segment showing where the
+	 * stat would land if healAmount were consumed right now, capped at maxHp since neither stat
+	 * can overheal past its max. currentHp/maxHp are passed as raw values (not a fraction) since
+	 * for the local player they're already exact real numbers (see CustomHpBarPlugin.readHp for
+	 * HP; client.getBoostedSkillLevel/getRealSkillLevel for Prayer) - deriving them back out of a
+	 * rounded fraction here would just reintroduce imprecision for no reason.
+	 */
+	private void drawHealPreview(Graphics2D g, int x, int y, int w, int h, int border, int currentHp, int maxHp,
+			int healAmount, Color previewColor)
+	{
+		if (healAmount <= 0 || maxHp <= 0)
+		{
+			return;
+		}
+
+		int innerW = Math.max(0, w - border * 2);
+		int innerH = Math.max(0, h - border * 2);
+
+		int currentFillWidth = (int) Math.round(innerW * ((double) currentHp / maxHp));
+		currentFillWidth = Math.max(0, Math.min(currentFillWidth, innerW));
+
+		int healedHp = Math.min(maxHp, currentHp + healAmount);
+		int healedFillWidth = (int) Math.round(innerW * ((double) healedHp / maxHp));
+		healedFillWidth = Math.max(currentFillWidth, Math.min(healedFillWidth, innerW));
+
+		int previewWidth = healedFillWidth - currentFillWidth;
+		if (previewWidth <= 0)
+		{
+			return;
+		}
+
+		g.setColor(previewColor);
+		g.fillRect(x + border + currentFillWidth, y + border, previewWidth, innerH);
 	}
 
 	/**
@@ -560,7 +683,20 @@ class CustomHpBarOverlay extends Overlay
 
 		double fraction = (double) current / max;
 		drawBarShape(g, style, x, y, w, h, border, arc, fraction, PRAYER_COLOR);
+
+		if (config.showPrayerRestorePreview())
+		{
+			drawHealPreview(g, x, y, w, h, border, current, max, hoveredRestoreValue(Skill.PRAYER),
+				translucent(PRAYER_COLOR));
+		}
+
 		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
+	}
+
+	/** A bar's own fill color, at the fixed preview alpha - see PREVIEW_ALPHA. */
+	private static Color translucent(Color color)
+	{
+		return new Color(color.getRed(), color.getGreen(), color.getBlue(), PREVIEW_ALPHA);
 	}
 
 	/** Draws one bar's background/fill/border - shared by the HP bar and the prayer bar. */

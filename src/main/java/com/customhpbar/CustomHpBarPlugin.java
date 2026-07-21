@@ -23,7 +23,9 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.itemstats.ItemStatPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -44,6 +46,13 @@ import java.util.regex.Pattern;
 	description = "Draws a custom health bar overlay with HP numbers directly on the bar",
 	tags = {"hp", "health", "bar", "overlay", "npc", "combat"}
 )
+// Pulls in the core "Item Stats" plugin's Guice injector as our parent, so
+// ItemStatChangesService (used for the food heal / prayer restore hover previews) can be
+// @Inject-ed below - see CustomHpBarOverlay's hoveredHealPreview()/hoveredPrayerRestorePreview().
+// This is a hard dependency (always force-loaded alongside this plugin), not an optional one -
+// there's no way to make the service injection conditional on Item Stats being separately
+// enabled, and Item Stats is a core, always-available client plugin, so that's not a concern.
+@PluginDependency(ItemStatPlugin.class)
 public class CustomHpBarPlugin extends Plugin
 {
 	/** OSRS game tick length, for converting the configurable persist duration to ticks. */

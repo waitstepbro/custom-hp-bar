@@ -595,6 +595,34 @@ public interface CustomHpBarConfig extends Config
 		return 5;
 	}
 
+	@ConfigItem(
+		keyName = "showFoodHealPreview",
+		name = "Show Food Heal Preview",
+		description = "While hovering a food or potion item in your inventory, extends your bar with a preview " +
+			"of how much HP it would restore, in the bar's own color at reduced opacity. Requires " +
+			"'Show for Self'.",
+		section = PLAYER_SECTION,
+		position = 22
+	)
+	default boolean showFoodHealPreview()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showPrayerRestorePreview",
+		name = "Show Prayer Restore Preview",
+		description = "While hovering a Prayer-restoring item in your inventory, extends the Prayer bar with a " +
+			"preview of how many points it would restore, in the bar's own color at reduced opacity. " +
+			"Requires 'Show Prayer Bar'.",
+		section = PLAYER_SECTION,
+		position = 23
+	)
+	default boolean showPrayerRestorePreview()
+	{
+		return true;
+	}
+
 	// ==================== Shared behavior ====================
 
 	@ConfigItem(
