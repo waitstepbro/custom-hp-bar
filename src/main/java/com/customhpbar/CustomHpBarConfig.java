@@ -624,6 +624,20 @@ public interface CustomHpBarConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "replaceOverheadIcon",
+		name = "Replace Overhead Icon",
+		description = "Hides the game's native overhead UI on your character (protection prayer icon and " +
+			"native health bar - hitsplats and overhead chat text on you are affected too) and draws the " +
+			"prayer icon just above your HP bar instead. Requires 'Show for Self'.",
+		section = PLAYER_SECTION,
+		position = 24
+	)
+	default boolean replaceOverheadIcon()
+	{
+		return true;
+	}
+
 	// ==================== Shared behavior ====================
 
 	@ConfigItem(

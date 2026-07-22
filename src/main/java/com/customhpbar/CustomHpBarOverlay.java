@@ -3,6 +3,7 @@ package com.customhpbar;
 import lombok.AllArgsConstructor;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
+import net.runelite.api.HeadIcon;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
@@ -41,6 +42,7 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -69,6 +71,9 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
+
+	/** Gap between the overhead icon and the HP bar's top edge, before zoom scaling. */
+	private static final int OVERHEAD_ICON_GAP = 3;
 
 	private final CustomHpBarPlugin plugin;
 	private final CustomHpBarConfig config;
@@ -106,6 +111,15 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private BufferedImage diseaseIcon;
 	private BufferedImage corruptionIcon;
+
+	/**
+	 * All 15 overhead icon graphics live as sub-frames of one client sprite
+	 * (SpriteID.HEADICONS_PRAYER = 440), indexed by HeadIcon.ordinal() - confirmed by decompiling
+	 * the Nameplates Hub plugin, whose hardcoded per-icon frame table matches HeadIcon's declared
+	 * enum order 1:1. Cached per icon type once loaded, same lazy-load-then-cache pattern as the
+	 * status effect icons above.
+	 */
+	private final Map<HeadIcon, BufferedImage> headIconImages = new EnumMap<>(HeadIcon.class);
 
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
@@ -184,7 +198,7 @@ class CustomHpBarOverlay extends Overlay
 		// Prayer bar on its own, at the same position the HP bar would occupy, whenever a
 		// prayer is actually toggled on - regardless of combat state. Skipped entirely if the
 		// main loop above already drew it (localPlayer in trackedActors) to avoid a double draw.
-		Actor localPlayer = client.getLocalPlayer();
+		Player localPlayer = client.getLocalPlayer();
 		if (localPlayer != null && config.showForSelf() && config.showPrayerBar()
 				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isAnyPrayerActive())
 		{
@@ -195,6 +209,17 @@ class CustomHpBarOverlay extends Overlay
 				playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
 				drawStandalonePrayerBar(g, anchor, playerStyle);
 			}
+		}
+
+		// Our replacement for the native overhead prayer icon, which CustomHpBarPlugin's render
+		// callback suppresses for the local player when Replace Overhead Icon is on (see its
+		// renderCallback field) - so this copy is the only icon on screen, not a duplicate.
+		// Drawn independent of combat/tracking state, same reasoning as the standalone Prayer
+		// bar above: the native icon it replaces showed at all times, so this must too.
+		if (localPlayer != null && config.showForSelf() && config.replaceOverheadIcon())
+		{
+			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
+			drawOverheadIcon(g, localPlayer, playerStyle);
 		}
 
 		if (config.showNpcName() && config.alwaysShowNpcName())
@@ -705,6 +730,69 @@ class CustomHpBarOverlay extends Overlay
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 		drawPrayerBar(g, style, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
+	}
+
+	/**
+	 * Draws our replacement copy of the local player's active overhead prayer icon, centered a
+	 * few pixels above where the HP bar sits (or would sit - barRect() is position, not presence,
+	 * so this works out of combat too). Only ever called for the local player, and only when
+	 * Replace Overhead Icon is on - in which case the plugin's render callback has already
+	 * suppressed the native icon, so this is the sole icon on screen rather than a duplicate.
+	 */
+	private void drawOverheadIcon(Graphics2D g, Player localPlayer, BarStyle style)
+	{
+		HeadIcon headIcon = localPlayer.getOverheadIcon();
+		if (headIcon == null)
+		{
+			return;
+		}
+
+		BufferedImage image = headIconImage(headIcon);
+		if (image == null)
+		{
+			return;
+		}
+
+		Point anchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
+			localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight());
+		if (anchor == null)
+		{
+			return;
+		}
+
+		// Drawn at the sprite's own natural dimensions rather than a hardcoded badge size, so it
+		// matches the native icon this is replacing exactly (the native client draws these
+		// sprites unscaled too). Zoom scaling still applies when Scale With Zoom is on, same as
+		// every other element - zoomFactor() is 1.0 otherwise, leaving the natural size intact.
+		double zoom = zoomFactor();
+		int[] rect = barRect(anchor, style, zoom);
+		int w = scaled(image.getWidth(), zoom);
+		int h = scaled(image.getHeight(), zoom);
+		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
+
+		int x = rect[0] + (rect[2] - w) / 2;
+		int y = rect[1] - gap - h;
+		g.drawImage(image, x, y, w, h, null);
+	}
+
+	private BufferedImage headIconImage(HeadIcon headIcon)
+	{
+		BufferedImage cached = headIconImages.get(headIcon);
+		if (cached != null)
+		{
+			return cached;
+		}
+
+		BufferedImage loaded = spriteManager.getSprite(SpriteID.HEADICONS_PRAYER, headIcon.ordinal());
+		if (loaded != null)
+		{
+			headIconImages.put(headIcon, loaded);
+			return loaded;
+		}
+
+		spriteManager.getSpriteAsync(SpriteID.HEADICONS_PRAYER, headIcon.ordinal(),
+			image -> headIconImages.put(headIcon, image));
+		return null;
 	}
 
 	private void drawPrayerBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)

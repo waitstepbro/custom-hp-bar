@@ -9,6 +9,7 @@ import net.runelite.api.HitsplatID;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
+import net.runelite.api.Renderable;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.gameval.NpcID;
@@ -20,6 +21,8 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.callback.RenderCallback;
+import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
@@ -127,10 +130,40 @@ public class CustomHpBarPlugin extends Plugin
 	private OverlayManager overlayManager;
 
 	@Inject
+	private RenderCallbackManager renderCallbackManager;
+
+	@Inject
 	private CustomHpBarOverlay overlay;
 
 	@Inject
 	private CustomHpBarConfig config;
+
+	/**
+	 * Cached copy of "replaceOverheadIcon && showForSelf", refreshed on startUp/onConfigChanged
+	 * rather than read through the config proxy inside the render callback below - addEntity()
+	 * runs once per renderable per frame on the client's render path, so it should stay as cheap
+	 * as a field read. Volatile since onConfigChanged isn't guaranteed to run on the client thread.
+	 */
+	private volatile boolean suppressSelfOverheads;
+
+	/**
+	 * Suppresses the client's own overhead UI pass (native health bar, overhead prayer icon -
+	 * hitsplats and overhead chat text ride along in the same pass) for the local player only,
+	 * so CustomHpBarOverlay's bar/icon are the only overhead UI drawn on your own character.
+	 * The `ui` parameter is the key: the client consults this callback separately for drawing
+	 * the entity's model (ui = false, never suppressed here) and for drawing its overhead UI
+	 * (ui = true, javadoc: "true if this test is for drawing the ui (hitbars etc)"). This is
+	 * exactly the mechanism the Nameplates Hub plugin uses to remove native overheads for every
+	 * player/NPC (confirmed by decompiling it); we scope it to the local player only.
+	 */
+	private final RenderCallback renderCallback = new RenderCallback()
+	{
+		@Override
+		public boolean addEntity(Renderable renderable, boolean ui)
+		{
+			return !(ui && suppressSelfOverheads && renderable == client.getLocalPlayer());
+		}
+	};
 
 	/**
 	 * Actors whose bars are active. Value = tick count of the last valid health-ratio read.
@@ -199,13 +232,16 @@ public class CustomHpBarPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		suppressSelfOverheads = config.replaceOverheadIcon() && config.showForSelf();
 		overlayManager.add(overlay);
+		renderCallbackManager.register(renderCallback);
 		clientThread.invokeLater(this::syncNativeBarOverrides);
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		renderCallbackManager.unregister(renderCallback);
 		overlayManager.remove(overlay);
 		trackedActors.clear();
 		lastKnownHp.clear();
@@ -224,6 +260,11 @@ public class CustomHpBarPlugin extends Plugin
 		if ("hideNativeBar".equals(event.getKey()) || "showPrayerBar".equals(event.getKey()))
 		{
 			clientThread.invokeLater(this::syncNativeBarOverrides);
+		}
+
+		if ("replaceOverheadIcon".equals(event.getKey()) || "showForSelf".equals(event.getKey()))
+		{
+			suppressSelfOverheads = config.replaceOverheadIcon() && config.showForSelf();
 		}
 	}
 
