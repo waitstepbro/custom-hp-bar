@@ -177,6 +177,26 @@ class CustomHpBarOverlay extends Overlay
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
+		// The Prayer bar normally only shows attached beneath the HP bar (drawBar() above, only
+		// reached for actors in trackedActors) - which for the local player means only while
+		// "in combat" (see CustomHpBarPlugin.isInCombat/onGameTick), so praying at a bank or
+		// before a fight starts showed nothing at all. This second, independent path draws the
+		// Prayer bar on its own, at the same position the HP bar would occupy, whenever a
+		// prayer is actually toggled on - regardless of combat state. Skipped entirely if the
+		// main loop above already drew it (localPlayer in trackedActors) to avoid a double draw.
+		Actor localPlayer = client.getLocalPlayer();
+		if (localPlayer != null && config.showForSelf() && config.showPrayerBar()
+				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isAnyPrayerActive())
+		{
+			Point anchor = Perspective.localToCanvas(
+				client, localPlayer.getLocalLocation(), localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight());
+			if (anchor != null)
+			{
+				playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
+				drawStandalonePrayerBar(g, anchor, playerStyle);
+			}
+		}
+
 		if (config.showNpcName() && config.alwaysShowNpcName())
 		{
 			double zoom = zoomFactor();
@@ -670,6 +690,21 @@ class CustomHpBarOverlay extends Overlay
 		{
 			return null;
 		}
+	}
+
+	/**
+	 * Draws just the Prayer bar, at the position the HP bar itself would normally occupy
+	 * (barRect(), same as drawBar() uses) rather than flush beneath it - there's no HP bar drawn
+	 * alongside it in this path, since it's only reached when the local player isn't currently
+	 * tracked (see render()).
+	 */
+	private void drawStandalonePrayerBar(Graphics2D g, Point anchor, BarStyle style)
+	{
+		double zoom = zoomFactor();
+		int[] rect = barRect(anchor, style, zoom);
+		int border = scaled(style.borderWidth, zoom);
+		int arc = scaled(style.cornerRadius, zoom) * 2;
+		drawPrayerBar(g, style, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
 	}
 
 	private void drawPrayerBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)

@@ -546,7 +546,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
-		description = "Draws a second bar for your Prayer points beneath your HP bar. Requires 'Show for Self'.",
+		description = "Draws a bar for your Prayer points - beneath your HP bar while it's showing, or on its " +
+			"own whenever a prayer is active even outside combat. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 18
 	)

@@ -27,7 +27,8 @@ tracking, and status-effect debuffs.
   side by side.
 - **NPC names** — shown above the bar, optionally at all times rather than only in combat, with
   non-attackable NPCs (bankers, shop owners, fishing spots, pets) excluded by default.
-- **Prayer bar** — an optional second bar below your HP bar showing current Prayer points.
+- **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
+  combat, or on its own whenever a prayer is active even outside combat.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
   preview of where HP would land if you consumed it, using the same calculation as the core Item
   Stats plugin (so level/gear-dependent heals like Cooked Moss Lizard are accurate too).
@@ -87,7 +88,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Self Display Mode | Display mode for your own bar | Number |
 | Show for Other Players | Draw the player bar over other players | Off |
 | Other Players' Display Mode | Display mode for other players' bars (always percent - their max HP isn't available) | Number |
-| Show Prayer Bar | Draws a second bar for your Prayer points beneath your HP bar. Requires Show for Self. | On |
+| Show Prayer Bar | Draws a bar for your Prayer points - beneath your HP bar while it's showing, or on its own whenever a prayer is active even outside combat. Requires Show for Self. | On |
 | Show Food Heal Preview | While hovering a food or potion item in your inventory, extends your bar with a preview of how much HP it would restore, in the bar's own color at reduced opacity. Requires Show for Self. | On |
 | Show Prayer Restore Preview | While hovering a Prayer-restoring item, extends the Prayer bar with a preview of how many points it would restore, in the bar's own color at reduced opacity. Requires Show Prayer Bar. | On |
 

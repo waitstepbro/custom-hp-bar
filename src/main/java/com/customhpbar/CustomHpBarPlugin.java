@@ -8,6 +8,7 @@ import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
+import net.runelite.api.Prayer;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.gameval.NpcID;
@@ -831,6 +832,31 @@ public class CustomHpBarPlugin extends Plugin
 			return new int[]{ratio, scale};
 		}
 		return null;
+	}
+
+	/**
+	 * Whether the local player currently has at least one prayer toggled on - the signal
+	 * CustomHpBarOverlay uses to show the Prayer bar on its own, independent of the HP bar's
+	 * combat-only tracking (see its render()), so e.g. praying at a bank shows the bar even
+	 * though nothing is attacking. There's no single "any prayer active" flag on the client API,
+	 * only a per-prayer check - loops Prayer.values() the same way the core Prayer plugin's own
+	 * private isAnyPrayerActive() does (confirmed via decompile, same method name too).
+	 * Client.isPrayerActive() is marked @Deprecated ("does not properly handle deadeye/eagle eye
+	 * or mystic vigour/might" - prayer pairs that share a single varbit), but that ambiguity only
+	 * matters for telling two overlapping prayers apart, not for this OR-across-all-prayers
+	 * check - it's still exactly what the real, currently-shipped core Prayer plugin uses for the
+	 * same "is any prayer on" question.
+	 */
+	boolean isAnyPrayerActive()
+	{
+		for (Prayer prayer : Prayer.values())
+		{
+			if (client.isPrayerActive(prayer))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean isTrackedType(Actor actor)
