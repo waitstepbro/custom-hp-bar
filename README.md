@@ -36,8 +36,8 @@ tracking, and status-effect debuffs.
   item.
 - **Replaced overhead icon** — hides the game's native overhead UI on your own character and
   draws your active protection prayer icon just above your HP bar instead, so HP, Prayer, and
-  the icon move together as one unit. (Hitsplats and overhead chat text on your character are
-  part of the same native UI pass and are hidden along with it.)
+  the icon move together as one unit. Hitsplats (using the game's own sprites) and overhead
+  chat text are redrawn so they still look and behave the same as normal.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide (sprite-level
   override) so only this plugin's bar shows.
 - **Zoom scaling** — bars and text grow/shrink with camera zoom to match the actor model.
@@ -95,7 +95,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Show Prayer Bar | Draws a bar for your Prayer points - beneath your HP bar while it's showing, or on its own whenever a prayer is active even outside combat. Requires Show for Self. | On |
 | Show Food Heal Preview | While hovering a food or potion item in your inventory, extends your bar with a preview of how much HP it would restore, in the bar's own color at reduced opacity. Requires Show for Self. | On |
 | Show Prayer Restore Preview | While hovering a Prayer-restoring item, extends the Prayer bar with a preview of how many points it would restore, in the bar's own color at reduced opacity. Requires Show Prayer Bar. | On |
-| Replace Overhead Icon | Hides the game's native overhead UI on your character (prayer icon, native health bar - hitsplats and overhead chat text on you included) and draws the prayer icon just above your HP bar instead. Requires Show for Self. | On |
+| Replace Overhead Icon | Hides the game's native overhead UI on your character and draws the prayer icon just above your HP bar instead. Hitsplats and overhead chat text are redrawn to look and behave the same as normal. Requires Show for Self. | On |
 
 ### Behavior
 

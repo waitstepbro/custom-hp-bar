@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 @PluginDescriptor(
@@ -166,6 +167,22 @@ public class CustomHpBarPlugin extends Plugin
 	};
 
 	/**
+	 * Hitsplats currently visible on the local player, for CustomHpBarOverlay to redraw - the
+	 * native ones are suppressed by renderCallback above along with the rest of the overhead UI
+	 * pass (confirmed: Hitsplat doesn't implement Renderable, so it isn't tested by addEntity on
+	 * its own; it rides along inside the same per-actor ui=true call the health bar/icon do,
+	 * with no way to keep it while suppressing the rest). Populated regardless of whether
+	 * replaceOverheadIcon is currently on (cheap to maintain, instantly available if toggled on
+	 * mid-session); the overlay only reads it when actually drawing replacements. Evicted in
+	 * onGameTick once Hitsplat.getDisappearsOnGameCycle() has passed - the same game-cycle-based
+	 * timestamp the native client uses, so our replacements disappear at exactly the same moment
+	 * the real ones would have. CopyOnWriteArrayList since writes (onHitsplatApplied, eviction)
+	 * and reads (overlay render) are both client-thread but iterated during render.
+	 */
+	@Getter
+	private final List<Hitsplat> selfHitsplats = new CopyOnWriteArrayList<>();
+
+	/**
 	 * Actors whose bars are active. Value = tick count of the last valid health-ratio read.
 	 * ConcurrentHashMap: game events (game thread) write; overlay render (EDT) reads.
 	 */
@@ -246,6 +263,7 @@ public class CustomHpBarPlugin extends Plugin
 		trackedActors.clear();
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
+		selfHitsplats.clear();
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -322,7 +340,16 @@ public class CustomHpBarPlugin extends Plugin
 		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
 
-		// Only trackable hitsplats should trigger tracking/caching - a hitsplat existing at all
+		// Captured unconditionally (before the isTrackableHitsplat gate below), regardless of
+		// hitsplat type - unlike HP tracking, a redrawn hitsplat should show for literally
+		// anything the native client would have shown one for (e.g. PRAYER_DRAIN), not just the
+		// HP-relevant subset.
+		if (actor == client.getLocalPlayer())
+		{
+			selfHitsplats.add(hitsplat);
+		}
+
+		// Only trackable hitsplats should trigger HP tracking/caching - a hitsplat existing at all
 		// doesn't mean HP changed (e.g. PRAYER_DRAIN fires its own hitsplat-style number when
 		// praying at an altar or a prayer draining, with nothing to do with HP).
 		if (!isTrackableHitsplat(hitsplat.getHitsplatType()))
@@ -465,6 +492,13 @@ public class CustomHpBarPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		int currentTick = client.getTickCount();
+
+		// Pruned once per tick rather than every frame - the overlay's own render-time check
+		// against getDisappearsOnGameCycle() is what actually controls the moment a hitsplat
+		// stops being drawn (cycle-accurate), this is just bounding the list's size so it
+		// doesn't grow indefinitely between prunes.
+		int currentCycle = client.getGameCycle();
+		selfHitsplats.removeIf(h -> currentCycle >= h.getDisappearsOnGameCycle());
 
 		// The local player (and whoever they're fighting) may need to start being tracked
 		// without a fresh HitsplatApplied/InteractingChanged event ever firing - e.g. "Show

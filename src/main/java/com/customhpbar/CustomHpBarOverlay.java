@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.HeadIcon;
+import net.runelite.api.Hitsplat;
+import net.runelite.api.HitsplatID;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
@@ -42,7 +44,10 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -74,6 +79,65 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Gap between the overhead icon and the HP bar's top edge, before zoom scaling. */
 	private static final int OVERHEAD_ICON_GAP = 3;
+
+	/** Gap between stacked hitsplats, before zoom scaling. */
+	private static final int HITSPLAT_GAP = 2;
+
+	/** Gap between the overhead chat text and the HP bar/icon above which it's moved, before zoom scaling. */
+	private static final int CHAT_TEXT_BAR_GAP = 3;
+
+	/**
+	 * Real client sprite ID for every hitsplat's actual background graphic, keyed by
+	 * HitsplatID's own type constant - not a guess: confirmed by decompiling the Nameplates Hub
+	 * plugin's HitsplatDefaultSprite enum, which pairs its own (hitsplatType, spriteId) constants
+	 * 1:1 against HitsplatID's real values (cross-checked directly against the decompiled
+	 * HitsplatID class - e.g. its BLOCK_ME=12 entry maps to sprite 1358, matching
+	 * SpriteID.Hitmark.HITSPLAT_BLUE_MISS=1358 exactly). Drawing the real sprite instead of a
+	 * custom color/shape is what "exactly the same as vanilla" requires - unlike the debuff
+	 * icons elsewhere in this file, every hitsplat variant relevant here has a confirmed ID, so
+	 * there's no guessing involved.
+	 */
+	private static final Map<Integer, Integer> HITSPLAT_SPRITE_IDS = buildHitsplatSpriteIds();
+
+	private static Map<Integer, Integer> buildHitsplatSpriteIds()
+	{
+		Map<Integer, Integer> ids = new HashMap<>();
+		ids.put(HitsplatID.BLOCK_ME, 1358);
+		ids.put(HitsplatID.BLOCK_OTHER, 1630);
+		ids.put(HitsplatID.DAMAGE_ME, 1359);
+		ids.put(HitsplatID.DAMAGE_OTHER, 1631);
+		ids.put(HitsplatID.POISON, 1360);
+		ids.put(HitsplatID.DISEASE, 1361);
+		ids.put(HitsplatID.DISEASE_BLOCKED, 1633);
+		ids.put(HitsplatID.VENOM, 1632);
+		ids.put(HitsplatID.HEAL, 1629);
+		ids.put(HitsplatID.CYAN_UP, 3519);
+		ids.put(HitsplatID.CYAN_DOWN, 3520);
+		ids.put(HitsplatID.DAMAGE_ME_CYAN, 1419);
+		ids.put(HitsplatID.DAMAGE_OTHER_CYAN, 1339);
+		ids.put(HitsplatID.DAMAGE_ME_ORANGE, 1628);
+		ids.put(HitsplatID.DAMAGE_OTHER_ORANGE, 1544);
+		ids.put(HitsplatID.DAMAGE_ME_YELLOW, 1362);
+		ids.put(HitsplatID.DAMAGE_OTHER_YELLOW, 1634);
+		ids.put(HitsplatID.DAMAGE_ME_WHITE, 1363);
+		ids.put(HitsplatID.DAMAGE_OTHER_WHITE, 1105);
+		ids.put(HitsplatID.DAMAGE_MAX_ME, 3571);
+		ids.put(HitsplatID.DAMAGE_MAX_ME_CYAN, 4556);
+		ids.put(HitsplatID.DAMAGE_MAX_ME_ORANGE, 4557);
+		ids.put(HitsplatID.DAMAGE_MAX_ME_YELLOW, 3572);
+		ids.put(HitsplatID.DAMAGE_MAX_ME_WHITE, 3573);
+		ids.put(HitsplatID.DAMAGE_ME_POISE, 4558);
+		ids.put(HitsplatID.DAMAGE_OTHER_POISE, 4559);
+		ids.put(HitsplatID.DAMAGE_MAX_ME_POISE, 4560);
+		ids.put(HitsplatID.CORRUPTION, 2270);
+		ids.put(HitsplatID.PRAYER_DRAIN, 4561);
+		ids.put(HitsplatID.BLEED, 4564);
+		ids.put(HitsplatID.SANITY_DRAIN, 4764);
+		ids.put(HitsplatID.SANITY_RESTORE, 4765);
+		ids.put(HitsplatID.DOOM, 4766);
+		ids.put(HitsplatID.BURN, 4767);
+		return ids;
+	}
 
 	private final CustomHpBarPlugin plugin;
 	private final CustomHpBarConfig config;
@@ -120,6 +184,9 @@ class CustomHpBarOverlay extends Overlay
 	 * status effect icons above.
 	 */
 	private final Map<HeadIcon, BufferedImage> headIconImages = new EnumMap<>(HeadIcon.class);
+
+	/** Real hitsplat background sprites, cached per HitsplatID type once loaded (see HITSPLAT_SPRITE_IDS). */
+	private final Map<Integer, BufferedImage> hitsplatImages = new HashMap<>();
 
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
@@ -220,6 +287,8 @@ class CustomHpBarOverlay extends Overlay
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
 			drawOverheadIcon(g, localPlayer, playerStyle);
+			drawSelfHitsplats(g, localPlayer);
+			drawOverheadChatText(g, localPlayer, playerStyle);
 		}
 
 		if (config.showNpcName() && config.alwaysShowNpcName())
@@ -793,6 +862,213 @@ class CustomHpBarOverlay extends Overlay
 		spriteManager.getSpriteAsync(SpriteID.HEADICONS_PRAYER, headIcon.ordinal(),
 			image -> headIconImages.put(headIcon, image));
 		return null;
+	}
+
+	/**
+	 * Redraws hitsplats landing on the local player, replacing the native ones that
+	 * CustomHpBarPlugin's render callback suppresses along with the rest of the overhead UI pass
+	 * when Replace Overhead Icon is on (Hitsplat isn't its own Renderable, so it can't be kept
+	 * while suppressing the health bar/icon - see that field's own doc comment). Draws the real
+	 * client sprite for each hitsplat's type (HITSPLAT_SPRITE_IDS) at its own natural size, plus
+	 * the amount in white on top - matching vanilla exactly rather than a custom shape/color,
+	 * per explicit request. Anchored at roughly chest height on the character model, not above
+	 * the head like the health bar/icon/chat text - matching where native hitsplats actually
+	 * appear (on the character, not floating above it) - multiple simultaneous hits stack left
+	 * to right, same as native. Each hitsplat's own Hitsplat.getDisappearsOnGameCycle() controls
+	 * exactly when it stops being drawn, matching native timing rather than an arbitrary
+	 * duration.
+	 */
+	private void drawSelfHitsplats(Graphics2D g, Player localPlayer)
+	{
+		List<Hitsplat> hitsplats = plugin.getSelfHitsplats();
+		if (hitsplats.isEmpty())
+		{
+			return;
+		}
+
+		// Native hitsplats render on the character's body (roughly chest height), not floating
+		// above the head the way the health bar/overhead icon/chat text do - getLogicalHeight()
+		// (the same anchor those use) is explicitly documented as "roughly where the health bar
+		// is drawn," which is too high for this. There's no dedicated API for the exact chest
+		// attachment point the native renderer uses, so half of getLogicalHeight() approximates
+		// it as the vertical center of the model instead of its top.
+		Point anchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
+			localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight() / 2);
+		if (anchor == null)
+		{
+			return;
+		}
+
+		// Images resolved up front (not inside the draw loop) so the whole row's width is known
+		// before any drawing starts - needed to center the row on the anchor the same way native
+		// simultaneous hitsplats do. Hitsplats with no confirmed sprite mapping or still loading
+		// asynchronously are simply skipped from the row rather than leaving a gap.
+		int currentCycle = client.getGameCycle();
+		List<Hitsplat> visible = new ArrayList<>();
+		List<BufferedImage> images = new ArrayList<>();
+		for (Hitsplat hitsplat : hitsplats)
+		{
+			if (currentCycle >= hitsplat.getDisappearsOnGameCycle())
+			{
+				continue;
+			}
+			BufferedImage image = hitsplatImage(hitsplat.getHitsplatType());
+			if (image != null)
+			{
+				visible.add(hitsplat);
+				images.add(image);
+			}
+		}
+		if (visible.isEmpty())
+		{
+			return;
+		}
+
+		double zoom = zoomFactor();
+		int gap = scaled(HITSPLAT_GAP, zoom);
+
+		int totalWidth = -gap;
+		for (BufferedImage image : images)
+		{
+			totalWidth += scaled(image.getWidth(), zoom) + gap;
+		}
+
+		// RuneScape Small at its default size (16, FontManager's own baked-in native size for
+		// all three RuneScape TTFs), white with a black +1,+1 drop shadow - matching vanilla's
+		// hitsplat numbers exactly. Not the Bold font used elsewhere in this overlay: confirmed
+		// against Nameplates' own vanilla-replica "OSRS" hitsplat theme (HitsplatOptions.draw,
+		// decompiled), which uses getRunescapeSmallFont() as-is with this same shadow. Only
+		// scaled further when Scale With Zoom is on.
+		Font font = FontManager.getRunescapeSmallFont().deriveFont((float) scaled(16, zoom));
+		g.setFont(font);
+		FontRenderContext frc = g.getFontRenderContext();
+
+		int x = anchor.getX() - totalWidth / 2;
+		for (int i = 0; i < visible.size(); i++)
+		{
+			BufferedImage image = images.get(i);
+			int w = scaled(image.getWidth(), zoom);
+			int h = scaled(image.getHeight(), zoom);
+			int y = anchor.getY() - h / 2;
+			g.drawImage(image, x, y, w, h, null);
+
+			String text = String.valueOf(visible.get(i).getAmount());
+			Rectangle pixelBounds = new TextLayout(text, font, frc).getPixelBounds(frc, 0, 0);
+			int textX = x + (int) Math.round((w - pixelBounds.getWidth()) / 2.0) - pixelBounds.x;
+			int textY = y + (int) Math.round((h - pixelBounds.getHeight()) / 2.0) - pixelBounds.y;
+			g.setColor(Color.BLACK);
+			g.drawString(text, textX + 1, textY + 1);
+			g.setColor(Color.WHITE);
+			g.drawString(text, textX, textY);
+
+			x += w + gap;
+		}
+	}
+
+	private BufferedImage hitsplatImage(int hitsplatType)
+	{
+		BufferedImage cached = hitsplatImages.get(hitsplatType);
+		if (cached != null)
+		{
+			return cached;
+		}
+
+		Integer spriteId = HITSPLAT_SPRITE_IDS.get(hitsplatType);
+		if (spriteId == null)
+		{
+			return null;
+		}
+
+		BufferedImage loaded = spriteManager.getSprite(spriteId, 0);
+		if (loaded != null)
+		{
+			hitsplatImages.put(hitsplatType, loaded);
+			return loaded;
+		}
+
+		spriteManager.getSpriteAsync(spriteId, 0, image -> hitsplatImages.put(hitsplatType, image));
+		return null;
+	}
+
+	/**
+	 * Redraws the local player's overhead chat text (speech bubble), replacing the native text
+	 * suppressed alongside the rest of the overhead UI pass when Replace Overhead Icon is on.
+	 * Actor.getOverheadCycle() is a countdown (client ticks remaining until the text times out,
+	 * per its own javadoc), decremented by the client itself - reading it fresh each frame is
+	 * enough to know whether to draw, no local tracking needed the way hitsplats required.
+	 * Styled black-outline-on-yellow to match the native chat overhead convention, same
+	 * black/text-color outline approach drawLabel() uses for the HP number.
+	 *
+	 * Default position matches the native client's own overhead text spot - but the HP/Prayer
+	 * bar can occupy exactly that space when it's actually showing, since the bar's position
+	 * depends on the configurable verticalOffset. When the bar is shown, the text tucks in
+	 * beneath the bar stack instead (below rather than above, to stay clear of the replacement
+	 * overhead icon that sits above the bar).
+	 */
+	private void drawOverheadChatText(Graphics2D g, Player localPlayer, BarStyle style)
+	{
+		if (localPlayer.getOverheadCycle() <= 0)
+		{
+			return;
+		}
+
+		String text = Text.removeFormattingTags(localPlayer.getOverheadText());
+		if (text == null || text.isEmpty())
+		{
+			return;
+		}
+
+		Point anchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
+			localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight());
+		if (anchor == null)
+		{
+			return;
+		}
+
+		double zoom = zoomFactor();
+		// RuneScape Bold at its default size (16, FontManager's baked-in native size) - vanilla
+		// overhead chat is drawn with the bold font, not the regular one, confirmed against
+		// Nameplates' own drawOverheadTexts (decompiled: sets getRunescapeBoldFont() before
+		// drawing its black-shadow+yellow overhead text, the same style being replicated here).
+		Font font = FontManager.getRunescapeBoldFont().deriveFont((float) scaled(16, zoom));
+		g.setFont(font);
+		FontRenderContext frc = g.getFontRenderContext();
+		Rectangle pixelBounds = new TextLayout(text, font, frc).getPixelBounds(frc, 0, 0);
+
+		int x = anchor.getX() - (int) Math.round(pixelBounds.getWidth() / 2.0) - pixelBounds.x;
+
+		int y;
+		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
+		boolean barShown = tracked || (config.showPrayerBar() && plugin.isAnyPrayerActive());
+		if (barShown)
+		{
+			// Tucked beneath the bar stack: the HP bar, plus the Prayer bar's extra row when
+			// it's drawn attached below (only in the tracked/combat case - the standalone
+			// prayer-only path draws a single bar at the HP bar's own position, no second row).
+			int[] rect = barRect(anchor, style, zoom);
+			int stackBottom = rect[1] + rect[3];
+			if (tracked && config.showPrayerBar())
+			{
+				stackBottom += rect[3];
+			}
+			y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
+		}
+		else
+		{
+			// Native default position: the model's logical height plus a small 15 world-unit
+			// offset, projected to screen - the same "height + 15" Nameplates' own
+			// drawOverheadText passes to getCanvasTextLocation (decompiled), which is where the
+			// vanilla client draws overhead chat. A world-space offset, not a fixed pixel one -
+			// it naturally shrinks/grows with camera distance the way the native text does.
+			Point textAnchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
+				localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight() + 15);
+			y = textAnchor != null ? textAnchor.getY() : anchor.getY();
+		}
+
+		g.setColor(Color.BLACK);
+		g.drawString(text, x + 1, y + 1);
+		g.setColor(Color.YELLOW);
+		g.drawString(text, x, y);
 	}
 
 	private void drawPrayerBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)
