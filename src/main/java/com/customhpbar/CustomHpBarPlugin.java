@@ -12,6 +12,7 @@ import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.events.GameTick;
@@ -62,6 +63,30 @@ public class CustomHpBarPlugin extends Plugin
 {
 	/** OSRS game tick length, for converting the configurable persist duration to ticks. */
 	private static final double MS_PER_TICK = 600.0;
+
+	/**
+	 * Aggression tolerance window in ticks. 1000 ticks = 600s = the 10-minute tolerance duration,
+	 * confirmed against RuneLite's core NPC Aggressiveness Timer plugin (AGGRESSIVE_TIME_DURATION
+	 * = Duration.ofSeconds(600), matching the wiki). Counts down while you stay in the vicinity of
+	 * aggressive monsters; leaving and returning restarts it.
+	 */
+	private static final int AGGRESSION_TICKS = 1000;
+
+	/**
+	 * Vicinity radius in tiles: an aggressive monster within this distance of the player counts as
+	 * "you're in its aggression area," which is what keeps the tolerance timer running. Real OSRS
+	 * tolerance is about remaining near the aggressive monsters for 10 minutes (not standing still
+	 * on one spot), so the timer is anchored to proximity to those monsters, not a fixed point.
+	 */
+	private static final int AGGRESSION_VICINITY_RADIUS = 10;
+
+	/**
+	 * How many consecutive ticks the player must be out of every aggressive monster's vicinity
+	 * before returning counts as a fresh entry (restarting the 10-min window). A small grace so a
+	 * one-tick gap - an NPC despawning/respawning, pathing at the area's edge - doesn't spuriously
+	 * reset the timer, while a genuine walk away and back still does.
+	 */
+	private static final int AGGRESSION_LEAVE_GRACE_TICKS = 5;
 
 	/**
 	 * Hitsplat types that represent actual HP damage, for precise HP tracking. Deliberately
@@ -240,6 +265,17 @@ public class CustomHpBarPlugin extends Plugin
 	private Actor pendingClickActor;
 	private boolean pendingClickIsAttack;
 
+	/**
+	 * The tick the current aggression tolerance window expires, and how many consecutive ticks the
+	 * player has been out of every aggressive monster's vicinity. Updated once per onGameTick by
+	 * updateAggressionArea; read by isNpcAggressive. Anchored to proximity to aggressive monsters
+	 * (not a fixed point), so the window counts down while you stay near them - moving around the
+	 * area is fine - and only restarts when you leave and return. ticksOutsideAggression starts
+	 * above the grace so the very first time you're near an aggressive monster counts as an entry.
+	 */
+	private int aggressionEndTick;
+	private int ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
+
 	@Provides
 	CustomHpBarConfig provideConfig(ConfigManager configManager)
 	{
@@ -264,6 +300,8 @@ public class CustomHpBarPlugin extends Plugin
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
 		selfHitsplats.clear();
+		aggressionEndTick = 0;
+		ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -499,6 +537,8 @@ public class CustomHpBarPlugin extends Plugin
 		// doesn't grow indefinitely between prunes.
 		int currentCycle = client.getGameCycle();
 		selfHitsplats.removeIf(h -> currentCycle >= h.getDisappearsOnGameCycle());
+
+		updateAggressionArea(currentTick);
 
 		// The local player (and whoever they're fighting) may need to start being tracked
 		// without a fresh HitsplatApplied/InteractingChanged event ever firing - e.g. "Show
@@ -932,6 +972,92 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Advances the aggression tolerance window once per tick. Real OSRS tolerance is about
+	 * remaining in the *vicinity of aggressive monsters* for 10 minutes (not standing still on one
+	 * spot), so the window is anchored to proximity: while any monster that would attack the player
+	 * (see wouldBeAggressive) is within AGGRESSION_VICINITY_RADIUS, the player is "in the area" and
+	 * the window counts down. Leaving that vicinity for more than AGGRESSION_LEAVE_GRACE_TICKS and
+	 * then returning counts as a fresh entry and restarts the window (monsters go red again).
+	 */
+	private void updateAggressionArea(int currentTick)
+	{
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null)
+		{
+			return;
+		}
+		WorldPoint playerLoc = localPlayer.getWorldLocation();
+		if (playerLoc == null)
+		{
+			return;
+		}
+
+		boolean near = false;
+		for (NPC npc : client.getTopLevelWorldView().npcs())
+		{
+			if (npc == null || !wouldBeAggressive(localPlayer, npc))
+			{
+				continue;
+			}
+			WorldPoint npcLoc = npc.getWorldLocation();
+			if (npcLoc != null && npcLoc.distanceTo2D(playerLoc) <= AGGRESSION_VICINITY_RADIUS)
+			{
+				near = true;
+				break;
+			}
+		}
+
+		if (near)
+		{
+			// A fresh entry (first time near, or returning after being away past the grace)
+			// restarts the 10-min window; staying continuously near just lets it keep counting
+			// down, so it can expire (tolerant) without immediately restarting.
+			if (ticksOutsideAggression > AGGRESSION_LEAVE_GRACE_TICKS)
+			{
+				aggressionEndTick = currentTick + AGGRESSION_TICKS;
+			}
+			ticksOutsideAggression = 0;
+		}
+		else
+		{
+			ticksOutsideAggression = Math.min(ticksOutsideAggression + 1, AGGRESSION_LEAVE_GRACE_TICKS + 1);
+		}
+	}
+
+	/**
+	 * Whether npc would attack the local player if it were still aggressive - the type is a known
+	 * aggressive monster (AggressiveNpcTable, from the wiki) and the OSRS level rule holds: an
+	 * aggressive monster attacks a player only while playerCombatLevel <= 2 * monsterCombatLevel
+	 * (per /w/Aggressiveness - out-levelling it by more than 2x makes it ignore you; monsters of
+	 * combat level 63+ always qualify, which this gives for free since 2 * 63 = 126 = the max
+	 * player combat level). Does NOT include the tolerance window - that's layered on in
+	 * isNpcAggressive; this is also what updateAggressionArea uses to decide "am I near an
+	 * aggressive monster."
+	 */
+	private boolean wouldBeAggressive(Player localPlayer, NPC npc)
+	{
+		int npcLevel = npc.getCombatLevel();
+		return npcLevel > 0
+			&& localPlayer.getCombatLevel() <= 2 * npcLevel
+			&& AggressiveNpcTable.isAggressive(npc.getId());
+	}
+
+	/**
+	 * Whether npc is currently aggressive toward the local player: it would attack
+	 * (wouldBeAggressive) AND the vicinity-based 10-minute tolerance window is still active (see
+	 * updateAggressionArea). Used by CustomHpBarOverlay to pick the NPC name color.
+	 */
+	boolean isNpcAggressive(NPC npc)
+	{
+		if (client.getTickCount() >= aggressionEndTick)
+		{
+			return false;
+		}
+		Player localPlayer = client.getLocalPlayer();
+		return localPlayer != null && wouldBeAggressive(localPlayer, npc);
 	}
 
 	private boolean isTrackedType(Actor actor)

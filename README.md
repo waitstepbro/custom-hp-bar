@@ -22,11 +22,19 @@ tracking, and status-effect debuffs.
   percentage for NPCs not in the dataset.
 - **Status effect tinting and icons** — the bar changes color and shows a debuff icon while
   poisoned, envenomed, burning, diseased, or corrupted - on NPCs, yourself, and other players
-  alike. Bleed additionally tints your own bar. Colors and icons are sourced from the actual
-  hitsplat sprites, not guessed, and aren't user-configurable. Multiple effects at once show
-  side by side.
+  alike. Bleed additionally tints your own bar and shows its own icon. Colors and icons are
+  sourced from the actual hitsplat sprites, not guessed, and aren't user-configurable. Multiple
+  effects at once show side by side.
 - **NPC names** — shown above the bar, optionally at all times rather than only in combat, with
   non-attackable NPCs (bankers, shop owners, fishing spots, pets) excluded by default.
+- **Same-tile stacking** — actors standing on the exact same tile get their bars and names
+  stacked vertically instead of drawn on top of each other.
+- **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times,
+  not just once you engage it (undamaged NPCs show a full bar).
+- **Aggressive NPC name color** — optionally color a known-aggressive monster's name red while it
+  would attack you (using the OSRS level rule: a monster ignores you once your combat level is more
+  than double its own), reverting after the 10-minute tolerance timer and turning red again if you
+  leave the area and return.
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
   combat, or on its own whenever a prayer is active even outside combat.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
@@ -81,8 +89,11 @@ completely different if you want. Defaults are the same for both unless noted.
 | Display Mode | Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with unknown max HP. | Number |
 | Show NPC Name | Draws the NPC's name above its HP bar | On |
 | Always Show NPC Name | Shows the NPC name at all times, not just in combat. Requires Show NPC Name. | On |
+| Always Show NPC Bar | Shows the HP bar on every attackable NPC at all times, not just once you engage it. NPCs that haven't taken damage yet show a full bar. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names | On |
 | NPC Name Color | Color of the NPC name text, independent of Text Color above | Yellow |
+| Color Aggressive NPC Names | Colors a known-aggressive monster's name differently while it would attack you - i.e. you haven't out-levelled it (a monster ignores you once your combat level is more than double its own). Reverts after the 10-minute tolerance timer; leaving the area and returning turns it red again. | Off |
+| Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
 
 ### Player Bar (You & Others) only
 

@@ -12,6 +12,7 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.widgets.Widget;
@@ -80,8 +81,21 @@ class CustomHpBarOverlay extends Overlay
 	/** Gap between the overhead icon and the HP bar's top edge, before zoom scaling. */
 	private static final int OVERHEAD_ICON_GAP = 3;
 
-	/** Gap between stacked hitsplats, before zoom scaling. */
-	private static final int HITSPLAT_GAP = 2;
+	/**
+	 * Max simultaneous hitsplats drawn on the local player - the vanilla engine gives each actor
+	 * exactly 4 hitsplat slots (confirmed via Nameplates' CappedDisplayType default, decompiled).
+	 */
+	private static final int MAX_HITSPLATS = 4;
+
+	/** Vertical padding between bars of actors sharing the same tile, before zoom scaling. */
+	private static final int STACK_PADDING = 2;
+
+	/**
+	 * Approximate overhead icon height reserved when the local player's bar is in a same-tile
+	 * stack (the real sprites are ~this size; using an approximation avoids depending on
+	 * whether one has loaded yet). Only affects stack spacing, not the icon's own rendering.
+	 */
+	private static final int STACK_ICON_CLEARANCE = 24;
 
 	/** Gap between the overhead chat text and the HP bar/icon above which it's moved, before zoom scaling. */
 	private static final int CHAT_TEXT_BAR_GAP = 3;
@@ -217,6 +231,15 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle targetStyle = null;
 		BarStyle playerStyle = null;
 
+		// Same-tile stacking state, rebuilt each frame: actors standing on the exact same tile
+		// would otherwise draw their bars/names directly on top of each other (multiple stacked
+		// NPCs was the reported case). tileStacks accumulates the pixels already claimed above
+		// each tile; appliedStacks remembers each drawn actor's shift so the "Always Show NPC
+		// Name" pass below can place a tracked NPC's name on its (shifted) bar instead of
+		// re-deriving a fresh, mismatched slot for it.
+		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
+		Map<Actor, Integer> appliedStacks = new HashMap<>();
+
 		for (Map.Entry<Actor, Integer> entry : plugin.getTrackedActors().entrySet())
 		{
 			Actor actor = entry.getKey();
@@ -255,6 +278,13 @@ class CustomHpBarOverlay extends Overlay
 				style = targetStyle != null ? targetStyle : (targetStyle = resolveStyle(actor));
 			}
 
+			int shift = claimBarStackSlot(tileStacks, actor, style, zoomFactor());
+			if (shift > 0)
+			{
+				anchor = new Point(anchor.getX(), anchor.getY() - shift);
+			}
+			appliedStacks.put(actor, shift);
+
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
@@ -291,22 +321,20 @@ class CustomHpBarOverlay extends Overlay
 			drawOverheadChatText(g, localPlayer, playerStyle);
 		}
 
-		if (config.showNpcName() && config.alwaysShowNpcName())
+		// Second pass over every nearby NPC, for the two "regardless of combat" behaviors:
+		// Always Show NPC Bar (draw a bar on any attackable NPC even before it's engaged) and
+		// Always Show NPC Name (the sole name source when it's on - see below). Both iterate the
+		// same NPC list, so they share one loop to avoid double-claiming same-tile stack slots.
+		boolean alwaysBar = config.alwaysShowNpcBar();
+		boolean alwaysName = config.showNpcName() && config.alwaysShowNpcName();
+		if (alwaysBar || alwaysName)
 		{
 			double zoom = zoomFactor();
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
-				// This pass is the sole source of NPC names whenever "Always Show" is on - it
-				// deliberately does NOT skip NPCs already in trackedActors (drawBar() skips its
-				// own name draw in that case - see below). Tracked-but-no-HP-yet is a real,
-				// common state: clicking to attack (even from out of range) adds the NPC to
-				// trackedActors via onInteractingChanged well before any hitsplat gives it HP
-				// data, and the main loop above bails out entirely on missing HP (hp == null -
-				// continue), skipping drawBar() and, with it, the name draw that used to live
-				// inside it. Relying on "already tracked" to mean "name already drawn" produced
-				// exactly that gap - the name would vanish the instant you clicked to attack and
-				// only come back once a hit actually landed. Iterating every matching NPC here
-				// unconditionally has no such gap, since it never depends on HP/tracking state.
+				// matchesNpcFilter() is the "could I attack this" gate (combat level, hidden-
+				// mechanic exclusion, name filter - see CustomHpBarPlugin.isTrackedNpc), so it's
+				// exactly the set of NPCs Always Show NPC Bar means by "every NPC you could attack."
 				if (npc == null || !plugin.matchesNpcFilter(npc))
 				{
 					continue;
@@ -320,7 +348,44 @@ class CustomHpBarOverlay extends Overlay
 				}
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
-				drawNpcNameOnly(g, npc, anchor, targetStyle, zoom);
+
+				// An NPC the main loop already drew (in appliedStacks) reuses that exact shift so
+				// its name/bar here lands on the same slot; otherwise it claims a fresh slot sized
+				// to whatever this pass will draw (a full bar, or just a name).
+				boolean barAlreadyDrawn = appliedStacks.containsKey(npc);
+				Integer applied = appliedStacks.get(npc);
+				int shift = applied != null ? applied
+					: (alwaysBar ? claimBarStackSlot(tileStacks, npc, targetStyle, zoom)
+						: claimNameStackSlot(tileStacks, npc, targetStyle, zoom));
+				if (shift > 0)
+				{
+					anchor = new Point(anchor.getX(), anchor.getY() - shift);
+				}
+
+				// Draw the bar for any attackable NPC not already drawn by the main loop. An NPC
+				// with no live HP (idle, never hit - getHealthRatio() == -1) shows a full bar,
+				// since a full-health NPC should read as full; real ratio/precise data takes over
+				// as soon as it (or anyone) damages it. drawBar() also handles this NPC's name on
+				// its own when Always Show NPC Name is off, so we only draw the name below when
+				// it's on (matching the tracked-actor path in the main loop).
+				if (alwaysBar && !barAlreadyDrawn)
+				{
+					int maxHp = resolveMaxHp(npc);
+					int[] hp = resolveHp(npc, maxHp);
+					if (hp == null)
+					{
+						hp = new int[]{1, 1};
+					}
+					drawBar(g, npc, anchor, hp[0], hp[1], maxHp, targetStyle);
+				}
+
+				// Always Show NPC Name is the sole name source when on, for both tracked NPCs
+				// (drawBar skipped their name) and untracked ones - see the long-standing note
+				// below in drawBar about why "tracked" never implies "name already drawn."
+				if (alwaysName)
+				{
+					drawNpcNameOnly(g, npc, anchor, targetStyle, zoom);
+				}
 			}
 		}
 
@@ -422,6 +487,52 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
+	 * Claims a same-tile stack slot for an actor's full bar, returning the upward pixel shift to
+	 * apply (0 for the first actor on its tile, so the feature is invisible unless actors are
+	 * actually stacked). The consumed height covers everything this actor draws *upward* from
+	 * its bar top - the NPC name label, or the local player's replacement overhead icon - so the
+	 * next actor's bar clears it. Downward extras (prayer bar, status icons) don't matter here,
+	 * since stacking only ever pushes later actors up, never down.
+	 */
+	private int claimBarStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, BarStyle style, double zoom)
+	{
+		WorldPoint tile = actor.getWorldLocation();
+		if (tile == null)
+		{
+			return 0;
+		}
+
+		int shift = tileStacks.getOrDefault(tile, 0);
+
+		int consumed = scaled(style.height + STACK_PADDING, zoom);
+		if (actor instanceof NPC && config.showNpcName())
+		{
+			consumed += scaled(style.fontSize + NAME_GAP, zoom);
+		}
+		else if (actor == client.getLocalPlayer() && config.replaceOverheadIcon())
+		{
+			consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
+		}
+
+		tileStacks.put(tile, shift + consumed);
+		return shift;
+	}
+
+	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC Name" pass). */
+	private int claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, NPC npc, BarStyle style, double zoom)
+	{
+		WorldPoint tile = npc.getWorldLocation();
+		if (tile == null)
+		{
+			return 0;
+		}
+
+		int shift = tileStacks.getOrDefault(tile, 0);
+		tileStacks.put(tile, shift + scaled(style.fontSize + NAME_GAP + STACK_PADDING, zoom));
+		return shift;
+	}
+
+	/**
 	 * Draws just the NPC name label, at the position it would occupy above the HP bar if the bar
 	 * were showing - used for "Always Show NPC Name" on NPCs that aren't currently tracked (i.e.
 	 * not in combat), so there's no bar to draw.
@@ -440,7 +551,9 @@ class CustomHpBarOverlay extends Overlay
 		int w = rect[2];
 		int h = rect[3];
 		int nameGap = scaled(NAME_GAP, zoom);
-		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, config.npcNameColor());
+		Color nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
+			? config.aggressiveNpcNameColor() : config.npcNameColor();
+		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, nameColor);
 	}
 
 	/**
@@ -692,6 +805,13 @@ class CustomHpBarOverlay extends Overlay
 				return venomIcon();
 			case BURN:
 				return burnIcon();
+			case BLEED:
+				// Reuses the hitsplat sprite cache - Bleed had no confirmed SpriteID.Hitmark
+				// entry when the other icons were wired up, but the hitsplat sprite mapping
+				// added later (HITSPLAT_SPRITE_IDS, verified via Nameplates' decompiled
+				// HitsplatDefaultSprite) confirmed 4564 as the real Bleed hitsplat sprite,
+				// unblocking this. Same live-from-client loading as Poison/Venom/Burn.
+				return hitsplatImage(HitsplatID.BLEED);
 			case DISEASE:
 				return diseaseIcon();
 			case CORRUPTION:
@@ -873,10 +993,15 @@ class CustomHpBarOverlay extends Overlay
 	 * the amount in white on top - matching vanilla exactly rather than a custom shape/color,
 	 * per explicit request. Anchored at roughly chest height on the character model, not above
 	 * the head like the health bar/icon/chat text - matching where native hitsplats actually
-	 * appear (on the character, not floating above it) - multiple simultaneous hits stack left
-	 * to right, same as native. Each hitsplat's own Hitsplat.getDisappearsOnGameCycle() controls
-	 * exactly when it stops being drawn, matching native timing rather than an arbitrary
-	 * duration.
+	 * appear (on the character, not floating above it). At most MAX_HITSPLATS (4, the same
+	 * number of simultaneous hitsplat slots the vanilla engine gives an actor) show at once, in
+	 * vanilla's fixed diamond arrangement (below-center, above-center, left, right) rather than
+	 * a row that grows with every hit - an earlier row-based version stretched across the whole
+	 * screen when many NPCs attacked at once. Layout offsets mirror Nameplates' vanilla-replica
+	 * OSRSDisplayType.render() exactly (decompiled): x = anchor + horizMult * (w/2 + 4),
+	 * y = anchor + (vertMult - 0.6) * (h/2 - 2), cap 4 (its CappedDisplayType default). Each
+	 * hitsplat's own Hitsplat.getDisappearsOnGameCycle() controls exactly when it stops being
+	 * drawn, matching native timing rather than an arbitrary duration.
 	 */
 	private void drawSelfHitsplats(Graphics2D g, Player localPlayer)
 	{
@@ -899,10 +1024,8 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		// Images resolved up front (not inside the draw loop) so the whole row's width is known
-		// before any drawing starts - needed to center the row on the anchor the same way native
-		// simultaneous hitsplats do. Hitsplats with no confirmed sprite mapping or still loading
-		// asynchronously are simply skipped from the row rather than leaving a gap.
+		// Hitsplats with no confirmed sprite mapping or still loading asynchronously are simply
+		// skipped rather than drawn as a blank slot.
 		int currentCycle = client.getGameCycle();
 		List<Hitsplat> visible = new ArrayList<>();
 		List<BufferedImage> images = new ArrayList<>();
@@ -924,32 +1047,41 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		double zoom = zoomFactor();
-		int gap = scaled(HITSPLAT_GAP, zoom);
-
-		int totalWidth = -gap;
-		for (BufferedImage image : images)
+		// Vanilla replaces the oldest of its 4 slots when a fifth hit lands, so the 4 shown are
+		// always the most recent - selfHitsplats is append-ordered, so that's the list's tail.
+		if (visible.size() > MAX_HITSPLATS)
 		{
-			totalWidth += scaled(image.getWidth(), zoom) + gap;
+			visible = visible.subList(visible.size() - MAX_HITSPLATS, visible.size());
+			images = images.subList(images.size() - MAX_HITSPLATS, images.size());
 		}
 
+		double zoom = zoomFactor();
+
 		// RuneScape Small at its default size (16, FontManager's own baked-in native size for
-		// all three RuneScape TTFs), white with a black +1,+1 drop shadow - matching vanilla's
-		// hitsplat numbers exactly. Not the Bold font used elsewhere in this overlay: confirmed
-		// against Nameplates' own vanilla-replica "OSRS" hitsplat theme (HitsplatOptions.draw,
-		// decompiled), which uses getRunescapeSmallFont() as-is with this same shadow. Only
-		// scaled further when Scale With Zoom is on.
+		// all three RuneScape TTFs), white with a black +1,+1 drop shadow, centered on the splat.
+		// Verified against the actual vanilla client rendering (317 reference, Game.java): it draws
+		// the number with fontPlain11 (the small/"p11" plain font = getRunescapeSmallFont here, NOT
+		// the bold font used for chat/HP text), a black shadow, and a white pass offset so the
+		// shadow sits +1,+1 down-right of it - exactly this. Only scaled further with Scale With Zoom.
 		Font font = FontManager.getRunescapeSmallFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
 		FontRenderContext frc = g.getFontRenderContext();
 
-		int x = anchor.getX() - totalWidth / 2;
 		for (int i = 0; i < visible.size(); i++)
 		{
 			BufferedImage image = images.get(i);
 			int w = scaled(image.getWidth(), zoom);
 			int h = scaled(image.getHeight(), zoom);
-			int y = anchor.getY() - h / 2;
+
+			// Vanilla's fixed 4-slot diamond: slot 0 sits below-center, 1 above, 2 left, 3 right
+			// (see the method doc comment for the decompiled source of these exact offsets).
+			int vertMult = i == 0 ? 1 : (i == 1 ? -1 : 0);
+			int horizMult = i == 2 ? -1 : (i == 3 ? 1 : 0);
+			int centerX = anchor.getX() + horizMult * (w / 2 + scaled(4, zoom));
+			int centerY = anchor.getY() + Math.round((vertMult - 0.6f) * (h / 2 - scaled(2, zoom)));
+
+			int x = centerX - w / 2;
+			int y = centerY - h / 2;
 			g.drawImage(image, x, y, w, h, null);
 
 			String text = String.valueOf(visible.get(i).getAmount());
@@ -960,8 +1092,6 @@ class CustomHpBarOverlay extends Overlay
 			g.drawString(text, textX + 1, textY + 1);
 			g.setColor(Color.WHITE);
 			g.drawString(text, textX, textY);
-
-			x += w + gap;
 		}
 	}
 

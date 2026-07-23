@@ -255,11 +255,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "alwaysShowNpcBar",
+		name = "Always Show NPC Bar",
+		description = "Shows the HP bar on every NPC you could attack, at all times - not just once you're " +
+			"in combat with it. NPCs that haven't taken damage yet show a full bar.",
+		section = TARGET_SECTION,
+		position = 17
+	)
+	default boolean alwaysShowNpcBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "onlyShowCombatNpcNames",
 		name = "Only Show Combat NPC Names",
 		description = "Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names.",
 		section = TARGET_SECTION,
-		position = 17
+		position = 18
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -271,7 +284,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, independent of the HP number's Text Color above.",
 		section = TARGET_SECTION,
-		position = 18
+		position = 19
 	)
 	default Color npcNameColor()
 	{
@@ -279,11 +292,39 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "colorAggressiveNpcNames",
+		name = "Color Aggressive NPC Names",
+		description = "Colors an NPC's name differently (see below) while it would be aggressive toward " +
+			"you - i.e. it's a known aggressive monster and you haven't out-levelled it (a monster ignores " +
+			"you once your combat level is more than double its own). Reverts after the 10-minute tolerance " +
+			"window; leaving the area and returning makes it aggressive again.",
+		section = TARGET_SECTION,
+		position = 20
+	)
+	default boolean colorAggressiveNpcNames()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "aggressiveNpcNameColor",
+		name = "Aggressive NPC Name Color",
+		description = "Name color for an NPC that's currently aggressive toward you. Requires 'Color " +
+			"Aggressive NPC Names'.",
+		section = TARGET_SECTION,
+		position = 21
+	)
+	default Color aggressiveNpcNameColor()
+	{
+		return new Color(255, 0, 0);
+	}
+
+	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 22
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -296,7 +337,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 23
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -309,7 +350,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_SECTION,
-		position = 21
+		position = 24
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -573,7 +614,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "selfShowStatusIcon",
 		name = "Show Status Icon",
 		description = "Shows a debuff icon beneath a player's bar (yours or others') while poisoned, " +
-			"envenomed, burning, diseased, or corrupted.",
+			"envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_SECTION,
 		position = 20
 	)
