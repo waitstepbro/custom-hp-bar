@@ -89,7 +89,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Always Show NPC Bar | Shows the HP bar on every attackable NPC, not just once you engage it (full bar until damaged). Non-attackable NPCs (combat level 0) never get one. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names | On |
 | NPC Name Color | Color of the NPC name text, independent of Text Color above | Yellow |
-| Color Aggressive NPC Names | Colors a known-aggressive monster's name differently while you haven't out-levelled it (ignored past double its combat level). Reverts after 10 minutes of tolerance; leaving and returning re-triggers it. | Off |
+| Color Aggressive NPC Names | Colors an NPC's name while it's aggressive toward you, reverting after a 10-minute tolerance timer. | Off |
 | Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
 
 ### Player Bar (You & Others) only

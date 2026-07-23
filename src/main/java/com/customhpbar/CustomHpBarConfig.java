@@ -294,9 +294,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "colorAggressiveNpcNames",
 		name = "Color Aggressive NPC Names",
-		description = "Colors an NPC's name (see below) while it's a known-aggressive monster you haven't " +
-			"out-levelled (ignored past double its combat level). Reverts after 10 minutes of tolerance; " +
-			"leaving and returning re-triggers it.",
+		description = "Colors an NPC's name (see below) while it's aggressive toward you, reverting after a " +
+			"10-minute tolerance timer.",
 		section = TARGET_SECTION,
 		position = 20
 	)
