@@ -19,40 +19,30 @@ tracking, and status-effect debuffs.
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with its
   own fully independent size, shape, color, and font settings.
-- **Precise NPC HP** — tracks exact current HP for ~4,000 NPCs from a bundled dataset, not the
-  native bar's coarse ratio/scale bucket, self-correcting if it ever drifts. Falls back to a
-  percentage for NPCs not in the dataset. The Doom of Mokhaiotl's max HP is tracked live by delve
-  level instead (its HP changes per level but reuses the same NPC IDs, so a static dataset can't
-  represent it). At encounters with the game's own native boss HP HUD (CoX, ToA, Gauntlet, Moons
-  of Peril, and others), that widget's exact live numbers are used directly instead - correct
-  automatically at any scaled difficulty/invocation level, with no dataset involved at all.
+- **Precise NPC HP** — tracks exact current HP for ~4,000 NPCs, not just the native bar's coarse
+  ratio/scale bucket. Falls back to a percentage for NPCs not in the dataset, and uses the game's
+  own boss HP HUD directly at supported encounters (CoX, ToA, Gauntlet, Moons of Peril, and
+  others) for exact numbers at any scaled difficulty.
 - **Status effect tinting and icons** — the bar changes color and shows a debuff icon while
   poisoned, envenomed, burning, diseased, or corrupted - on NPCs, yourself, and other players
-  alike. Bleed additionally tints your own bar and shows its own icon. Colors and icons are
-  sourced from the actual hitsplat sprites, not guessed, and aren't user-configurable. Multiple
-  effects at once show side by side.
+  alike (bleed also applies to your own bar). Multiple effects at once show side by side.
 - **NPC names** — shown above the bar, optionally at all times rather than only in combat, with
   non-attackable NPCs (bankers, shop owners, fishing spots, pets) excluded by default.
 - **Same-tile stacking** — actors standing on the exact same tile get their bars and names
   stacked vertically instead of drawn on top of each other.
-- **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times,
-  not just once you engage it (undamaged NPCs show a full bar). Non-attackable NPCs (combat
-  level 0) never get one, regardless of other filter settings.
+- **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times
+  (undamaged NPCs show a full bar); non-attackable NPCs never get one.
 - **Aggressive NPC name color** — optionally color a known-aggressive monster's name red as soon
-  as its name is visible (using the OSRS level rule: a monster ignores you once your combat level
-  is more than double its own), reverting after the 10-minute tolerance timer and turning red
-  again if you leave the area and return.
+  as its name is visible, reverting after a 10-minute tolerance timer (leaving the area and
+  returning turns it red again).
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
   combat, or on its own whenever a prayer is active even outside combat.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
-  preview of where HP would land if you consumed it, using the same calculation as the core Item
-  Stats plugin (so level/gear-dependent heals like Cooked Moss Lizard are accurate too).
+  preview of where HP would land if you consumed it.
 - **Prayer restore preview** — same idea for your Prayer bar, when hovering a Prayer-restoring
   item.
-- **Replaced overhead icon** — hides the game's native overhead UI on your own character and
-  draws your active protection prayer icon just above your HP bar instead, so HP, Prayer, and
-  the icon move together as one unit. Hitsplats (using the game's own sprites) and overhead
-  chat text are redrawn so they still look and behave the same as normal.
+- **Replaced overhead icon** — optionally replaces the native overhead prayer icon, hitsplats, and
+  chat text on your character with a redrawn copy positioned above your HP bar.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide (sprite-level
   override) so only this plugin's bar shows.
 - **Zoom scaling** — bars and text grow/shrink with camera zoom to match the actor model.
