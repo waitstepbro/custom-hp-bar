@@ -19,7 +19,11 @@ tracking, and status-effect debuffs.
   own fully independent size, shape, color, and font settings.
 - **Precise NPC HP** — tracks exact current HP for ~4,000 NPCs from a bundled dataset, not the
   native bar's coarse ratio/scale bucket, self-correcting if it ever drifts. Falls back to a
-  percentage for NPCs not in the dataset.
+  percentage for NPCs not in the dataset. The Doom of Mokhaiotl's max HP is tracked live by delve
+  level instead (its HP changes per level but reuses the same NPC IDs, so a static dataset can't
+  represent it). At encounters with the game's own native boss HP HUD (CoX, ToA, Gauntlet, Moons
+  of Peril, and others), that widget's exact live numbers are used directly instead - correct
+  automatically at any scaled difficulty/invocation level, with no dataset involved at all.
 - **Status effect tinting and icons** — the bar changes color and shows a debuff icon while
   poisoned, envenomed, burning, diseased, or corrupted - on NPCs, yourself, and other players
   alike. Bleed additionally tints your own bar and shows its own icon. Colors and icons are

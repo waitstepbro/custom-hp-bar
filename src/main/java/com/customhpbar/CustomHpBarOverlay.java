@@ -395,16 +395,24 @@ class CustomHpBarOverlay extends Overlay
 	/**
 	 * Returns [current, max] HP for display, or null if no HP data is available at all.
 	 *
-	 * For NPCs with an established precise estimate (hitsplat-tracked, see CustomHpBarPlugin
-	 * .preciseNpcHp), that always wins over the coarse getHealthRatio()/getHealthScale() bucket
-	 * - it's strictly finer-grained once established. Otherwise delegates to CustomHpBarPlugin
-	 * .readHp(), which always returns live data for the local player (see its doc comment) and
-	 * falls back to the last cached values for everyone else while the native bar has faded but
-	 * the actor is still within its persist window (governed by the plugin's tick-based
-	 * eviction, not here).
+	 * The native boss HP HUD (CustomHpBarPlugin.nativeHudHp()) wins over everything else when
+	 * it's showing data for this exact actor - it's the exact number the client itself is about
+	 * to display, not an estimate. Next, for NPCs with an established precise estimate
+	 * (hitsplat-tracked, see CustomHpBarPlugin.preciseNpcHp), that wins over the coarse
+	 * getHealthRatio()/getHealthScale() bucket - it's strictly finer-grained once established.
+	 * Otherwise delegates to CustomHpBarPlugin.readHp(), which always returns live data for the
+	 * local player (see its doc comment) and falls back to the last cached values for everyone
+	 * else while the native bar has faded but the actor is still within its persist window
+	 * (governed by the plugin's tick-based eviction, not here).
 	 */
 	private int[] resolveHp(Actor actor, int maxHp)
 	{
+		int[] hud = plugin.nativeHudHp(actor);
+		if (hud != null)
+		{
+			return hud;
+		}
+
 		if (actor instanceof NPC && maxHp > 0)
 		{
 			Integer precise = plugin.getPreciseNpcHp().get(actor);
@@ -1395,15 +1403,23 @@ class CustomHpBarOverlay extends Overlay
 
 	/**
 	 * Returns the actor's max HP, or -1 if unknown (falls back to percent display).
-	 * NPCs come from the static ID lookup table. The local player's real max HP is
-	 * available via their Hitpoints skill level. Other players' max HP isn't obtainable
-	 * client-side at all, so NUMBER/BOTH modes fall back to percent for them.
+	 * The native boss HP HUD (see resolveHp()'s doc comment) wins first, whatever the actor type
+	 * - it's exact, live data straight from the client. Otherwise NPCs go through
+	 * CustomHpBarPlugin.resolveNpcMaxHp() (the static ID lookup table, except for Doom of
+	 * Mokhaiotl - see its doc comment). The local player's real max HP is available via their
+	 * Hitpoints skill level. Other players' max HP isn't obtainable client-side at all, so
+	 * NUMBER/BOTH modes fall back to percent for them.
 	 */
 	private int resolveMaxHp(Actor actor)
 	{
+		int[] hud = plugin.nativeHudHp(actor);
+		if (hud != null)
+		{
+			return hud[1];
+		}
 		if (actor instanceof NPC)
 		{
-			return NpcMaxHpTable.getMaxHp(((NPC) actor).getId());
+			return plugin.resolveNpcMaxHp(((NPC) actor).getId());
 		}
 		if (actor == client.getLocalPlayer())
 		{

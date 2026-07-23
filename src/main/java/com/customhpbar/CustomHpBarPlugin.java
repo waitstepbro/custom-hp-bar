@@ -3,6 +3,7 @@ package com.customhpbar;
 import com.google.inject.Provides;
 import lombok.Getter;
 import net.runelite.api.Actor;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
@@ -10,17 +11,23 @@ import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
+import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
+import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
 import net.runelite.client.callback.RenderCallbackManager;
@@ -32,6 +39,7 @@ import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.itemstats.ItemStatPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 import java.awt.Color;
@@ -45,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @PluginDescriptor(
@@ -145,6 +154,41 @@ public class CustomHpBarPlugin extends Plugin
 	private static final Set<Integer> HIDDEN_MECHANIC_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BLOOD_BOSS_INVIS, NpcID.PMOON_BLUE_BOSS_INVIS, NpcID.PMOON_ECLIPSE_BOSS_INVIS
 	));
+
+	/**
+	 * Doom of Mokhaiotl's three combat-form NPC IDs (standard/shielded/burrowed). No gameval
+	 * NpcID constants exist for these (checked runelite-api 1.12.32 and the pinned client
+	 * 1.12.33 jar - both absent), so these are the raw IDs from the OSRS Wiki's infobox_monster
+	 * bucket data ("Doom of Mokhaiotl" / "(Shielded)" / "(Burrowed)").
+	 */
+	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
+
+	/**
+	 * Doom of Mokhaiotl's max HP per delve level (index 0 = delve level 1), sourced the same way
+	 * as DOOM_NPC_IDS and confirmed identical across all three combat forms. Not a clean +25/level
+	 * line - levels 6 and 7 both sit at 650 before jumping to 675 at level 8. Delve levels 9+
+	 * ("deep delves") repeat the level-8 fight but with HP reduced to 625 (DOOM_DEEP_DELVE_HP),
+	 * per the wiki's own wording: "these subsequent levels are level 8 in theory, though the
+	 * Doom's health is reduced to 625".
+	 *
+	 * NpcMaxHpTable can't express any of this - it's one static value per NPC ID, and Doom reuses
+	 * the same three IDs at every delve level - so this boss needs its own live-tracked level
+	 * instead of a table lookup. See doomDelveLevel and resolveNpcMaxHp().
+	 */
+	private static final int[] DOOM_DELVE_HP = {525, 550, 575, 600, 625, 650, 650, 675};
+	private static final int DOOM_DEEP_DELVE_HP = 625;
+
+	/**
+	 * Matches the "Delve level: N duration: ..." game message shown when a Doom of Mokhaiotl
+	 * fight ends (deep delves read "Delve level: 8+ (N) duration: ..." instead, group 2). Pattern
+	 * confirmed against the deep-delve-pacer plugin's own working regex for the deep-delve variant
+	 * (github.com/DustinKieler/deep-delve-pacer), generalized here to also match levels 1-8 - not
+	 * verified against a live screenshot of the exact wording from this environment. If the real
+	 * wording differs, delve tracking just silently never advances past its default (see
+	 * doomDelveLevel) rather than tracking incorrectly.
+	 */
+	private static final Pattern DOOM_DELVE_MESSAGE = Pattern.compile(
+		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
 
 	@Inject
 	private Client client;
@@ -276,6 +320,39 @@ public class CustomHpBarPlugin extends Plugin
 	private int aggressionEndTick;
 	private int ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
 
+	/**
+	 * Which Doom of Mokhaiotl delve level the player is currently fighting (or about to fight) -
+	 * used to index DOOM_DELVE_HP. Defaults to 1 (a fresh delve always starts there) and advances
+	 * by parsing the "Delve level: N duration:" message shown at the end of each fight
+	 * (onChatMessage/DOOM_DELVE_MESSAGE) - there's no per-instance signal to read this from
+	 * directly: Doom reuses the same three NPC IDs at every level, and its combat level doesn't
+	 * change with delve level either (558 at every level 1-8, per the wiki).
+	 *
+	 * Known limitation: if the plugin starts (or the client reconnects) mid-delve, before any
+	 * "duration:" message has been seen this session, this stays at the default of 1 until the
+	 * current fight ends - the same category of gap as NPCs not being tracked until the first
+	 * hitsplat elsewhere in this file, not worth extra machinery to close.
+	 */
+	private int doomDelveLevel = 1;
+
+	/**
+	 * Live [currentHp, maxHp] and boss name from the game's own native boss HP HUD
+	 * (InterfaceID.HpbarHud, VarbitID.HPBAR_HUD_HP/HPBAR_HUD_BASEHP) - the widget shown at CoX,
+	 * ToA, Gauntlet, and other supported encounters (confirmed via RuneLite core's own
+	 * OpponentInfoPlugin.updateBossHealthBarText(), whose comment states it's "not used in ToB,
+	 * which has its own"; also known to cover Moons of Peril per runelite/runelite#18117, which
+	 * reports two health bars at that encounter specifically because this same native overlay
+	 * is active there too). This is the exact number the client is itself about to display, so
+	 * it's preferred ahead of every other HP source wherever it applies - see nativeHudHp().
+	 *
+	 * nativeHudBossName is the boss's name read from InterfaceID.HpbarHud.CREATURE_NAME, used to
+	 * correlate this single-target HUD to whichever of our (possibly several) tracked actors it
+	 * belongs to. null whenever no supported encounter's HUD is currently populated.
+	 */
+	private String nativeHudBossName;
+	private int nativeHudCurrentHp;
+	private int nativeHudMaxHp;
+
 	@Provides
 	CustomHpBarConfig provideConfig(ConfigManager configManager)
 	{
@@ -302,6 +379,8 @@ public class CustomHpBarPlugin extends Plugin
 		selfHitsplats.clear();
 		aggressionEndTick = 0;
 		ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
+		doomDelveLevel = 1;
+		nativeHudBossName = null;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -540,6 +619,19 @@ public class CustomHpBarPlugin extends Plugin
 
 		updateAggressionArea(currentTick);
 
+		// Clears a stale nativeHudBossName once the native boss HP HUD itself is no longer
+		// showing (widget hidden/absent) - onScriptPostFired only fires while it's actively
+		// updating, so without this the last boss's name/HP would otherwise linger indefinitely
+		// after leaving that encounter.
+		if (nativeHudBossName != null)
+		{
+			Widget hudWidget = client.getWidget(InterfaceID.HpbarHud.HP);
+			if (hudWidget == null || hudWidget.isHidden())
+			{
+				nativeHudBossName = null;
+			}
+		}
+
 		// The local player (and whoever they're fighting) may need to start being tracked
 		// without a fresh HitsplatApplied/InteractingChanged event ever firing - e.g. "Show
 		// for Self" was just turned on while already mid-fight. Cheap to check every tick
@@ -641,6 +733,89 @@ public class CustomHpBarPlugin extends Plugin
 		evict(event.getPlayer());
 	}
 
+	/**
+	 * Advances doomDelveLevel from the "Delve level: N duration:" game message shown when a Doom
+	 * of Mokhaiotl fight ends - see doomDelveLevel/DOOM_DELVE_MESSAGE's doc comments for why this
+	 * is the only available signal. The message reports the level just cleared, so the next fight
+	 * is that level plus one; for deep delves ("Delve level: 8+ (N) duration:") group 2 holds the
+	 * real level N instead of the literal "8".
+	 */
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		if (event.getType() != ChatMessageType.GAMEMESSAGE)
+		{
+			return;
+		}
+
+		Matcher matcher = DOOM_DELVE_MESSAGE.matcher(event.getMessage());
+		if (!matcher.find())
+		{
+			return;
+		}
+
+		int completedLevel = matcher.group(2) != null
+			? Integer.parseInt(matcher.group(2))
+			: Integer.parseInt(matcher.group(1));
+		doomDelveLevel = completedLevel + 1;
+	}
+
+	/**
+	 * Refreshes nativeHudBossName/nativeHudCurrentHp/nativeHudMaxHp from the native boss HP HUD
+	 * widget - fires on ScriptID.HP_HUD_UPDATE, the exact same clientscript that drives the
+	 * native widget's own text, confirmed via RuneLite core's OpponentInfoPlugin
+	 * .updateBossHealthBarText() (same script, same VarbitID.HPBAR_HUD_HP/BASEHP pair).
+	 */
+	@Subscribe
+	public void onScriptPostFired(ScriptPostFired event)
+	{
+		if (event.getScriptId() != ScriptID.HP_HUD_UPDATE)
+		{
+			return;
+		}
+
+		int maxHp = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
+		if (maxHp <= 0)
+		{
+			nativeHudBossName = null;
+			return;
+		}
+
+		Widget nameWidget = client.getWidget(InterfaceID.HpbarHud.CREATURE_NAME);
+		String name = nameWidget != null ? Text.removeTags(nameWidget.getText()) : null;
+		if (name == null || name.isEmpty())
+		{
+			nativeHudBossName = null;
+			return;
+		}
+
+		nativeHudBossName = name;
+		nativeHudCurrentHp = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
+		nativeHudMaxHp = maxHp;
+	}
+
+	/**
+	 * Returns [currentHp, maxHp] from the native boss HP HUD if it's currently showing data for
+	 * this exact actor (matched by name against nativeHudBossName), or null if the HUD isn't
+	 * active or is currently showing a different actor. Callers should prefer this over every
+	 * other HP source when non-null - see nativeHudBossName's doc comment for why.
+	 */
+	int[] nativeHudHp(Actor actor)
+	{
+		if (nativeHudBossName == null)
+		{
+			return null;
+		}
+
+		String actorName = actor.getName();
+		if (actorName == null || !nativeHudBossName.equalsIgnoreCase(Text.removeTags(actorName)))
+		{
+			return null;
+		}
+
+		return new int[]{nativeHudCurrentHp, nativeHudMaxHp};
+	}
+
 	private void cacheHp(Actor actor)
 	{
 		int[] hp = readHp(client, actor);
@@ -652,6 +827,22 @@ public class CustomHpBarPlugin extends Plugin
 				updatePreciseHp((NPC) actor, hp[0], hp[1]);
 			}
 		}
+	}
+
+	/**
+	 * Single chokepoint for an NPC's max HP - everywhere NpcMaxHpTable.getMaxHp() used to be
+	 * called directly (updatePreciseHp/applyHitsplatDamage below, and CustomHpBarOverlay
+	 * .resolveMaxHp()) now goes through this instead. Doom of Mokhaiotl is special-cased ahead of
+	 * the static table, since a static per-ID table structurally can't represent its HP - see
+	 * DOOM_DELVE_HP's doc comment.
+	 */
+	int resolveNpcMaxHp(int npcId)
+	{
+		if (DOOM_NPC_IDS.contains(npcId))
+		{
+			return doomDelveLevel <= DOOM_DELVE_HP.length ? DOOM_DELVE_HP[doomDelveLevel - 1] : DOOM_DEEP_DELVE_HP;
+		}
+		return NpcMaxHpTable.getMaxHp(npcId);
 	}
 
 	/**
@@ -669,7 +860,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private void updatePreciseHp(NPC npc, int ratio, int scale)
 	{
-		int maxHp = NpcMaxHpTable.getMaxHp(npc.getId());
+		int maxHp = resolveNpcMaxHp(npc.getId());
 		if (maxHp <= 0)
 		{
 			preciseNpcHp.remove(npc);
@@ -730,7 +921,7 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		int maxHp = NpcMaxHpTable.getMaxHp(npc.getId());
+		int maxHp = resolveNpcMaxHp(npc.getId());
 		int updated = current + delta;
 		updated = Math.max(0, maxHp > 0 ? Math.min(updated, maxHp) : updated);
 		preciseNpcHp.put(npc, updated);
