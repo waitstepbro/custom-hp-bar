@@ -14,7 +14,6 @@ import net.runelite.api.Renderable;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarPlayerID;
@@ -80,14 +79,6 @@ public class CustomHpBarPlugin extends Plugin
 	 * aggressive monsters; leaving and returning restarts it.
 	 */
 	private static final int AGGRESSION_TICKS = 1000;
-
-	/**
-	 * Vicinity radius in tiles: an aggressive monster within this distance of the player counts as
-	 * "you're in its aggression area," which is what keeps the tolerance timer running. Real OSRS
-	 * tolerance is about remaining near the aggressive monsters for 10 minutes (not standing still
-	 * on one spot), so the timer is anchored to proximity to those monsters, not a fixed point.
-	 */
-	private static final int AGGRESSION_VICINITY_RADIUS = 10;
 
 	/**
 	 * How many consecutive ticks the player must be out of every aggressive monster's vicinity
@@ -1169,8 +1160,12 @@ public class CustomHpBarPlugin extends Plugin
 	 * Advances the aggression tolerance window once per tick. Real OSRS tolerance is about
 	 * remaining in the *vicinity of aggressive monsters* for 10 minutes (not standing still on one
 	 * spot), so the window is anchored to proximity: while any monster that would attack the player
-	 * (see wouldBeAggressive) is within AGGRESSION_VICINITY_RADIUS, the player is "in the area" and
-	 * the window counts down. Leaving that vicinity for more than AGGRESSION_LEAVE_GRACE_TICKS and
+	 * (see wouldBeAggressive) is loaded into the world view - the same population whose names the
+	 * overlay's "Always Show NPC Name" pass can already draw, with no distance cutoff of its own -
+	 * the player is "in the area" and the window counts down. This intentionally has no separate
+	 * tile-radius check: capping it below the range a name can actually appear at would let a
+	 * visibly-red-eligible NPC's name show before its color caught up, which is exactly the mismatch
+	 * this was tuned to avoid. Leaving that vicinity for more than AGGRESSION_LEAVE_GRACE_TICKS and
 	 * then returning counts as a fresh entry and restarts the window (monsters go red again).
 	 */
 	private void updateAggressionArea(int currentTick)
@@ -1180,21 +1175,11 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			return;
 		}
-		WorldPoint playerLoc = localPlayer.getWorldLocation();
-		if (playerLoc == null)
-		{
-			return;
-		}
 
 		boolean near = false;
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
-			if (npc == null || !wouldBeAggressive(localPlayer, npc))
-			{
-				continue;
-			}
-			WorldPoint npcLoc = npc.getWorldLocation();
-			if (npcLoc != null && npcLoc.distanceTo2D(playerLoc) <= AGGRESSION_VICINITY_RADIUS)
+			if (npc != null && wouldBeAggressive(localPlayer, npc))
 			{
 				near = true;
 				break;

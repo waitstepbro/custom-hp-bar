@@ -257,8 +257,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
-		description = "Shows the HP bar on every NPC you could attack, at all times - not just once you're " +
-			"in combat with it. NPCs that haven't taken damage yet show a full bar.",
+		description = "Shows the HP bar on every attackable NPC, not just once you engage it (full bar until " +
+			"damaged). Non-attackable NPCs (combat level 0) never get one.",
 		section = TARGET_SECTION,
 		position = 17
 	)
@@ -294,10 +294,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "colorAggressiveNpcNames",
 		name = "Color Aggressive NPC Names",
-		description = "Colors an NPC's name differently (see below) while it would be aggressive toward " +
-			"you - i.e. it's a known aggressive monster and you haven't out-levelled it (a monster ignores " +
-			"you once your combat level is more than double its own). Reverts after the 10-minute tolerance " +
-			"window; leaving the area and returning makes it aggressive again.",
+		description = "Colors an NPC's name (see below) while it's a known-aggressive monster you haven't " +
+			"out-levelled (ignored past double its combat level). Reverts after 10 minutes of tolerance; " +
+			"leaving and returning re-triggers it.",
 		section = TARGET_SECTION,
 		position = 20
 	)
@@ -587,8 +586,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
-		description = "Draws a bar for your Prayer points - beneath your HP bar while it's showing, or on its " +
-			"own whenever a prayer is active even outside combat. Requires 'Show for Self'.",
+		description = "Draws a Prayer points bar - beneath your HP bar, or standalone when a prayer is active " +
+			"outside combat. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 18
 	)
@@ -640,8 +639,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showFoodHealPreview",
 		name = "Show Food Heal Preview",
-		description = "While hovering a food or potion item in your inventory, extends your bar with a preview " +
-			"of how much HP it would restore, in the bar's own color at reduced opacity. Requires " +
+		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 22
@@ -654,9 +652,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPrayerRestorePreview",
 		name = "Show Prayer Restore Preview",
-		description = "While hovering a Prayer-restoring item in your inventory, extends the Prayer bar with a " +
-			"preview of how many points it would restore, in the bar's own color at reduced opacity. " +
-			"Requires 'Show Prayer Bar'.",
+		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
+			"'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
 		position = 23
 	)
@@ -668,9 +665,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "replaceOverheadIcon",
 		name = "Replace Overhead Icon",
-		description = "Hides the game's native overhead UI on your character and draws the prayer icon just " +
-			"above your HP bar instead. Hitsplats and overhead chat text are redrawn to look and behave the " +
-			"same as normal. Requires 'Show for Self'.",
+		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
+			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 24
 	)
@@ -684,8 +680,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "scaleWithZoom",
 		name = "Scale With Zoom",
-		description = "Grow/shrink bars and text with camera zoom. Sizes below are exact at the zoom level " +
-			"you're at when the plugin starts, and scale relative to that as you zoom in/out.",
+		description = "Grows/shrinks bars and text with camera zoom, relative to the zoom level when the " +
+			"plugin starts.",
 		section = BEHAVIOR_SECTION,
 		position = 0
 	)

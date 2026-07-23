@@ -4,6 +4,8 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
 tracking, and status-effect debuffs.
 
+> **Note:** PvP (fighting other players) remains largely untested for now.
+
 <p align="center">
   <img src="images/burn-example.png" width="49%">
   <img src="images/venom-example.png" width="49%">
@@ -34,11 +36,12 @@ tracking, and status-effect debuffs.
 - **Same-tile stacking** — actors standing on the exact same tile get their bars and names
   stacked vertically instead of drawn on top of each other.
 - **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times,
-  not just once you engage it (undamaged NPCs show a full bar).
-- **Aggressive NPC name color** — optionally color a known-aggressive monster's name red while it
-  would attack you (using the OSRS level rule: a monster ignores you once your combat level is more
-  than double its own), reverting after the 10-minute tolerance timer and turning red again if you
-  leave the area and return.
+  not just once you engage it (undamaged NPCs show a full bar). Non-attackable NPCs (combat
+  level 0) never get one, regardless of other filter settings.
+- **Aggressive NPC name color** — optionally color a known-aggressive monster's name red as soon
+  as its name is visible (using the OSRS level rule: a monster ignores you once your combat level
+  is more than double its own), reverting after the 10-minute tolerance timer and turning red
+  again if you leave the area and return.
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
   combat, or on its own whenever a prayer is active even outside combat.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
@@ -93,10 +96,10 @@ completely different if you want. Defaults are the same for both unless noted.
 | Display Mode | Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with unknown max HP. | Number |
 | Show NPC Name | Draws the NPC's name above its HP bar | On |
 | Always Show NPC Name | Shows the NPC name at all times, not just in combat. Requires Show NPC Name. | On |
-| Always Show NPC Bar | Shows the HP bar on every attackable NPC at all times, not just once you engage it. NPCs that haven't taken damage yet show a full bar. | Off |
+| Always Show NPC Bar | Shows the HP bar on every attackable NPC, not just once you engage it (full bar until damaged). Non-attackable NPCs (combat level 0) never get one. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names | On |
 | NPC Name Color | Color of the NPC name text, independent of Text Color above | Yellow |
-| Color Aggressive NPC Names | Colors a known-aggressive monster's name differently while it would attack you - i.e. you haven't out-levelled it (a monster ignores you once your combat level is more than double its own). Reverts after the 10-minute tolerance timer; leaving the area and returning turns it red again. | Off |
+| Color Aggressive NPC Names | Colors a known-aggressive monster's name differently while you haven't out-levelled it (ignored past double its combat level). Reverts after 10 minutes of tolerance; leaving and returning re-triggers it. | Off |
 | Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
 
 ### Player Bar (You & Others) only
@@ -107,10 +110,10 @@ completely different if you want. Defaults are the same for both unless noted.
 | Self Display Mode | Display mode for your own bar | Number |
 | Show for Other Players | Draw the player bar over other players | Off |
 | Other Players' Display Mode | Display mode for other players' bars (always percent - their max HP isn't available) | Number |
-| Show Prayer Bar | Draws a bar for your Prayer points - beneath your HP bar while it's showing, or on its own whenever a prayer is active even outside combat. Requires Show for Self. | On |
-| Show Food Heal Preview | While hovering a food or potion item in your inventory, extends your bar with a preview of how much HP it would restore, in the bar's own color at reduced opacity. Requires Show for Self. | On |
-| Show Prayer Restore Preview | While hovering a Prayer-restoring item, extends the Prayer bar with a preview of how many points it would restore, in the bar's own color at reduced opacity. Requires Show Prayer Bar. | On |
-| Replace Overhead Icon | Hides the game's native overhead UI on your character and draws the prayer icon just above your HP bar instead. Hitsplats and overhead chat text are redrawn to look and behave the same as normal. Requires Show for Self. | On |
+| Show Prayer Bar | Draws a Prayer points bar - beneath your HP bar, or standalone when a prayer is active outside combat. Requires Show for Self. | On |
+| Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
+| Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
+| Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
 
 ### Behavior
 

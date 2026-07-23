@@ -349,13 +349,20 @@ class CustomHpBarOverlay extends Overlay
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
 
+				// Always Show NPC Bar only ever means "every NPC you could actually fight" - a
+				// combat level of 0 (bankers, shop owners, fishing spots, pets) has no HP to show
+				// a bar for at all, regardless of whether Only Show Combat NPC Names is on (that
+				// toggle is about name clutter and is independent of this - a hardcoded floor, not
+				// a second opt-in).
+				boolean drawBarForThis = alwaysBar && npc.getCombatLevel() > 0;
+
 				// An NPC the main loop already drew (in appliedStacks) reuses that exact shift so
 				// its name/bar here lands on the same slot; otherwise it claims a fresh slot sized
 				// to whatever this pass will draw (a full bar, or just a name).
 				boolean barAlreadyDrawn = appliedStacks.containsKey(npc);
 				Integer applied = appliedStacks.get(npc);
 				int shift = applied != null ? applied
-					: (alwaysBar ? claimBarStackSlot(tileStacks, npc, targetStyle, zoom)
+					: (drawBarForThis ? claimBarStackSlot(tileStacks, npc, targetStyle, zoom)
 						: claimNameStackSlot(tileStacks, npc, targetStyle, zoom));
 				if (shift > 0)
 				{
@@ -368,7 +375,7 @@ class CustomHpBarOverlay extends Overlay
 				// as soon as it (or anyone) damages it. drawBar() also handles this NPC's name on
 				// its own when Always Show NPC Name is off, so we only draw the name below when
 				// it's on (matching the tracked-actor path in the main loop).
-				if (alwaysBar && !barAlreadyDrawn)
+				if (drawBarForThis && !barAlreadyDrawn)
 				{
 					int maxHp = resolveMaxHp(npc);
 					int[] hp = resolveHp(npc, maxHp);
@@ -1375,17 +1382,21 @@ class CustomHpBarOverlay extends Overlay
 	{
 		int pct = (int) Math.round(hpFraction * 100);
 		CustomHpBarConfig.DisplayMode mode;
+		boolean isTarget;
 		if (actor == client.getLocalPlayer())
 		{
 			mode = config.selfDisplayMode();
+			isTarget = false;
 		}
 		else if (actor instanceof Player)
 		{
 			mode = config.playerDisplayMode();
+			isTarget = false;
 		}
 		else
 		{
 			mode = config.targetDisplayMode();
+			isTarget = true;
 		}
 
 		switch (mode)
@@ -1395,7 +1406,12 @@ class CustomHpBarOverlay extends Overlay
 			case PERCENT:
 				return pct + "%";
 			case BOTH:
-				return maxHp > 0 ? (int) Math.round(hpFraction * maxHp) + " (" + pct + "%)" : pct + "%";
+				if (maxHp <= 0)
+				{
+					return pct + "%";
+				}
+				int hp = (int) Math.round(hpFraction * maxHp);
+				return isTarget ? hp + " " + pct + "%" : hp + " (" + pct + "%)";
 			default:
 				return null;
 		}
