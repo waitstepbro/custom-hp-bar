@@ -15,6 +15,7 @@ import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.Varbits;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarPlayerID;
@@ -72,17 +73,22 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * Aggression tolerance window in ticks (1000 = 10 minutes, matching the core NPC
-	 * Aggressiveness Timer plugin). Counts down while near aggressive monsters; leaving and
-	 * returning restarts it.
+	 * Aggressiveness Timer plugin's AGGRESSIVE_TIME_DURATION). Resets whenever the player moves
+	 * away from both remembered AGGRESSION_SAFE_RADIUS tiles - see updateAggressionArea().
 	 */
 	private static final int AGGRESSION_TICKS = 1000;
 
 	/**
-	 * Consecutive ticks outside every aggressive monster's vicinity before a return counts as a
-	 * fresh entry - a small grace so a one-tick gap (despawn/respawn, pathing at the edge) doesn't
-	 * spuriously reset the timer.
+	 * Radius (tiles) around each of the two remembered "safe center" points within which the
+	 * tolerance window keeps counting down instead of resetting - matches the core NPC Aggression
+	 * Timer plugin's own SAFE_AREA_RADIUS exactly (confirmed by decompiling it): "The game
+	 * remembers 2 tiles. When the player goes >10 steps away from both tiles, the oldest one is
+	 * moved to under the player and the NPC aggression timer resets." This is a real, per-location
+	 * mechanic - tied to the player's own movement pattern, not to whether an aggressive monster
+	 * happens to be nearby (see updateAggressionArea()'s doc comment for why an earlier version of
+	 * this plugin got that distinction wrong).
 	 */
-	private static final int AGGRESSION_LEAVE_GRACE_TICKS = 5;
+	private static final int AGGRESSION_SAFE_RADIUS = 10;
 
 	/**
 	 * Hitsplat types that represent real HP damage, for precise HP tracking. Deliberately
@@ -145,6 +151,20 @@ public class CustomHpBarPlugin extends Plugin
 	 * infobox_monster data.
 	 */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
+
+	/**
+	 * Vasa Nistirio/Vasa Crystalline's two combat-form NPC IDs. Unlike Tekton, Vasa doesn't get
+	 * separate Challenge Mode IDs - confirmed by fetching the OSRS Wiki's raw infobox template
+	 * source directly (oldschool.runescape.wiki/w/Vasa_Nistirio), which declares "hitpoints1 =
+	 * 300" / "hitpoints2 = 450" for its Normal/Challenge Mode versions but only a single, shared
+	 * "id = 7566,7567" field - not a per-version id1/id2 split the way Tekton's page has. A static
+	 * per-ID table entry (npc_hp.csv previously mapped both to 450) therefore can't be correct for
+	 * both modes at once; see VASA_NORMAL_HP/VASA_CM_HP and resolveNpcMaxHp() for the live-varbit
+	 * override this needs instead, the same pattern DOOM_NPC_IDS already uses.
+	 */
+	private static final Set<Integer> VASA_NPC_IDS = new HashSet<>(Arrays.asList(7566, 7567));
+	private static final int VASA_NORMAL_HP = 300;
+	private static final int VASA_CM_HP = 450;
 
 	/**
 	 * NPC IDs for encounters where loot is based on the local player's own damage/participation
@@ -346,13 +366,13 @@ public class CustomHpBarPlugin extends Plugin
 	private boolean pendingClickIsAttack;
 
 	/**
-	 * The tick the current aggression tolerance window expires, and how many consecutive ticks
-	 * the player has been outside every aggressive monster's vicinity. Updated once per
-	 * onGameTick by updateAggressionArea; read by isNpcAggressive. ticksOutsideAggression starts
-	 * above the grace so the very first time near an aggressive monster counts as an entry.
+	 * The tick the current aggression tolerance window expires - updated once per onGameTick by
+	 * updateAggressionArea, read by isNpcAggressive. aggressionSafeCenters holds the (up to) two
+	 * most recent player positions the window is currently anchored to - see
+	 * updateAggressionArea()'s doc comment for why two, not one.
 	 */
 	private int aggressionEndTick;
-	private int ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
+	private final WorldPoint[] aggressionSafeCenters = new WorldPoint[2];
 
 	/**
 	 * Which Doom of Mokhaiotl delve level the player is currently fighting - indexes
@@ -403,7 +423,7 @@ public class CustomHpBarPlugin extends Plugin
 		otherPlayerDamaged.clear();
 		selfHitsplats.clear();
 		aggressionEndTick = 0;
-		ticksOutsideAggression = AGGRESSION_LEAVE_GRACE_TICKS + 1;
+		Arrays.fill(aggressionSafeCenters, null);
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
@@ -631,7 +651,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		// Covers starting/toggling tracking mid-fight, without waiting for a fresh
-		// HitsplatApplied/InteractingChanged event. Cheap: a single actor, not a scan.
+		// HitsplatApplied/InteractingChanged event.
 		Actor localPlayer = client.getLocalPlayer();
 		if (localPlayer != null)
 		{
@@ -648,6 +668,26 @@ public class CustomHpBarPlugin extends Plugin
 			{
 				trackedActors.put(localPlayer, currentTick);
 				cacheHp(localPlayer);
+			}
+
+			// The other direction: an NPC already attacking the local player (aggro, or resuming
+			// a fight after logging back in or teleporting mid-combat) never fires
+			// InteractingChanged for the local player's own getInteracting() - only the attacker's
+			// side changed, and it may well have already been targeting the player before the
+			// teleport/login, so nothing "changes" from this client's perspective at all once the
+			// scene loads. Previously only caught once the first hitsplat landed (a whole attack
+			// cycle's worth of visible delay - the "HP bars have a slight delay on login/teleport"
+			// symptom) or once the player clicked back. Scanning every tick (not every frame) for
+			// npc.getInteracting() == localPlayer closes that gap; cheap relative to the "Always
+			// Show NPC Bar" overlay pass, which already does a full NPC scan every render frame.
+			for (NPC npc : client.getTopLevelWorldView().npcs())
+			{
+				if (npc != null && npc.getInteracting() == localPlayer
+						&& isTrackedType(npc) && !trackedActors.containsKey(npc))
+				{
+					trackedActors.put(npc, currentTick);
+					cacheHp(npc);
+				}
 			}
 		}
 
@@ -825,14 +865,20 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Single chokepoint for an NPC's max HP. Doom of Mokhaiotl is special-cased ahead of the
-	 * static table, since a per-ID table structurally can't represent its per-delve-level HP.
+	 * Single chokepoint for an NPC's max HP. Doom of Mokhaiotl and Vasa Nistirio/Crystalline are
+	 * both special-cased ahead of the static table, since a per-ID table structurally can't
+	 * represent Doom's per-delve-level HP or Vasa's per-difficulty HP (see DOOM_NPC_IDS/
+	 * VASA_NPC_IDS's doc comments).
 	 */
 	int resolveNpcMaxHp(int npcId)
 	{
 		if (DOOM_NPC_IDS.contains(npcId))
 		{
 			return doomDelveLevel <= DOOM_DELVE_HP.length ? DOOM_DELVE_HP[doomDelveLevel - 1] : DOOM_DEEP_DELVE_HP;
+		}
+		if (VASA_NPC_IDS.contains(npcId))
+		{
+			return client.getVarbitValue(VarbitID.RAIDS_CHALLENGE_MODE) == 1 ? VASA_CM_HP : VASA_NORMAL_HP;
 		}
 		return NpcMaxHpTable.getMaxHp(npcId);
 	}
@@ -1116,12 +1162,34 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Advances the aggression tolerance window once per tick. Real OSRS tolerance tracks time
-	 * spent in the vicinity of aggressive monsters, not a fixed point, so this counts down while
-	 * any monster that would attack the player (wouldBeAggressive) is loaded into the world view -
-	 * no separate tile-radius check, since capping it below the range a name can appear at would
-	 * let a red-eligible NPC's name show before its color caught up. Leaving that vicinity for
-	 * more than AGGRESSION_LEAVE_GRACE_TICKS and returning restarts the window.
+	 * Advances the aggression tolerance window once per tick, by porting the real mechanic from
+	 * core's own NPC Aggression Timer plugin (decompiled) rather than the "is any aggressive
+	 * monster currently loaded nearby" heuristic an earlier version of this method used. That
+	 * heuristic was the actual bug behind TODO item 1 ("aggression timer wrongly colors all
+	 * hostile NPCs yellow on expiry, not just nearby ones"): AGGRESSION_LEAVE_GRACE_TICKS's old
+	 * 5-tick (3s) gap requirement was trivially satisfied while walking through any area with
+	 * back-to-back aggressive-monster spawns (the Wilderness, Slayer caves, etc.), so the window
+	 * never reset on arrival at a genuinely new, never-before-seen area - it just kept the stale
+	 * expiry from wherever the player was 10 minutes earlier, making brand-new monsters show
+	 * tolerant (yellow) immediately.
+	 *
+	 * The real mechanic (core plugin's own comment): "The game remembers 2 tiles. When the player
+	 * goes >10 steps away from both tiles, the oldest one is moved to under the player and the NPC
+	 * aggression timer resets." Critically, this reset is driven purely by the player's own
+	 * movement pattern relative to those two remembered tiles - it has nothing to do with whether
+	 * an aggressive monster happens to be in view, which is what aggressionSafeCenters replicates
+	 * here. (This plugin doesn't need the reference implementation's extra teleport-vs-walking
+	 * bookkeeping - previousUnknownCenter, the >40-tile special case - since those only matter for
+	 * drawing its exact safe-zone overlay; a plain "outside AGGRESSION_SAFE_RADIUS of both
+	 * remembered centers" check already produces the same reset decision for a teleport as for a
+	 * long walk.)
+	 *
+	 * aggressionSafeCenters[1] == null only on the very first tick after startup/shutdown, and is
+	 * used here to seed both centers with the player's current position immediately - unlike the
+	 * reference plugin (which relies on cross-session persisted config plus a big-jump bootstrap),
+	 * this plugin is session-only, so waiting for a qualifying jump before the window ever starts
+	 * would leave it permanently un-started for a player who logs in and immediately starts
+	 * fighting where they spawn.
 	 */
 	private void updateAggressionArea(int currentTick)
 	{
@@ -1131,29 +1199,14 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		boolean near = false;
-		for (NPC npc : client.getTopLevelWorldView().npcs())
+		WorldPoint location = localPlayer.getWorldLocation();
+		if (aggressionSafeCenters[1] == null
+			|| Arrays.stream(aggressionSafeCenters).noneMatch(
+				center -> center != null && center.distanceTo2D(location) <= AGGRESSION_SAFE_RADIUS))
 		{
-			if (npc != null && wouldBeAggressive(localPlayer, npc))
-			{
-				near = true;
-				break;
-			}
-		}
-
-		if (near)
-		{
-			// A fresh entry restarts the window; staying continuously near just lets it keep
-			// counting down, so it can expire (tolerant) without immediately restarting.
-			if (ticksOutsideAggression > AGGRESSION_LEAVE_GRACE_TICKS)
-			{
-				aggressionEndTick = currentTick + AGGRESSION_TICKS;
-			}
-			ticksOutsideAggression = 0;
-		}
-		else
-		{
-			ticksOutsideAggression = Math.min(ticksOutsideAggression + 1, AGGRESSION_LEAVE_GRACE_TICKS + 1);
+			aggressionSafeCenters[0] = aggressionSafeCenters[1];
+			aggressionSafeCenters[1] = location;
+			aggressionEndTick = currentTick + AGGRESSION_TICKS;
 		}
 	}
 
@@ -1173,16 +1226,30 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * Whether npc is currently aggressive toward the local player: it would attack
-	 * (wouldBeAggressive) and the vicinity-based tolerance window is still active.
+	 * (wouldBeAggressive), and either the tolerance window hasn't expired anywhere yet, or - once
+	 * it has - npc itself isn't within AGGRESSION_SAFE_RADIUS of either remembered safe center.
+	 * That second check is the part an earlier version of this method was missing: the global
+	 * aggressionEndTick only says whether tolerance has been *earned* by now, not *where* - real
+	 * OSRS tolerance only applies to monsters near wherever the player actually spent that time
+	 * (aggressionSafeCenters), so once the window expires, a monster the player just walked up to
+	 * somewhere new should still read as fully aggressive, not tolerant along with everything
+	 * else the player happens to be able to see.
 	 */
 	boolean isNpcAggressive(NPC npc)
 	{
-		if (client.getTickCount() >= aggressionEndTick)
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null || !wouldBeAggressive(localPlayer, npc))
 		{
 			return false;
 		}
-		Player localPlayer = client.getLocalPlayer();
-		return localPlayer != null && wouldBeAggressive(localPlayer, npc);
+		if (client.getTickCount() < aggressionEndTick)
+		{
+			return true;
+		}
+
+		WorldPoint npcLocation = npc.getWorldLocation();
+		return Arrays.stream(aggressionSafeCenters)
+			.noneMatch(center -> center != null && npcLocation.distanceTo2D(center) <= AGGRESSION_SAFE_RADIUS);
 	}
 
 	/**
