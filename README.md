@@ -32,9 +32,12 @@ tracking, and status-effect debuffs.
   stacked vertically instead of drawn on top of each other.
 - **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times
   (undamaged NPCs show a full bar); non-attackable NPCs never get one.
-- **Aggressive NPC name color** — optionally color a known-aggressive monster's name red as soon
-  as its name is visible, reverting after a 10-minute tolerance timer (leaving the area and
-  returning turns it red again).
+- **Aggressive NPC indicator** — optionally color a known-aggressive monster's name red and/or
+  show an icon by its bar as soon as it's visible, reverting after a 10-minute tolerance timer
+  (leaving the area and returning turns it red again).
+- **Ironman shared-loot warning** — optionally grey out an NPC's bar once another player damages
+  it, so an Ironman can tell at a glance the kill isn't exclusively theirs. Never triggers for
+  CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared or personal loot.
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
   combat, or on its own whenever a prayer is active even outside combat.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
@@ -91,6 +94,8 @@ completely different if you want. Defaults are the same for both unless noted.
 | NPC Name Color | Color of the NPC name text, independent of Text Color above | Yellow |
 | Color Aggressive NPC Names | Colors an NPC's name while it's aggressive toward you, reverting after a 10-minute tolerance timer. | Off |
 | Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
+| Show Aggressive NPC Icon | Shows an icon next to the bar while an NPC is aggressive - an alternative to (or paired with) the name color above | Off |
+| Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; never triggers for CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared/personal loot. | On |
 
 ### Player Bar (You & Others) only
 
