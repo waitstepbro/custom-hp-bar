@@ -19,15 +19,6 @@ Normal-mode Vasa specifically. Needs research to confirm whether the ids really 
 across difficulties, and if so, how to distinguish Normal vs. CM Vasa some other way (or
 whether it's a wiki data quirk that needs a source correction instead).
 
-## 5. Redrawn overhead chat text sits too high for the player when no bar is showing
-
-The default (no HP/Prayer bar showing) position for the redrawn overhead chat text
-(`drawOverheadChatText()`) is too high above the player's head - it only lands correctly when
-the HP bar or Prayer bar is actually showing, since that path positions the text relative to the
-bar instead. Needs to match vanilla's overhead chat text height in the no-bar case. While in
-there, double-check the font actually matches vanilla overhead chat (confirm against the real
-client, not just the Nameplates-derived assumption already in the code).
-
 ## 6. Grey out an NPC's bar once another player damages it (Ironman loot-eligibility)
 
 Ironman accounts lose loot eligibility on a monster once another player deals damage to it.
