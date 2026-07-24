@@ -78,6 +78,12 @@ class CustomHpBarOverlay extends Overlay
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
 
+	/** Size of the aggressive-NPC badge icon (see showAggressiveNpcIcon), before zoom scaling. */
+	private static final int AGGRESSIVE_ICON_SIZE = 12;
+
+	/** Gap between the aggressive-NPC icon and the name label it sits above, before zoom scaling. */
+	private static final int AGGRESSIVE_ICON_GAP = 2;
+
 	/** Gap between the overhead icon and the HP bar's top edge, before zoom scaling. */
 	private static final int OVERHEAD_ICON_GAP = 3;
 
@@ -572,6 +578,31 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
+	 * Small badge to the left of an NPC's HP bar, vertically centered on it, marking the NPC as
+	 * currently aggressive - the icon alternative to (or, with both toggles on, alongside)
+	 * recoloring the name text (colorAggressiveNpcNames/aggressiveNpcNameColor above). Anchored to
+	 * the bar itself (not the name row) so it only ever appears alongside an actual bar - no bar,
+	 * no icon. Reuses the plain damage hitsplat sprite (HitsplatID.DAMAGE_OTHER - the ordinary red
+	 * splat vanilla shows for a normal hit on an NPC) as a stand-in icon for now rather than a
+	 * bespoke asset, the same reuse-the-cached-sprite approach the Bleed debuff icon above already
+	 * takes (see statusIcon()).
+	 */
+	private void drawAggressiveNpcIcon(Graphics2D g, int barX, int barY, int barH, double zoom)
+	{
+		BufferedImage icon = hitsplatImage(HitsplatID.DAMAGE_OTHER);
+		if (icon == null)
+		{
+			return;
+		}
+
+		int size = scaled(AGGRESSIVE_ICON_SIZE, zoom);
+		int gap = scaled(AGGRESSIVE_ICON_GAP, zoom);
+		int iconX = barX - gap - size;
+		int iconY = barY + barH / 2 - size / 2;
+		g.drawImage(icon, iconX, iconY, size, size, null);
+	}
+
+	/**
 	 * Filters out NPC names that are really internal/placeholder labels, not something meant for
 	 * a player to see. Two confirmed patterns so far, both surfaced by "Always Show NPC Name"
 	 * iterating every matching NPC regardless of combat relevance (the old combat-gated-only
@@ -614,6 +645,11 @@ class CustomHpBarOverlay extends Overlay
 			fillColor = style.barColor;
 		}
 		drawBarShape(g, style, x, y, w, h, border, arc, hpFraction, fillColor);
+
+		if (actor instanceof NPC && config.showAggressiveNpcIcon() && plugin.isNpcAggressive((NPC) actor))
+		{
+			drawAggressiveNpcIcon(g, x, y, h, zoom);
+		}
 
 		if (actor == client.getLocalPlayer() && config.showFoodHealPreview())
 		{
@@ -1200,13 +1236,20 @@ class CustomHpBarOverlay extends Overlay
 		}
 		else
 		{
-			// Native default position: the model's logical height plus a small 15 world-unit
-			// offset, projected to screen - the same "height + 15" Nameplates' own
-			// drawOverheadText passes to getCanvasTextLocation (decompiled), which is where the
-			// vanilla client draws overhead chat. A world-space offset, not a fixed pixel one -
-			// it naturally shrinks/grows with camera distance the way the native text does.
-			Point textAnchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
-				localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight() + 15);
+			// Native default position: Actor.getCanvasTextLocation() directly, rather than
+			// re-deriving an approximation of it - this file's own "Anchor point" note (see
+			// CLAUDE.md) already established getCanvasTextLocation as literally the same
+			// projection vanilla's overhead chat text and hitsplats use (it was ruled out for
+			// the *bar* above only because of the per-frame animation bob baked into it, not
+			// because it's the wrong position). The previous version here instead replicated a
+			// guessed stand-in for it - Perspective.localToCanvas at getLogicalHeight() + 15,
+			// a world-unit offset borrowed from decompiling a third-party plugin's own
+			// (non-vanilla) positioning rather than the real client - and live testing showed
+			// that guess still sat too high. Calling the real method at getLogicalHeight(), the
+			// same height reference our bar's anchor uses, removes the guesswork and picks up
+			// the native per-frame bob for free - genuine vanilla behavior for chat text, not a
+			// bug, per the "nothing custom" ask this whole redraw was built to satisfy.
+			Point textAnchor = localPlayer.getCanvasTextLocation(g, text, localPlayer.getLogicalHeight());
 			y = textAnchor != null ? textAnchor.getY() : anchor.getY();
 		}
 

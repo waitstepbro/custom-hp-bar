@@ -667,9 +667,26 @@ public class CustomHpBarPlugin extends Plugin
 			}
 			else if (currentTick - lastSeen > persistTicks(actor))
 			{
-				evict(actor);
+				stopTracking(actor);
 			}
 		});
+	}
+
+	/**
+	 * Ends active combat-tracking for actor once its persist-duration window has elapsed, without
+	 * clearing lastKnownHp/preciseNpcHp the way evict() does. Those caches deliberately survive -
+	 * CustomHpBarOverlay's "Always Show NPC Bar" pass draws a bar for every matching NPC every
+	 * frame regardless of trackedActors membership, and needs them to keep reflecting the NPC's
+	 * real last-known HP. Without this distinction, evict() here wiped that cache the moment the
+	 * timer lapsed, so the very next frame's "Always Show" pass found nothing to read and fell
+	 * back to a fresh full bar - reported as the bar "resetting to full HP" on reappearing. Only a
+	 * genuine despawn (onNpcDespawned/onPlayerDespawned) or the actor no longer matching
+	 * isTrackedType (e.g. an edited npcFilter) should actually clear the cache - both still go
+	 * through evict().
+	 */
+	private void stopTracking(Actor actor)
+	{
+		trackedActors.remove(actor);
 	}
 
 	/** NPCs and players persist independently - see targetPersistDuration/playerPersistDuration's config descriptions. */

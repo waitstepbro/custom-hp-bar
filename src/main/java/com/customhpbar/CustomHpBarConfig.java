@@ -318,11 +318,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showAggressiveNpcIcon",
+		name = "Show Aggressive NPC Icon",
+		description = "Shows a small icon to the left of an NPC's HP bar while it's aggressive toward you, " +
+			"as an alternative to (or alongside) recoloring the name above. Same 10-minute tolerance timer.",
+		section = TARGET_SECTION,
+		position = 22
+	)
+	default boolean showAggressiveNpcIcon()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_SECTION,
-		position = 22
+		position = 23
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -335,7 +348,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_SECTION,
-		position = 23
+		position = 24
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -348,7 +361,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_SECTION,
-		position = 24
+		position = 25
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
