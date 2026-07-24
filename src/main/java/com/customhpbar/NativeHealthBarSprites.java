@@ -66,15 +66,10 @@ final class NativeHealthBarSprites
 	};
 
 	/**
-	 * SpriteID's "Prayer" category is purple - confirmed by cross-referencing the core
-	 * "Interface Styles" plugin's HD healthbar color mapping (StandardShield -> cyan,
-	 * StandardPrayer -> purple). But the actual native overhead bar shown for the player's own
-	 * Prayer points is cyan (confirmed live, via screenshot) - i.e. it's StandardShield, not
-	 * StandardPrayer, despite the name. Rather than bet on a single guess again, PRAYER includes
-	 * both categories: StandardShield (the one actually confirmed live) and StandardPrayer (the
-	 * name-matched one, which may still be used in some other circumstance we haven't seen).
-	 * Extra sprite-override entries are free (just a couple more Map.put calls), so there's no
-	 * real cost to hedging here.
+	 * The native Prayer points bar is actually drawn with StandardShield sprites (cyan, confirmed
+	 * live), not StandardPrayer (purple) despite the name. Includes both categories anyway - the
+	 * name-matched one may still apply in some circumstance not yet seen, and the extra override
+	 * entries cost nothing.
 	 */
 	static final int[] PRAYER = concat(SHIELD, new int[] {
 		SpriteID.StandardPrayer30.FRONT, SpriteID.StandardPrayer30.BACK,

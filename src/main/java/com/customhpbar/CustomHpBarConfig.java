@@ -257,8 +257,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
-		description = "Shows the HP bar on every attackable NPC, not just once you engage it (full bar until " +
-			"damaged). Non-attackable NPCs (combat level 0) never get one.",
+		description = "Shows the HP bar on every attackable NPC, not just once engaged (full bar until damaged). " +
+			"Non-attackable NPCs never get one.",
 		section = TARGET_SECTION,
 		position = 17
 	)
@@ -320,8 +320,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showAggressiveNpcIcon",
 		name = "Show Aggressive NPC Icon",
-		description = "Shows a small icon to the left of an NPC's HP bar while it's aggressive toward you, " +
-			"as an alternative to (or alongside) recoloring the name above. Same 10-minute tolerance timer.",
+		description = "Shows an icon next to an NPC's bar while it's aggressive toward you - an alternative to " +
+			"(or paired with) the name color above.",
 		section = TARGET_SECTION,
 		position = 22
 	)
@@ -367,6 +367,21 @@ public interface CustomHpBarConfig extends Config
 	default int targetPersistDuration()
 	{
 		return 5;
+	}
+
+	@ConfigItem(
+		keyName = "greyOutOtherPlayerDamage",
+		name = "Grey Out Health Bars",
+		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
+			"isn't exclusively theirs anymore. Ironman accounts only. Never triggers inside CoX/ToB/ToA, or " +
+			"for Hueycoatl, Zalcano, Nex, and other bosses where loot doesn't depend on who else damaged it. " +
+			"Can't detect another player's poison/venom/burn/bleed damage - only direct hits.",
+		section = TARGET_SECTION,
+		position = 26
+	)
+	default boolean greyOutOtherPlayerDamage()
+	{
+		return true;
 	}
 
 	// ==================== Player bar (self + other players) ====================

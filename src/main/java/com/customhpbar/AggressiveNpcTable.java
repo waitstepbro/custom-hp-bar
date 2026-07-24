@@ -11,19 +11,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Set of NPC IDs whose monster is aggressive, sourced from the OSRS Wiki (each monster page's
- * infobox "aggressive = Yes/No" parameter, matched to that variant's NPC id), bundled as
- * aggressive_npcs.csv (one id per line).
- *
- * Keyed by ID, like NpcMaxHpTable: aggression is per combat-variant, and the same name can have
- * both aggressive and non-aggressive variants. Used only to decide *whether a monster type is
- * aggressive at all* - the per-encounter "will it actually attack me" decision still applies the
- * level formula (see CustomHpBarPlugin.isNpcAggressive) on top of this.
- *
- * Known limitation, matching the wiki's own single per-monster flag: aggression is really
- * location-dependent (a monster aggressive in one area may be tolerant in another), which this
- * flat set can't express. This was an accepted trade-off ("ignore aggression by area for now").
- * To refresh after a game update: re-run the scrape described in this file's history/CLAUDE.md.
+ * Set of NPC IDs whose monster is aggressive, sourced from the OSRS Wiki's per-monster infobox
+ * "aggressive" flag, bundled as aggressive_npcs.csv. Keyed by ID like NpcMaxHpTable, since the
+ * same name can have both aggressive and non-aggressive variants. Only answers "is this monster
+ * type aggressive at all" - the per-encounter level check lives in
+ * CustomHpBarPlugin.isNpcAggressive. Known limitation: real aggression is location-dependent
+ * (tolerant in some areas), which this flat set can't express - an accepted trade-off.
  */
 @Slf4j
 class AggressiveNpcTable

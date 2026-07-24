@@ -11,13 +11,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Maps NPC IDs to their maximum HP, sourced from the OSRS Wiki's bucket API
- * (bucket('infobox_monster').select('id','name','hitpoints')...), bundled as npc_hp.csv.
- *
- * Keyed by ID rather than name: the same name can map to several different HP values across
- * combat-level/variant IDs (e.g. different "Goblin" levels, reanimated/enraged versions), so a
- * name-keyed table is structurally incapable of being correct for every variant of a monster
- * with more than one. Percentage display is the fallback for any NPC ID not in this table.
+ * Maps NPC IDs to max HP, sourced from the OSRS Wiki's bucket API, bundled as npc_hp.csv. Keyed
+ * by ID rather than name - the same name can map to several HP values across variant IDs (e.g.
+ * different "Goblin" levels). Falls back to percentage display for any ID not in this table.
  */
 @Slf4j
 class NpcMaxHpTable
