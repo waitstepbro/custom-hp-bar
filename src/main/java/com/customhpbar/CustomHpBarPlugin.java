@@ -146,6 +146,19 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
+	 * Exact display names for the same three "Enraged Blood/Blue/Eclipse Moon" mechanic entities
+	 * HIDDEN_MECHANIC_NPC_IDS already excludes by ID - matched here too as defense-in-depth, in
+	 * case the entity is ever reached through an ID this table doesn't have (e.g. an in-place
+	 * composition change during the boss's death sequence, the same mechanism other bosses use to
+	 * swap forms without a real despawn/respawn). Deliberately three exact strings rather than a
+	 * generic "contains Enraged" check - Enraged Boar and Enraged barbarian spirit are real,
+	 * legitimately-trackable OSRS monsters and must not be caught by this.
+	 */
+	private static final Set<String> HIDDEN_MECHANIC_NPC_NAMES = new HashSet<>(Arrays.asList(
+		"enraged blood moon", "enraged blue moon", "enraged eclipse moon"
+	));
+
+	/**
 	 * Doom of Mokhaiotl's three combat-form NPC IDs (standard/shielded/burrowed). No gameval
 	 * NpcID constants exist for these, so these are the raw IDs from the OSRS Wiki's
 	 * infobox_monster data.
@@ -1362,8 +1375,10 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private boolean isTrackedNpc(NPC npc)
 	{
+		String name = npc.getName();
 		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
 			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
+			&& (name == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(Text.removeTags(name).toLowerCase(Locale.ROOT)))
 			&& matchesFilter(npc.getName());
 	}
 
