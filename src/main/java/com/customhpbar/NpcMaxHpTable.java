@@ -10,11 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Maps NPC IDs to max HP, sourced from the OSRS Wiki's bucket API, bundled as npc_hp.csv. Keyed
- * by ID rather than name - the same name can map to several HP values across variant IDs (e.g.
- * different "Goblin" levels). Falls back to percentage display for any ID not in this table.
- */
+/** Maps NPC IDs to max HP, from npc_hp.csv - keyed by ID since the same name can map to several HP values across variants. */
 @Slf4j
 class NpcMaxHpTable
 {

@@ -10,14 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Set of NPC IDs whose monster is aggressive, sourced from the OSRS Wiki's per-monster infobox
- * "aggressive" flag, bundled as aggressive_npcs.csv. Keyed by ID like NpcMaxHpTable, since the
- * same name can have both aggressive and non-aggressive variants. Only answers "is this monster
- * type aggressive at all" - the per-encounter level check lives in
- * CustomHpBarPlugin.isNpcAggressive. Known limitation: real aggression is location-dependent
- * (tolerant in some areas), which this flat set can't express - an accepted trade-off.
- */
+/** NPC IDs whose monster is aggressive, from aggressive_npcs.csv. Answers "is this type aggressive at all", not per-location tolerance. */
 @Slf4j
 class AggressiveNpcTable
 {

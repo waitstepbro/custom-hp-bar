@@ -63,18 +63,10 @@ class CustomHpBarOverlay extends Overlay
 	/** Fixed prayer bar fill color, matching OSRS's own prayer orb blue. Not configurable. */
 	private static final Color PRAYER_COLOR = new Color(60, 130, 220);
 
-	/**
-	 * Fixed grey fill for greyOutOtherPlayerDamage (see CustomHpBarPlugin.isLootTainted) - not
-	 * configurable, and overrides any status-effect tint rather than blending with it, since the
-	 * loot-eligibility warning needs to read unambiguously at a glance.
-	 */
+	/** Fixed grey fill for greyOutOtherPlayerDamage - overrides any status-effect tint so it reads unambiguously. */
 	private static final Color LOOT_TAINTED_COLOR = new Color(120, 120, 120);
 
-	/**
-	 * Alpha applied to a bar's own fill color for its heal/restore preview segment - reads as
-	 * "not real yet" without needing a separate configurable color (the preview always matches
-	 * whatever color the bar is currently showing, status tint included).
-	 */
+	/** Alpha for a bar's heal/restore preview segment - reads as "not real yet" over whatever color the bar is showing. */
 	private static final int PREVIEW_ALPHA = 110;
 
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
@@ -95,21 +87,13 @@ class CustomHpBarOverlay extends Overlay
 	/** Vertical padding between bars of actors sharing the same tile, before zoom scaling. */
 	private static final int STACK_PADDING = 2;
 
-	/**
-	 * Approximate overhead icon height reserved when the local player's bar is in a same-tile
-	 * stack (an approximation avoids depending on whether the real sprite has loaded yet). Only
-	 * affects stack spacing, not the icon's own rendering.
-	 */
+	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
 
 	/** Gap between the overhead chat text and the HP bar/icon above which it's moved, before zoom scaling. */
 	private static final int CHAT_TEXT_BAR_GAP = 3;
 
-	/**
-	 * Real client sprite ID for each hitsplat's background graphic, keyed by HitsplatID's type
-	 * constant - confirmed via the Nameplates plugin's own HitsplatDefaultSprite mapping. Drawing
-	 * the real sprite is what "exactly the same as vanilla" requires for hitsplats specifically.
-	 */
+	/** Real client sprite ID for each hitsplat's background graphic, keyed by HitsplatID's type constant. */
 	private static final Map<Integer, Integer> HITSPLAT_SPRITE_IDS = buildHitsplatSpriteIds();
 
 	private static Map<Integer, Integer> buildHitsplatSpriteIds()
@@ -158,38 +142,22 @@ class CustomHpBarOverlay extends Overlay
 	private final SpriteManager spriteManager;
 	private final ItemStatChangesService itemStatService;
 
-	/**
-	 * Camera zoom (Client.getScale()) observed the first time we render, used as the "1.0x"
-	 * baseline for zoom scaling. There's no documented universal reference zoom to calibrate
-	 * against up front, so capturing whatever zoom the user is actually playing at guarantees the
-	 * configured pixel sizes are exactly right there, scaling only relative to it from then on.
-	 */
+	/** Camera zoom observed the first time we render, used as the "1.0x" baseline for zoom scaling - see zoomFactor(). */
 	private int baselineZoom = -1;
 
-	/**
-	 * Poison/Venom/Burn hitsplat sprites, loaded live from the client via SpriteManager rather
-	 * than bundled. getSprite() reads its own cache and returns null until loaded;
-	 * getSpriteAsync() populates that cache in the background. Cached here too so repeat frames
-	 * skip SpriteManager's own lookup.
-	 */
+	/** Poison/Venom/Burn hitsplat sprites, loaded live via SpriteManager and cached here to skip repeat lookups. */
 	private BufferedImage poisonIcon;
 	private BufferedImage venomIcon;
 	private BufferedImage burnIcon;
 
-	/** The real client skull sprite (SpriteID.ICON_SKULL) used for the aggressive-NPC badge - see aggressiveIcon(). */
+	/** The real client skull sprite used for the aggressive-NPC badge - see aggressiveIcon(). */
 	private BufferedImage aggressiveIcon;
 
-	/**
-	 * Disease/Corruption debuff icons - unlike Poison/Venom/Burn, no confirmed SpriteID.Hitmark
-	 * entry exists for either, so these are bundled resource images (from the OSRS Wiki) instead.
-	 */
+	/** Disease/Corruption debuff icons - bundled resource images, since no confirmed SpriteID.Hitmark entry exists for either. */
 	private BufferedImage diseaseIcon;
 	private BufferedImage corruptionIcon;
 
-	/**
-	 * All 15 overhead icon graphics are sub-frames of one client sprite (SpriteID.HEADICONS_PRAYER),
-	 * indexed by HeadIcon.ordinal() - confirmed against the Nameplates plugin's own frame table.
-	 */
+	/** All 15 overhead icon graphics are sub-frames of one client sprite, indexed by HeadIcon.ordinal(). */
 	private final Map<HeadIcon, BufferedImage> headIconImages = new EnumMap<>(HeadIcon.class);
 
 	/** Real hitsplat background sprites, cached per HitsplatID type once loaded (see HITSPLAT_SPRITE_IDS). */
@@ -211,9 +179,7 @@ class CustomHpBarOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D g)
 	{
-		// Antialiased shapes, but not text: at these pixel sizes antialiasing blurs pixel-hinted
-		// fonts into a gray smear rather than crisp strokes - the game's own UI text isn't
-		// antialiased either, for the same reason.
+		// Antialiased shapes but not text - at these pixel sizes AA blurs the pixel-hinted fonts.
 		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
 
@@ -221,10 +187,8 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle targetStyle = null;
 		BarStyle playerStyle = null;
 
-		// Same-tile stacking state, rebuilt each frame: actors on the same tile would otherwise
-		// draw bars/names on top of each other. tileStacks accumulates pixels already claimed
-		// above each tile; appliedStacks remembers each drawn actor's shift so the "Always Show
-		// NPC Name" pass below can reuse it instead of claiming a fresh, mismatched slot.
+		// Same-tile stacking, rebuilt each frame: tileStacks tracks claimed pixels per tile;
+		// appliedStacks lets the "Always Show NPC Name" pass below reuse an already-drawn shift.
 		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
 		Map<Actor, Integer> appliedStacks = new HashMap<>();
 
@@ -232,8 +196,7 @@ class CustomHpBarOverlay extends Overlay
 		{
 			Actor actor = entry.getKey();
 
-			// NPC filtering already happened in CustomHpBarPlugin.isTrackedType() before an NPC
-			// was ever added to trackedActors, so nothing to re-check here.
+			// Filtering already happened in CustomHpBarPlugin.isTrackedType() - nothing to re-check.
 			int maxHp = resolveMaxHp(actor);
 			int[] hp = resolveHp(actor, maxHp);
 			if (hp == null)
@@ -241,10 +204,7 @@ class CustomHpBarOverlay extends Overlay
 				continue;
 			}
 
-			// Perspective.localToCanvas (not actor.getCanvasTextLocation) is deliberate:
-			// getCanvasTextLocation has a per-frame bob baked in (fine for floating text, wrong
-			// for a bar meant to sit steady like the native one). localToCanvas with ground
-			// position + logical height only moves with actual world position.
+			// localToCanvas, not getCanvasTextLocation - the latter has a per-frame animation bob.
 			Point anchor = Perspective.localToCanvas(
 				client, actor.getLocalLocation(), actor.getWorldView().getPlane(), actor.getLogicalHeight());
 			if (anchor == null)
@@ -272,11 +232,8 @@ class CustomHpBarOverlay extends Overlay
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
-		// The Prayer bar normally only shows attached beneath the HP bar (drawBar() above, only
-		// reached for tracked actors) - for the local player that means only while "in combat",
-		// so praying at a bank showed nothing. This second, independent path draws the Prayer bar
-		// on its own whenever a prayer is toggled on, regardless of combat state. Skipped if the
-		// main loop already drew it, to avoid a double draw.
+		// Independent path: shows the Prayer bar outside combat too (e.g. at a bank), skipped if
+		// the main loop above already drew it.
 		Player localPlayer = client.getLocalPlayer();
 		if (localPlayer != null && config.showForSelf() && config.showPrayerBar()
 				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isAnyPrayerActive())
@@ -290,10 +247,7 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
-		// Replacement for the native overhead prayer icon, which the plugin's render callback
-		// suppresses for the local player when Replace Overhead Icon is on - so this is the only
-		// icon drawn, not a duplicate. Independent of combat/tracking state, same as above, since
-		// the native icon it replaces also showed at all times.
+		// Replacement for the native overhead prayer icon, which the render callback suppresses.
 		if (localPlayer != null && config.showForSelf() && config.replaceOverheadIcon())
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
@@ -302,9 +256,8 @@ class CustomHpBarOverlay extends Overlay
 			drawOverheadChatText(g, localPlayer, playerStyle);
 		}
 
-		// Second pass over every nearby NPC for the two "regardless of combat" behaviors: Always
-		// Show NPC Bar and Always Show NPC Name. Both iterate the same NPC list, sharing one loop
-		// to avoid double-claiming same-tile stack slots.
+		// Second pass for "regardless of combat" behaviors: Always Show NPC Bar/Name, one shared
+		// loop so they don't double-claim same-tile stack slots.
 		boolean alwaysBar = config.alwaysShowNpcBar();
 		boolean alwaysName = config.showNpcName() && config.alwaysShowNpcName();
 		if (alwaysBar || alwaysName)
@@ -312,8 +265,6 @@ class CustomHpBarOverlay extends Overlay
 			double zoom = zoomFactor();
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
-				// matchesNpcFilter() is the "could I attack this" gate (combat level, hidden-
-				// mechanic exclusion, name filter), exactly the set Always Show NPC Bar means.
 				if (npc == null || !plugin.matchesNpcFilter(npc))
 				{
 					continue;
@@ -328,13 +279,9 @@ class CustomHpBarOverlay extends Overlay
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
 
-				// Combat level 0 (bankers, shops, fishing spots, pets) has no HP to show a bar
-				// for, regardless of Only Show Combat NPC Names (that's about name clutter and
-				// independent of this - a hardcoded floor, not a second opt-in).
+				// Combat level 0 (bankers, fishing spots, pets) has no HP to show a bar for.
 				boolean drawBarForThis = alwaysBar && npc.getCombatLevel() > 0;
 
-				// An NPC the main loop already drew reuses that exact shift so its name/bar here
-				// lands on the same slot; otherwise it claims a fresh slot sized to this pass.
 				boolean barAlreadyDrawn = appliedStacks.containsKey(npc);
 				Integer applied = appliedStacks.get(npc);
 				int shift = applied != null ? applied
@@ -345,9 +292,7 @@ class CustomHpBarOverlay extends Overlay
 					anchor = new Point(anchor.getX(), anchor.getY() - shift);
 				}
 
-				// An NPC with no live HP (idle, never hit) shows a full bar; real ratio/precise
-				// data takes over as soon as it's damaged. drawBar() handles this NPC's name on
-				// its own when Always Show NPC Name is off, so it's only drawn below when it's on.
+				// No live HP yet (never hit) shows a full bar until real data takes over.
 				if (drawBarForThis && !barAlreadyDrawn)
 				{
 					int maxHp = resolveMaxHp(npc);
@@ -369,14 +314,7 @@ class CustomHpBarOverlay extends Overlay
 		return null;
 	}
 
-	/**
-	 * Returns [current, max] HP for display, or null if unavailable. The native boss HP HUD
-	 * (CustomHpBarPlugin.nativeHudHp()) wins over everything when it's showing this exact actor -
-	 * it's the exact number the client is about to display. Next, an NPC's established precise
-	 * estimate (hitsplat-tracked) wins over the coarse ratio/scale bucket. Otherwise delegates to
-	 * CustomHpBarPlugin.readHp(), falling back to the last cached value while the native bar has
-	 * faded but the actor is still within its persist window.
-	 */
+	/** [current, max] HP for display: native boss HUD wins, then precise hitsplat tracking, then live/last-known reads. */
 	private int[] resolveHp(Actor actor, int maxHp)
 	{
 		int[] hud = plugin.nativeHudHp(actor);
@@ -403,10 +341,7 @@ class CustomHpBarOverlay extends Overlay
 		return plugin.getLastKnownHp().get(actor);
 	}
 
-	/**
-	 * Zoom multiplier applied to every pixel dimension so the bar grows/shrinks with the actor
-	 * model instead of staying a fixed screen size regardless of camera distance.
-	 */
+	/** Zoom multiplier applied to every pixel dimension so the bar scales with the actor model, not screen distance. */
 	private double zoomFactor()
 	{
 		if (!config.scaleWithZoom())
@@ -448,12 +383,7 @@ class CustomHpBarOverlay extends Overlay
 			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge());
 	}
 
-	/**
-	 * The bar's on-screen rectangle - centered on the anchor, then shifted by the configurable
-	 * vertical offset (positive moves upward). Shared by drawBar() and drawNpcNameOnly() so an
-	 * "Always Show NPC Name" label sits at the same position it would occupy if the bar were also
-	 * showing - it shouldn't jump when an NPC enters/leaves combat.
-	 */
+	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
 	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
 		int w = scaled(style.width, zoom);
@@ -464,13 +394,7 @@ class CustomHpBarOverlay extends Overlay
 		return new int[]{x, y, w, h};
 	}
 
-	/**
-	 * Claims a same-tile stack slot for an actor's full bar, returning the upward pixel shift to
-	 * apply (0 for the first actor on its tile). Covers everything this actor draws upward from
-	 * its bar top (name label, or the local player's replacement overhead icon) so the next
-	 * actor's bar clears it. Downward extras (prayer bar, status icons) don't matter here, since
-	 * stacking only ever pushes later actors up.
-	 */
+	/** Claims a same-tile stack slot for an actor's full bar, returning the upward pixel shift to apply (0 for the first actor). */
 	private int claimBarStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, BarStyle style, double zoom)
 	{
 		WorldPoint tile = actor.getWorldLocation();
@@ -509,10 +433,7 @@ class CustomHpBarOverlay extends Overlay
 		return shift;
 	}
 
-	/**
-	 * Draws just the NPC name label, at the position it would occupy above the HP bar if the bar
-	 * were showing - used for "Always Show NPC Name" on untracked (not in combat) NPCs.
-	 */
+	/** Draws just the NPC name label at its would-be bar position - used for "Always Show NPC Name" on untracked NPCs. */
 	private void drawNpcNameOnly(Graphics2D g, NPC npc, Point anchor, BarStyle style, double zoom)
 	{
 		String npcName = npc.getName();
@@ -532,12 +453,7 @@ class CustomHpBarOverlay extends Overlay
 		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, nameColor);
 	}
 
-	/**
-	 * Small badge to the left of an NPC's HP bar, vertically centered on it, marking it as
-	 * currently aggressive - the icon alternative to (or alongside) recoloring the name text.
-	 * Anchored to the bar itself so it only ever appears alongside an actual bar. Uses the real
-	 * client skull sprite (see aggressiveIcon()) rather than a bespoke asset.
-	 */
+	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
 	private void drawAggressiveNpcIcon(Graphics2D g, int barX, int barY, int barH, double zoom)
 	{
 		BufferedImage icon = aggressiveIcon();
@@ -553,17 +469,11 @@ class CustomHpBarOverlay extends Overlay
 		g.drawImage(icon, iconX, iconY, size, size, null);
 	}
 
-	/**
-	 * Filters out NPC names that are really internal/placeholder labels: the literal string
-	 * "null" (a documented quirk on some hidden/utility NPCs, guarded against the same way core's
-	 * ObjectIndicatorsOverlay does), and any "Category:Label"-style name containing a colon (seen
-	 * on internal mechanic entities like "Enraged:Blue Moon" - no real OSRS monster name contains
-	 * one, making this a safe general heuristic). Only suppresses the name label; the bar itself
-	 * still shows normally.
-	 */
+	/** Filters internal/placeholder names: literal "null", or a "Category:Label" name with a colon/semicolon. Label only, not the bar. */
 	private static boolean isDisplayableName(String npcName)
 	{
-		return npcName != null && !npcName.isEmpty() && !"null".equals(npcName) && npcName.indexOf(':') < 0;
+		return npcName != null && !npcName.isEmpty() && !"null".equals(npcName)
+			&& npcName.indexOf(':') < 0 && npcName.indexOf(';') < 0;
 	}
 
 	private void drawBar(Graphics2D g, Actor actor, Point anchor, int ratio, int scale, int maxHp, BarStyle style)
@@ -596,8 +506,7 @@ class CustomHpBarOverlay extends Overlay
 
 		if (actor == client.getLocalPlayer() && config.showFoodHealPreview())
 		{
-			// ratio/scale are the local player's real current/max HP already, not a bucket - no
-			// need to re-derive HP from a rounded fraction.
+			// ratio/scale are the local player's real current/max HP already, not a bucket.
 			drawHealPreview(g, x, y, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
 				translucent(fillColor));
 		}
@@ -679,12 +588,7 @@ class CustomHpBarOverlay extends Overlay
 		return -1;
 	}
 
-	/**
-	 * Extends a bar (HP or Prayer) past its current fill with a preview segment showing where the
-	 * stat would land if healAmount were consumed now, capped at maxHp. currentHp/maxHp are raw
-	 * values, not a fraction - for the local player they're already exact, so deriving them back
-	 * out of a rounded fraction would just reintroduce imprecision.
-	 */
+	/** Extends a bar past its current fill with a preview segment showing where the stat would land if healAmount landed now. */
 	private void drawHealPreview(Graphics2D g, int x, int y, int w, int h, int border, int currentHp, int maxHp,
 			int healAmount, Color previewColor)
 	{
@@ -713,11 +617,7 @@ class CustomHpBarOverlay extends Overlay
 		g.fillRect(x + border + currentFillWidth, y + border, previewWidth, innerH);
 	}
 
-	/**
-	 * Whether the debuff icon row should draw for actor - independent of Color By Status Effect
-	 * (split into separate toggles). By actor *type*, not "is this literally me" - other players
-	 * share the Player Bar profile's toggle, same as they share its styling.
-	 */
+	/** Whether the debuff icon row should draw for actor, by actor type - independent of the Color By Status Effect toggle. */
 	private boolean showStatusIcons(Actor actor)
 	{
 		if (actor instanceof NPC)
@@ -731,13 +631,7 @@ class CustomHpBarOverlay extends Overlay
 		return false;
 	}
 
-	/**
-	 * Draws one debuff badge per active status effect, left to right from the bar's left edge,
-	 * flush against its bottom edge, each bar-height wide. Iterates StatusEffect.values()
-	 * (declared in venom/poison/burn/bleed order) for a consistent order regardless of which
-	 * effects are active. Effects without a wired-up icon are silently skipped and reserve no
-	 * space; an icon not yet loaded from SpriteManager is also silently skipped for this frame.
-	 */
+	/** Draws one debuff badge per active status effect, left to right, in StatusEffect.values() order. */
 	private void drawStatusIcons(Graphics2D g, Set<CustomHpBarPlugin.StatusEffect> effects, int x, int bottomY, int size)
 	{
 		if (effects.isEmpty() || size <= 0)
@@ -762,12 +656,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/**
-	 * Maps a status effect to its debuff icon, or null if it has none. Poison/Venom/Burn load
-	 * live via SpriteManager; Disease/Corruption use bundled images since no sprite ID exists for
-	 * either. Bleed has neither - no RuneLite-confirmed Hitmark sprite ID for it, so it's not
-	 * guess-assigned.
-	 */
+	/** Maps a status effect to its debuff icon, or null if it has none (e.g. Bleed has no confirmed Hitmark sprite of its own). */
 	private BufferedImage statusIcon(CustomHpBarPlugin.StatusEffect effect)
 	{
 		switch (effect)
@@ -779,8 +668,7 @@ class CustomHpBarOverlay extends Overlay
 			case BURN:
 				return burnIcon();
 			case BLEED:
-				// Reuses the hitsplat sprite cache - the Bleed hitsplat sprite (4564, confirmed
-				// via HITSPLAT_SPRITE_IDS) works as a debuff icon too.
+				// Reuses the Bleed hitsplat sprite as a debuff icon.
 				return hitsplatImage(HitsplatID.BLEED);
 			case DISEASE:
 				return diseaseIcon();
@@ -875,11 +763,7 @@ class CustomHpBarOverlay extends Overlay
 		return corruptionIcon;
 	}
 
-	/**
-	 * Loads a debuff icon bundled as a plugin resource - only for effects with no live SpriteID
-	 * to load via SpriteManager instead. Returns null on any failure rather than throwing; a
-	 * missing icon just means that badge doesn't draw.
-	 */
+	/** Loads a debuff icon bundled as a plugin resource. Returns null on any failure - a missing icon just skips that badge. */
 	private static BufferedImage loadBundledIcon(String resourceName)
 	{
 		try (InputStream in = CustomHpBarOverlay.class.getResourceAsStream(resourceName))
@@ -892,11 +776,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/**
-	 * Draws just the Prayer bar, at the position the HP bar itself would occupy (barRect(), same
-	 * as drawBar() uses) - reached only when the local player isn't currently tracked, so there's
-	 * no HP bar drawn alongside it here.
-	 */
+	/** Draws just the Prayer bar at the HP bar's would-be position - reached only when the local player isn't tracked. */
 	private void drawStandalonePrayerBar(Graphics2D g, Point anchor, BarStyle style)
 	{
 		double zoom = zoomFactor();
@@ -906,12 +786,7 @@ class CustomHpBarOverlay extends Overlay
 		drawPrayerBar(g, style, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
 	}
 
-	/**
-	 * Draws our replacement of the local player's active overhead prayer icon, a few pixels above
-	 * where the HP bar sits (or would sit, out of combat). Only called for the local player when
-	 * Replace Overhead Icon is on, at which point the render callback has already suppressed the
-	 * native icon, so this is the sole icon on screen.
-	 */
+	/** Draws the replacement overhead prayer icon above the HP bar - the render callback has already suppressed the native one. */
 	private void drawOverheadIcon(Graphics2D g, Player localPlayer, BarStyle style)
 	{
 		HeadIcon headIcon = localPlayer.getOverheadIcon();
@@ -966,16 +841,7 @@ class CustomHpBarOverlay extends Overlay
 		return null;
 	}
 
-	/**
-	 * Redraws hitsplats landing on the local player, replacing the native ones the plugin's
-	 * render callback suppresses when Replace Overhead Icon is on. Draws the real client sprite
-	 * for each hitsplat's type (HITSPLAT_SPRITE_IDS) plus the amount in white on top, matching
-	 * vanilla rather than a custom shape/color. Anchored at chest height on the model, not above
-	 * the head, matching where native hitsplats actually appear. At most MAX_HITSPLATS show at
-	 * once, in vanilla's fixed diamond arrangement (below-center, above-center, left, right) -
-	 * layout offsets mirror Nameplates' OSRSDisplayType.render() exactly. Each hitsplat's own
-	 * getDisappearsOnGameCycle() controls when it stops drawing, matching native timing.
-	 */
+	/** Redraws hitsplats on the local player (real sprite + amount), replacing the ones the render callback suppresses. */
 	private void drawSelfHitsplats(Graphics2D g, Player localPlayer)
 	{
 		List<Hitsplat> hitsplats = plugin.getSelfHitsplats();
@@ -984,9 +850,7 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		// Native hitsplats render on the body (roughly chest height), not floating above the head
-		// like the bar/icon/chat text - there's no dedicated API for the exact attachment point,
-		// so half of getLogicalHeight() approximates the model's vertical center.
+		// Native hitsplats render at roughly chest height, not above the head like the bar/text.
 		Point anchor = Perspective.localToCanvas(client, localPlayer.getLocalLocation(),
 			localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight() / 2);
 		if (anchor == null)
@@ -1016,8 +880,7 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		// Vanilla replaces the oldest of its 4 slots when a fifth hit lands, so the 4 shown are
-		// always the most recent - selfHitsplats is append-ordered, so that's the list's tail.
+		// Vanilla shows only the 4 most recent hits - selfHitsplats is append-ordered, so take the tail.
 		if (visible.size() > MAX_HITSPLATS)
 		{
 			visible = visible.subList(visible.size() - MAX_HITSPLATS, visible.size());
@@ -1026,9 +889,7 @@ class CustomHpBarOverlay extends Overlay
 
 		double zoom = zoomFactor();
 
-		// RuneScape Small at its native size (16), white with a black +1,+1 drop shadow -
-		// confirmed against the actual vanilla client rendering (fontPlain11, not the bold font
-		// used for chat/HP text).
+		// RuneScape Small at native size, white with a black drop shadow, matching vanilla.
 		Font font = FontManager.getRunescapeSmallFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
 		FontRenderContext frc = g.getFontRenderContext();
@@ -1085,17 +946,7 @@ class CustomHpBarOverlay extends Overlay
 		return null;
 	}
 
-	/**
-	 * Redraws the local player's overhead chat text, replacing the native text suppressed
-	 * alongside the rest of the overhead UI pass when Replace Overhead Icon is on.
-	 * getOverheadCycle() is a client-decremented countdown, so reading it fresh each frame is
-	 * enough to know whether to draw. Styled black-outline-on-yellow to match vanilla.
-	 *
-	 * Default position matches the native client's own overhead text spot - but the HP/Prayer bar
-	 * can occupy that same space when showing, since the bar's position depends on the
-	 * configurable verticalOffset. When the bar is shown, the text tucks in beneath the bar stack
-	 * instead, to stay clear of the replacement overhead icon above the bar.
-	 */
+	/** Redraws the local player's overhead chat text, replacing the native text; tucks under the bar stack when one is shown. */
 	private void drawOverheadChatText(Graphics2D g, Player localPlayer, BarStyle style)
 	{
 		if (localPlayer.getOverheadCycle() <= 0)
@@ -1117,8 +968,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		double zoom = zoomFactor();
-		// RuneScape Bold at its native size (16) - vanilla overhead chat uses the bold font, not
-		// the regular one, confirmed against Nameplates' own overhead text rendering.
+		// Vanilla overhead chat uses the bold font, not the regular one.
 		Font font = FontManager.getRunescapeBoldFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
 		FontRenderContext frc = g.getFontRenderContext();
@@ -1131,8 +981,7 @@ class CustomHpBarOverlay extends Overlay
 		boolean barShown = tracked || (config.showPrayerBar() && plugin.isAnyPrayerActive());
 		if (barShown)
 		{
-			// Tucked beneath the bar stack: the HP bar, plus the Prayer bar's extra row when it's
-			// drawn attached below (the standalone prayer-only path is a single row, no second).
+			// Tucked beneath the bar stack: the HP bar, plus the Prayer bar's row if attached.
 			int[] rect = barRect(anchor, style, zoom);
 			int stackBottom = rect[1] + rect[3];
 			if (tracked && config.showPrayerBar())
@@ -1143,9 +992,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 		else
 		{
-			// Actor.getCanvasTextLocation() directly - the same projection vanilla's overhead
-			// chat text and hitsplats use (ruled out for the *bar* only because of its per-frame
-			// animation bob, which is irrelevant for text and in fact matches native behavior here).
+			// Same projection vanilla's overhead chat text uses (its per-frame bob is fine for text).
 			Point textAnchor = localPlayer.getCanvasTextLocation(g, text, localPlayer.getLogicalHeight());
 			y = textAnchor != null ? textAnchor.getY() : anchor.getY();
 		}
@@ -1211,10 +1058,7 @@ class CustomHpBarOverlay extends Overlay
 
 		if (border > 0)
 		{
-			// BasicStroke draws centered on the path, so stroking `outline` directly would put
-			// half the border outside (x, y, w, h) - over whatever's behind the bar - and half
-			// inside. Insetting the stroked path by half the border width keeps the whole stroke
-			// inside (x, y, w, h), fully backed by the background fill above.
+			// BasicStroke draws centered on the path - inset by half the border to keep it inside (x, y, w, h).
 			float half = border / 2f;
 			RoundRectangle2D borderPath = new RoundRectangle2D.Float(
 				x + half, y + half, w - border, h - border, Math.max(0, arc - border), Math.max(0, arc - border));
@@ -1251,10 +1095,8 @@ class CustomHpBarOverlay extends Overlay
 		Font font = resolveFont(style.fontFamily, style.fontStyle, scaled(style.fontSize, zoom));
 		g.setFont(font);
 
-		// Centered on the label's actual rendered (pixel-hinted) glyph bounds, not the font's
-		// nominal ascent/descent metrics - different fonts reserve very different amounts of
-		// headroom, and hinting snaps glyphs to the pixel grid in ways vector bounds don't
-		// reflect. getPixelBounds() accounts for both; textVerticalNudge covers any residual offset.
+		// Centered on actual rendered glyph bounds (getPixelBounds), not nominal font metrics -
+		// textVerticalNudge covers any residual per-font offset.
 		FontRenderContext frc = g.getFontRenderContext();
 		Rectangle pixelBounds = new TextLayout(label, font, frc).getPixelBounds(frc, 0, 0);
 		int nudge = scaled(style.textNudge, zoom);
@@ -1350,13 +1192,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/**
-	 * Returns the actor's max HP, or -1 if unknown (falls back to percent display). The native
-	 * boss HP HUD wins first, whatever the actor type. Otherwise NPCs go through
-	 * CustomHpBarPlugin.resolveNpcMaxHp(); the local player's real max HP comes from their
-	 * Hitpoints skill level. Other players' max HP isn't obtainable client-side, so NUMBER/BOTH
-	 * fall back to percent for them.
-	 */
+	/** Actor's max HP, or -1 if unknown (falls back to percent). Native HUD wins first, then resolveNpcMaxHp()/Hitpoints skill. */
 	private int resolveMaxHp(Actor actor)
 	{
 		int[] hud = plugin.nativeHudHp(actor);
