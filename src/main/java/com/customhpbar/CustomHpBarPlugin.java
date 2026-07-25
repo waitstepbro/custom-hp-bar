@@ -14,7 +14,6 @@ import net.runelite.api.Renderable;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
-import net.runelite.api.Varbits;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
@@ -46,7 +45,10 @@ import javax.inject.Inject;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -95,10 +97,20 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE
 	));
 
-	/** Status hitsplats that aren't HP damage - kept out of DAMAGE_HITSPLATS. */
-	private static final Set<Integer> STATUS_ONLY_HITSPLATS = new HashSet<>(Arrays.asList(
-		HitsplatID.DISEASE, HitsplatID.CORRUPTION
-	));
+	/** Hitsplat type -> the status effect it signals. Also the source of truth for which hitsplats are status-relevant. */
+	private static final Map<Integer, StatusEffect> STATUS_HITSPLAT_EFFECTS = buildStatusHitsplatEffects();
+
+	private static Map<Integer, StatusEffect> buildStatusHitsplatEffects()
+	{
+		Map<Integer, StatusEffect> effects = new HashMap<>();
+		effects.put(HitsplatID.VENOM, StatusEffect.VENOM);
+		effects.put(HitsplatID.POISON, StatusEffect.POISON);
+		effects.put(HitsplatID.BURN, StatusEffect.BURN);
+		effects.put(HitsplatID.BLEED, StatusEffect.BLEED);
+		effects.put(HitsplatID.DISEASE, StatusEffect.DISEASE);
+		effects.put(HitsplatID.CORRUPTION, StatusEffect.CORRUPTION);
+		return effects;
+	}
 
 	/** NPC IDs for non-real Moons of Peril mechanic entities (scrapped "Enraged" ghosts, the Blue Moon tornado hazard) - untracked entirely. */
 	private static final Set<Integer> HIDDEN_MECHANIC_NPC_IDS = new HashSet<>(Arrays.asList(
@@ -116,11 +128,19 @@ public class CustomHpBarPlugin extends Plugin
 		NpcID.PMOON_BOSS_JAGUAR
 	));
 
+	/** Precompiled for normalizeNpcName - it runs for every NPC in the scene every frame, so per-call Pattern.compile is too costly. */
+	private static final Pattern NAME_SEPARATORS = Pattern.compile("[:;]");
+	private static final Pattern NAME_WHITESPACE = Pattern.compile("\\s+");
+
 	/** Normalizes tags/non-breaking-spaces/colon-semicolon/whitespace (via Text.standardize()) so name comparisons are reliable. */
 	private static String normalizeNpcName(String name)
 	{
-		return name == null ? null
-			: Text.standardize(name).replaceAll("[:;]", " ").trim().replaceAll("\\s+", " ");
+		if (name == null)
+		{
+			return null;
+		}
+		String separated = NAME_SEPARATORS.matcher(Text.standardize(name)).replaceAll(" ").trim();
+		return NAME_WHITESPACE.matcher(separated).replaceAll(" ");
 	}
 
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
@@ -217,13 +237,8 @@ public class CustomHpBarPlugin extends Plugin
 	/** NPCs damaged by someone other than the local player since last evicted - powers greyOutOtherPlayerDamage. */
 	private final Set<NPC> otherPlayerDamaged = ConcurrentHashMap.newKeySet();
 
-	/** Tick of the most recent status-effect hitsplat per actor - the only signal for NPCs/other players (see activeStatusEffects()). */
-	private final Map<Actor, Integer> lastPoisonTick = new ConcurrentHashMap<>();
-	private final Map<Actor, Integer> lastVenomTick = new ConcurrentHashMap<>();
-	private final Map<Actor, Integer> lastBurnTick = new ConcurrentHashMap<>();
-	private final Map<Actor, Integer> lastBleedTick = new ConcurrentHashMap<>();
-	private final Map<Actor, Integer> lastDiseaseTick = new ConcurrentHashMap<>();
-	private final Map<Actor, Integer> lastCorruptionTick = new ConcurrentHashMap<>();
+	/** Tick of the most recent status-effect hitsplat, per effect per actor - the only signal for NPCs/other players (see activeStatusEffects()). */
+	private final Map<Actor, Map<StatusEffect, Integer>> statusEffectTicks = new ConcurrentHashMap<>();
 
 	/** Cached compiled filter patterns to avoid regex compilation on every tracking check. */
 	private String cachedFilterString = "";
@@ -269,7 +284,9 @@ public class CustomHpBarPlugin extends Plugin
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
 		otherPlayerDamaged.clear();
+		statusEffectTicks.clear();
 		selfHitsplats.clear();
+		pendingClickActor = null;
 		aggressionEndTick = 0;
 		Arrays.fill(aggressionSafeCenters, null);
 		doomDelveLevel = 1;
@@ -374,30 +391,11 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private void trackStatusEffect(Actor actor, int hitsplatType)
 	{
-		int currentTick = client.getTickCount();
-		if (hitsplatType == HitsplatID.VENOM)
+		StatusEffect effect = STATUS_HITSPLAT_EFFECTS.get(hitsplatType);
+		if (effect != null)
 		{
-			lastVenomTick.put(actor, currentTick);
-		}
-		else if (hitsplatType == HitsplatID.POISON)
-		{
-			lastPoisonTick.put(actor, currentTick);
-		}
-		else if (hitsplatType == HitsplatID.BURN)
-		{
-			lastBurnTick.put(actor, currentTick);
-		}
-		else if (hitsplatType == HitsplatID.BLEED)
-		{
-			lastBleedTick.put(actor, currentTick);
-		}
-		else if (hitsplatType == HitsplatID.DISEASE)
-		{
-			lastDiseaseTick.put(actor, currentTick);
-		}
-		else if (hitsplatType == HitsplatID.CORRUPTION)
-		{
-			lastCorruptionTick.put(actor, currentTick);
+			statusEffectTicks.computeIfAbsent(actor, k -> new EnumMap<>(StatusEffect.class))
+				.put(effect, client.getTickCount());
 		}
 	}
 
@@ -405,7 +403,7 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		return hitsplatType == HitsplatID.HEAL
 			|| DAMAGE_HITSPLATS.contains(hitsplatType)
-			|| STATUS_ONLY_HITSPLATS.contains(hitsplatType);
+			|| STATUS_HITSPLAT_EFFECTS.containsKey(hitsplatType);
 	}
 
 	@Subscribe
@@ -552,12 +550,7 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		trackedActors.remove(actor);
 		lastKnownHp.remove(actor);
-		lastPoisonTick.remove(actor);
-		lastVenomTick.remove(actor);
-		lastBurnTick.remove(actor);
-		lastBleedTick.remove(actor);
-		lastDiseaseTick.remove(actor);
-		lastCorruptionTick.remove(actor);
+		statusEffectTicks.remove(actor);
 		if (actor instanceof NPC)
 		{
 			preciseNpcHp.remove(actor);
@@ -777,6 +770,7 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		int currentTick = client.getTickCount();
 		EnumSet<StatusEffect> active = EnumSet.noneOf(StatusEffect.class);
+		Map<StatusEffect, Integer> ticks = statusEffectTicks.getOrDefault(actor, Collections.emptyMap());
 
 		if (actor == client.getLocalPlayer())
 		{
@@ -791,21 +785,21 @@ public class CustomHpBarPlugin extends Plugin
 				active.add(StatusEffect.POISON);
 			}
 
-			addIfActive(active, StatusEffect.BLEED, lastBleedTick.get(actor), currentTick);
+			addIfActive(active, StatusEffect.BLEED, ticks.get(StatusEffect.BLEED), currentTick);
 		}
 		else if (actor instanceof NPC || actor instanceof Player)
 		{
-			addIfActive(active, StatusEffect.VENOM, lastVenomTick.get(actor), currentTick);
-			addIfActive(active, StatusEffect.POISON, lastPoisonTick.get(actor), currentTick);
+			addIfActive(active, StatusEffect.VENOM, ticks.get(StatusEffect.VENOM), currentTick);
+			addIfActive(active, StatusEffect.POISON, ticks.get(StatusEffect.POISON), currentTick);
 		}
 		else
 		{
 			return active;
 		}
 
-		addIfActive(active, StatusEffect.BURN, lastBurnTick.get(actor), currentTick);
-		addIfActive(active, StatusEffect.DISEASE, lastDiseaseTick.get(actor), currentTick);
-		addIfActive(active, StatusEffect.CORRUPTION, lastCorruptionTick.get(actor), currentTick);
+		addIfActive(active, StatusEffect.BURN, ticks.get(StatusEffect.BURN), currentTick);
+		addIfActive(active, StatusEffect.DISEASE, ticks.get(StatusEffect.DISEASE), currentTick);
+		addIfActive(active, StatusEffect.CORRUPTION, ticks.get(StatusEffect.CORRUPTION), currentTick);
 		return active;
 	}
 
@@ -969,7 +963,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** True while the local player is any Ironman variant - preferred over the deprecated Client.getAccountType(). */
 	private boolean isIronman()
 	{
-		return client.getVarbitValue(Varbits.ACCOUNT_TYPE) > 0;
+		return client.getVarbitValue(VarbitID.IRONMAN) > 0;
 	}
 
 	/** Whether npc's bar should grey out because someone else damaged it (Ironman-only, gated by the config toggle). */
@@ -1018,21 +1012,30 @@ public class CustomHpBarPlugin extends Plugin
 		return actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers();
 	}
 
-	/** Whether npc matches the configured filter, independent of current tracked state - used by "Always Show NPC Name". */
-	boolean matchesNpcFilter(NPC npc)
+	/**
+	 * Whether npc is eligible for a bar/name at all, independent of current tracked state - also what
+	 * the overlay's "Always Show NPC Bar/Name" pass filters on, so tracking and names stay consistent.
+	 * Combat level 0 excludes non-attackable NPCs (bankers, fishing spots, pets), gated behind
+	 * onlyShowCombatNpcNames(). Cheap ID/level checks run first - the name checks below are the
+	 * expensive part and this runs for every NPC in the scene every frame.
+	 */
+	boolean isTrackedNpc(NPC npc)
 	{
-		return isTrackedNpc(npc);
-	}
+		if (config.onlyShowCombatNpcNames() && npc.getCombatLevel() <= 0)
+		{
+			return false;
+		}
 
-	/** Combat level 0 excludes non-attackable NPCs (bankers, fishing spots, pets), gated behind onlyShowCombatNpcNames(). */
-	private boolean isTrackedNpc(NPC npc)
-	{
-		String normalizedName = normalizeNpcName(npc.getName());
-		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
-			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
-			&& !UNTRACKED_LOOTLESS_NPC_IDS.contains(npc.getId())
-			&& (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
-			&& matchesFilter(npc.getName());
+		int npcId = npc.getId();
+		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId) || UNTRACKED_LOOTLESS_NPC_IDS.contains(npcId))
+		{
+			return false;
+		}
+
+		String name = npc.getName();
+		String normalizedName = normalizeNpcName(name);
+		return (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
+			&& matchesFilter(name);
 	}
 
 	/** Pure blacklist: empty filter shows all, any matching entry hides that NPC. Patterns are comma-separated, case-insensitive, '*' wildcards. */
