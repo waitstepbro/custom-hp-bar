@@ -171,16 +171,21 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
-	 * Strips formatting tags, then normalizes colon/semicolon separators (seen in internal-name
-	 * leaks like "Enraged:Blue Moon") and repeated whitespace to single spaces, lowercased - so
-	 * HIDDEN_MECHANIC_NPC_NAMES matches regardless of which separator/casing variant a given
-	 * client build happens to send. Both punctuation marks are safe to fold into a space: no real
-	 * OSRS monster name contains either (same reasoning isDisplayableName() uses for colon).
+	 * Builds on Text.standardize() (RuneLite's own tags-removed/nbsp-to-space/trimmed/lowercased
+	 * normalization) - the actual root cause here: NPC names commonly use U+00A0 non-breaking
+	 * spaces instead of plain spaces, which Java's \s regex does not match, so an un-normalized
+	 * exact-string comparison silently never matched even with no colon/semicolon visible on
+	 * screen ("Enraged Blue Moon" looked like a plain-space name but wasn't one). Additionally
+	 * folds colon/semicolon separators (seen in internal-name leaks like "Enraged:Blue Moon")
+	 * and collapses repeated whitespace - so HIDDEN_MECHANIC_NPC_NAMES matches regardless of
+	 * which separator/whitespace variant a given client build happens to send. Both punctuation
+	 * marks are safe to fold into a space: no real OSRS monster name contains either (same
+	 * reasoning isDisplayableName() uses for colon).
 	 */
 	private static String normalizeNpcName(String name)
 	{
 		return name == null ? null
-			: Text.removeTags(name).replaceAll("[:;]", " ").trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+			: Text.standardize(name).replaceAll("[:;]", " ").trim().replaceAll("\\s+", " ");
 	}
 
 	/**
