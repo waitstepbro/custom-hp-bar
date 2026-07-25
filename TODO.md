@@ -1,5 +1,28 @@
 # TODO
 
+## 0. UNTESTED IN-GAME: verify the 5 pushed cleanup/Moons commits
+
+Pushed deliberately untested on branch `refactor-code-base-for-efficiency-and-deduplication`
+(`7292418`..`b39e4cd`). All build clean and pass checkstyle; none has been seen running in-game.
+**Verify before merging to master.** In rough order of risk:
+
+1. **`7292418` bar stacking** - the only visually observable change of the batch. Two+ actors on
+   one tile should stack without overlapping, and bars should no longer shift upward for NPCs that
+   draw nothing (an NPC named `null`, or a combat-level-0 one with names off).
+2. **`d203849` + `7d7f3b9` Blood jaguar** - one Blood Moon trip covers both: the jaguar's bar
+   should appear again, show a **percentage** (not a number), and stay its normal color when
+   someone else damages it.
+3. **`b39e4cd` communal-loot exemption** - on any Moons boss with another player hitting it, an
+   Ironman's bar must **not** grey out. This is the nbsp normalization fix; it was silently failing.
+4. **`c3a940f` bleed** - your own bar still tints/badges on bleed; NPCs never do.
+5. **`7292418` status icons** - poison/venom/burn/disease/corruption badges still load and draw
+   (the sprite cache was consolidated; a mistake there shows up as missing icons).
+
+Also still open from that pass, not yet acted on (details in `CLAUDE.md`'s "Second cleanup pass"
+and "Multi-combat / 3+ player Moons" sections): the `claimBarStackSlot()` prayer-bar
+under-reservation, the deprecated `Client.isPrayerActive()` call, and the remaining lootless Moons
+mechanic NPCs (Eclipse clone/shield, icicles, "Frozen weapons") that can still grey out.
+
 ## 1. Aggression timer wrongly colors all hostile NPCs yellow on expiry, not just nearby ones
 
 When the aggression tolerance timer expires, it turns **all** hostile enemies' names yellow
