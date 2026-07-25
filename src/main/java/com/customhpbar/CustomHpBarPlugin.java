@@ -171,15 +171,16 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
-	 * Strips formatting tags, then normalizes colons (seen as a separator in internal-name leaks
-	 * like "Enraged:Blue Moon") and repeated whitespace to single spaces, lowercased - so
+	 * Strips formatting tags, then normalizes colon/semicolon separators (seen in internal-name
+	 * leaks like "Enraged:Blue Moon") and repeated whitespace to single spaces, lowercased - so
 	 * HIDDEN_MECHANIC_NPC_NAMES matches regardless of which separator/casing variant a given
-	 * client build happens to send.
+	 * client build happens to send. Both punctuation marks are safe to fold into a space: no real
+	 * OSRS monster name contains either (same reasoning isDisplayableName() uses for colon).
 	 */
 	private static String normalizeNpcName(String name)
 	{
 		return name == null ? null
-			: Text.removeTags(name).replace(':', ' ').trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+			: Text.removeTags(name).replaceAll("[:;]", " ").trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
 	}
 
 	/**

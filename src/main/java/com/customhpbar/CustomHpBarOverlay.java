@@ -556,14 +556,16 @@ class CustomHpBarOverlay extends Overlay
 	/**
 	 * Filters out NPC names that are really internal/placeholder labels: the literal string
 	 * "null" (a documented quirk on some hidden/utility NPCs, guarded against the same way core's
-	 * ObjectIndicatorsOverlay does), and any "Category:Label"-style name containing a colon (seen
-	 * on internal mechanic entities like "Enraged:Blue Moon" - no real OSRS monster name contains
-	 * one, making this a safe general heuristic). Only suppresses the name label; the bar itself
-	 * still shows normally.
+	 * ObjectIndicatorsOverlay does), and any "Category:Label"/"Category;Label"-style name
+	 * containing a colon or semicolon (seen on internal mechanic entities like "Enraged:Blue
+	 * Moon" - no real OSRS monster name contains either, making this a safe general heuristic).
+	 * Only suppresses the name label; the bar itself still shows normally - the actual tracking
+	 * gate is CustomHpBarPlugin.HIDDEN_MECHANIC_NPC_NAMES, which normalizes the same separators.
 	 */
 	private static boolean isDisplayableName(String npcName)
 	{
-		return npcName != null && !npcName.isEmpty() && !"null".equals(npcName) && npcName.indexOf(':') < 0;
+		return npcName != null && !npcName.isEmpty() && !"null".equals(npcName)
+			&& npcName.indexOf(':') < 0 && npcName.indexOf(';') < 0;
 	}
 
 	private void drawBar(Graphics2D g, Actor actor, Point anchor, int ratio, int scale, int maxHp, BarStyle style)
