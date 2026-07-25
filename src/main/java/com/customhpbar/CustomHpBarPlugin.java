@@ -869,6 +869,13 @@ public class CustomHpBarPlugin extends Plugin
 	 * both special-cased ahead of the static table, since a per-ID table structurally can't
 	 * represent Doom's per-delve-level HP or Vasa's per-difficulty HP (see DOOM_NPC_IDS/
 	 * VASA_NPC_IDS's doc comments).
+	 *
+	 * ToA minions deliberately return -1 (unknown) rather than a guessed number: real ToA scales
+	 * every enemy's HP by raid level *and* path level (Walk the Path/Pathseeker/etc.) *and* party
+	 * size, not raid level alone - showing a number that's missing two of those three factors
+	 * would be actively wrong, not just imprecise, so this falls back to the overlay's existing
+	 * percentage-only display instead. See CLAUDE.md's "ToA minion HP" section for the verified
+	 * formula and sourcing, ready to implement once trusted enough to ship as an exact number.
 	 */
 	int resolveNpcMaxHp(int npcId)
 	{
@@ -880,7 +887,18 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			return client.getVarbitValue(VarbitID.RAIDS_CHALLENGE_MODE) == 1 ? VASA_CM_HP : VASA_NORMAL_HP;
 		}
+		if (isInsideToa())
+		{
+			return -1;
+		}
 		return NpcMaxHpTable.getMaxHp(npcId);
+	}
+
+	/** Whether the local player is currently inside Tombs of Amascut - see TOA_REGION_IDS. */
+	private boolean isInsideToa()
+	{
+		Player localPlayer = client.getLocalPlayer();
+		return localPlayer != null && TOA_REGION_IDS.contains(localPlayer.getWorldLocation().getRegionID());
 	}
 
 	/**

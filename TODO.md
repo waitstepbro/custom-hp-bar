@@ -13,3 +13,14 @@ alongside per-NPC/area timing, and compare against this plugin's `updateAggressi
 
 Use the built-in detection mechanism to grey out bars when we see it - it is not greying the
 bar as of now.
+
+## 3. ToA minion HP shows percent only - implement verified raid/path-level/party-size scaling
+
+Bosses show correct HP (native boss HP HUD), but minions (Akkha's Shadows, Kephri's scarabs,
+etc.) currently fall back to percent-only display rather than a number, since real ToA scales
+every enemy's HP by raid level *and* path level (Walk the Path/Pathseeker/etc. invocations)
+*and* party size - not raid level alone, which an earlier attempt this session got wrong.
+A verified formula (confirmed against a real reference plugin, `LlemonDuck/tombs-of-amascut`'s
+`AkkhaShadowHealth.java`) and the region-to-path mapping needed are both written up in
+`CLAUDE.md`'s "ToA minion HP" section - ready to implement in `resolveNpcMaxHp()` once trusted
+enough to ship as an exact number instead of the current `-1`/percent fallback.
