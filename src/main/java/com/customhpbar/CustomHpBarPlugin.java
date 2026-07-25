@@ -245,7 +245,10 @@ public class CustomHpBarPlugin extends Plugin
 	 * Doom of Mokhaiotl's max HP per delve level (index 0 = level 1) - not linear, levels 6-7 both
 	 * sit at 650 before jumping to 675 at level 8. Deep delves (9+) repeat the level-8 fight at a
 	 * reduced 625 HP (DOOM_DEEP_DELVE_HP). NpcMaxHpTable can't express this since Doom reuses the
-	 * same three IDs at every level - see doomDelveLevel/resolveNpcMaxHp() instead.
+	 * same three IDs at every level - see doomDelveLevel/resolveNpcMaxHp() instead. (npc_hp.csv
+	 * previously carried stale 650 rows for all three IDs, dead since resolveNpcMaxHp() intercepts
+	 * DOOM_NPC_IDS before ever reaching the static table - removed, same cleanup VASA_NPC_IDS's
+	 * comment already describes for its own IDs.)
 	 */
 	private static final int[] DOOM_DELVE_HP = {525, 550, 575, 600, 625, 650, 650, 675};
 	private static final int DOOM_DEEP_DELVE_HP = 625;
