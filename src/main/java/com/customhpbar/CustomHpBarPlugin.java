@@ -154,17 +154,33 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
-	 * Exact display names for the same three "Enraged Blood/Blue/Eclipse Moon" mechanic entities
-	 * HIDDEN_MECHANIC_NPC_IDS already excludes by ID - matched here too as defense-in-depth, in
-	 * case the entity is ever reached through an ID this table doesn't have (e.g. an in-place
-	 * composition change during the boss's death sequence, the same mechanism other bosses use to
-	 * swap forms without a real despawn/respawn). Deliberately three exact strings rather than a
-	 * generic "contains Enraged" check - Enraged Boar and Enraged barbarian spirit are real,
-	 * legitimately-trackable OSRS monsters and must not be caught by this.
+	 * Normalized display names for the same three "Enraged Blood/Blue/Eclipse Moon" mechanic
+	 * entities HIDDEN_MECHANIC_NPC_IDS excludes by ID - matched here too, since the ID-only
+	 * exclusion wasn't sufficient in practice (reported recurring even with the three known IDs
+	 * blocked, implying either an ID this table doesn't have or a name variant the older
+	 * exact-string check missed). Compared against normalizeNpcName(), not the raw name, because
+	 * this entity's name has been observed both as "Enraged Blue Moon" and colon-separated
+	 * "Enraged:Blue Moon" (see isDisplayableName() in the overlay, which only hides the *label*
+	 * for the colon variant - the bar itself still shows normally, which is exactly this bug).
+	 * Deliberately three exact strings rather than a generic "contains Enraged" check - Enraged
+	 * Boar and Enraged barbarian spirit are real, legitimately-trackable OSRS monsters and must
+	 * not be caught by this.
 	 */
 	private static final Set<String> HIDDEN_MECHANIC_NPC_NAMES = new HashSet<>(Arrays.asList(
 		"enraged blood moon", "enraged blue moon", "enraged eclipse moon"
 	));
+
+	/**
+	 * Strips formatting tags, then normalizes colons (seen as a separator in internal-name leaks
+	 * like "Enraged:Blue Moon") and repeated whitespace to single spaces, lowercased - so
+	 * HIDDEN_MECHANIC_NPC_NAMES matches regardless of which separator/casing variant a given
+	 * client build happens to send.
+	 */
+	private static String normalizeNpcName(String name)
+	{
+		return name == null ? null
+			: Text.removeTags(name).replace(':', ' ').trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+	}
 
 	/**
 	 * Doom of Mokhaiotl's three combat-form NPC IDs (standard/shielded/burrowed). No gameval
@@ -1383,10 +1399,10 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private boolean isTrackedNpc(NPC npc)
 	{
-		String name = npc.getName();
+		String normalizedName = normalizeNpcName(npc.getName());
 		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
 			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
-			&& (name == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(Text.removeTags(name).toLowerCase(Locale.ROOT)))
+			&& (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
 			&& matchesFilter(npc.getName());
 	}
 
