@@ -123,8 +123,13 @@ public class CustomHpBarPlugin extends Plugin
 		"enraged blood moon", "enraged blue moon", "enraged eclipse moon"
 	));
 
-	/** NPC IDs excluded from tracking by user preference, not because they're fake content - e.g. Blood Moon's lootless jaguar minion. */
-	private static final Set<Integer> UNTRACKED_LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
+	/**
+	 * NPC IDs with no drop table of their own - tracked and shown normally, but never greyed out by
+	 * greyOutOtherPlayerDamage(), since there's no loot for another player's damage to taint.
+	 * Blood Moon's "Blood jaguar" is a real summoned minion, not scrapped content; the boss itself
+	 * is already exempt via COMMUNAL_LOOT_NAMES, but that's a name match and the jaguar has its own.
+	 */
+	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BOSS_JAGUAR
 	));
 
@@ -979,6 +984,7 @@ public class CustomHpBarPlugin extends Plugin
 	boolean isLootTainted(NPC npc)
 	{
 		return config.greyOutOtherPlayerDamage() && isIronman() && otherPlayerDamaged.contains(npc)
+			&& !LOOTLESS_NPC_IDS.contains(npc.getId())
 			&& !isCommunalLootEncounter(npc);
 	}
 
@@ -1036,7 +1042,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		int npcId = npc.getId();
-		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId) || UNTRACKED_LOOTLESS_NPC_IDS.contains(npcId))
+		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId))
 		{
 			return false;
 		}
