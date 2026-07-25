@@ -171,6 +171,26 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
+	 * NPC IDs excluded from tracking not because they're fake/scrapped content (unlike
+	 * HIDDEN_MECHANIC_NPC_IDS above) but because the user doesn't want them tracked at all - a
+	 * priority call, not a bug fix, same as the removed selfIconClearance feature elsewhere in
+	 * this file.
+	 *
+	 * PMOON_BOSS_JAGUAR is Blood Moon's "Blood jaguar" (NPC ID 13021) - a real, visible, summoned
+	 * minion from the boss's "run to the glyph and attack the jaguar" special attack, confirmed
+	 * via the OSRS Wiki's Blood Moon page. Blood Moon itself is already exempted from
+	 * greyOutOtherPlayerDamage() via COMMUNAL_LOOT_NAMES (it's a real Ironman group-loot
+	 * encounter), but the jaguar is a separate NPC with its own name, not covered by that
+	 * name-matched exemption - so a duo partner's damage to it still greyed its bar out, implying
+	 * a loot-tainted kill that can't actually happen since the jaguar has no drop table of its
+	 * own to taint. Simplest fix at the user's own request: don't track it at all, rather than
+	 * add a second, differently-scoped exemption just for a bar nobody needs.
+	 */
+	private static final Set<Integer> UNTRACKED_LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
+		NpcID.PMOON_BOSS_JAGUAR
+	));
+
+	/**
 	 * Builds on Text.standardize() (RuneLite's own tags-removed/nbsp-to-space/trimmed/lowercased
 	 * normalization) - the actual root cause here: NPC names commonly use U+00A0 non-breaking
 	 * spaces instead of plain spaces, which Java's \s regex does not match, so an un-normalized
@@ -1408,6 +1428,7 @@ public class CustomHpBarPlugin extends Plugin
 		String normalizedName = normalizeNpcName(npc.getName());
 		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
 			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
+			&& !UNTRACKED_LOOTLESS_NPC_IDS.contains(npc.getId())
 			&& (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
 			&& matchesFilter(npc.getName());
 	}
