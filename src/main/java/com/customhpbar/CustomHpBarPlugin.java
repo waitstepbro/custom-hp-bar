@@ -392,11 +392,20 @@ public class CustomHpBarPlugin extends Plugin
 	private void trackStatusEffect(Actor actor, int hitsplatType)
 	{
 		StatusEffect effect = STATUS_HITSPLAT_EFFECTS.get(hitsplatType);
-		if (effect != null)
+		if (effect == null)
 		{
-			statusEffectTicks.computeIfAbsent(actor, k -> new EnumMap<>(StatusEffect.class))
-				.put(effect, client.getTickCount());
+			return;
 		}
+
+		// Bleed only affects players in OSRS, and activeStatusEffects() only ever reads it for the
+		// local player - so recording it for anyone else just accumulates state nothing consumes.
+		if (effect == StatusEffect.BLEED && actor != client.getLocalPlayer())
+		{
+			return;
+		}
+
+		statusEffectTicks.computeIfAbsent(actor, k -> new EnumMap<>(StatusEffect.class))
+			.put(effect, client.getTickCount());
 	}
 
 	private static boolean isTrackableHitsplat(int hitsplatType)
