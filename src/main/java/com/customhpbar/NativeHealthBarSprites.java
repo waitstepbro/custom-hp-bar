@@ -2,11 +2,7 @@ package com.customhpbar;
 
 import net.runelite.api.gameval.SpriteID;
 
-/**
- * Catalog of every known health/shield/armour/charge/prayer/poison bar sprite ID
- * (front + back), mirroring the set the core "Interface Styles" plugin overrides for
- * its HD health bar reskin. Used to swap the native bars for a transparent sprite.
- */
+/** Catalog of every known health/shield/armour/charge/prayer/poison bar sprite ID, for swapping native bars to a transparent sprite. */
 final class NativeHealthBarSprites
 {
 	private static final int[] HEALTH = {
@@ -65,12 +61,7 @@ final class NativeHealthBarSprites
 		SpriteID.StandardCharge160.FRONT, SpriteID.StandardCharge160.BACK,
 	};
 
-	/**
-	 * The native Prayer points bar is actually drawn with StandardShield sprites (cyan, confirmed
-	 * live), not StandardPrayer (purple) despite the name. Includes both categories anyway - the
-	 * name-matched one may still apply in some circumstance not yet seen, and the extra override
-	 * entries cost nothing.
-	 */
+	/** The native Prayer bar actually uses StandardShield sprites, not StandardPrayer - both included anyway, cost nothing. */
 	static final int[] PRAYER = concat(SHIELD, new int[] {
 		SpriteID.StandardPrayer30.FRONT, SpriteID.StandardPrayer30.BACK,
 		SpriteID.StandardPrayer40.FRONT, SpriteID.StandardPrayer40.BACK,
@@ -116,10 +107,7 @@ final class NativeHealthBarSprites
 		SpriteID.HeadbarBlood30.FRONT, SpriteID.HeadbarBlood30.BACK,
 	};
 
-	/**
-	 * Every category combined - built from the category arrays above, not re-listed by hand.
-	 * SHIELD isn't listed again here since PRAYER already includes it (see PRAYER's doc comment).
-	 */
+	/** Every category combined; SHIELD omitted since PRAYER already includes it. */
 	static final int[] ALL = concat(HEALTH, ARMOUR, CHARGE, PRAYER, POISON, HEADBAR);
 
 	private static int[] concat(int[]... arrays)
