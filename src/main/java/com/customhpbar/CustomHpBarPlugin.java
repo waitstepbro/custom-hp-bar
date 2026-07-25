@@ -134,15 +134,23 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
-	 * NPC IDs for deliberately invisible per-boss mechanic entities - excluded from tracking
-	 * entirely (no bar, no name). RuneLite's own PMOON_*_BOSS_INVIS constants (Moons of Peril)
-	 * have misleading "Enraged Blood/Blue/Eclipse Moon" doc comments, but the _INVIS suffix and
-	 * the OSRS Wiki (no enraged phase documented for any of the three) confirm this isn't real
-	 * boss content. The in-game name isn't consistent enough to filter by string alone ("Enraged
-	 * Blue Moon" with and without a colon have both been seen), so this keys on ID instead.
+	 * NPC IDs for deliberately invisible/non-interactive per-boss mechanic entities - excluded
+	 * from tracking entirely (no bar, no name). RuneLite's own PMOON_*_BOSS_INVIS constants
+	 * (Moons of Peril) have misleading "Enraged Blood/Blue/Eclipse Moon" doc comments, but the
+	 * _INVIS suffix and the OSRS Wiki (no enraged phase documented for any of the three) confirm
+	 * this isn't real boss content. The in-game name isn't consistent enough to filter by string
+	 * alone ("Enraged Blue Moon" with and without a colon have both been seen), so this keys on
+	 * ID instead.
+	 *
+	 * PMOON_BOSS_WINTER_STORM is the Blue Moon room's "Tornado" hazard (NPC ID 13027, confirmed
+	 * via the OSRS Wiki's dedicated "Tornado (Blue Moon)" page, which explicitly documents it as
+	 * "a non-interactive NPC" players can't attack) - reported showing a % HP bar the same way
+	 * the Enraged Moon ghosts did, so it belongs in the same bucket: a real NPC entity that isn't
+	 * legitimate trackable combat content.
 	 */
 	private static final Set<Integer> HIDDEN_MECHANIC_NPC_IDS = new HashSet<>(Arrays.asList(
-		NpcID.PMOON_BLOOD_BOSS_INVIS, NpcID.PMOON_BLUE_BOSS_INVIS, NpcID.PMOON_ECLIPSE_BOSS_INVIS
+		NpcID.PMOON_BLOOD_BOSS_INVIS, NpcID.PMOON_BLUE_BOSS_INVIS, NpcID.PMOON_ECLIPSE_BOSS_INVIS,
+		NpcID.PMOON_BOSS_WINTER_STORM
 	));
 
 	/**
