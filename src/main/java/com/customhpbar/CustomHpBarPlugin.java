@@ -2,7 +2,6 @@ package com.customhpbar;
 
 import com.google.inject.Provides;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -58,7 +57,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Slf4j
 @PluginDescriptor(
 	name = "Custom HP Bar",
 	description = "Draws a custom health bar overlay with HP numbers directly on the bar",
@@ -1407,21 +1405,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private boolean isTrackedNpc(NPC npc)
 	{
-		String rawName = npc.getName();
-		String normalizedName = normalizeNpcName(rawName);
-
-		// Temporary diagnostic: HIDDEN_MECHANIC_NPC_IDS/NAMES has repeatedly missed "Enraged
-		// Blue Moon" for reasons not reproducible from static ID/wiki research alone (wrong
-		// combat level assumption, then a colon variant, then non-breaking spaces - each fix
-		// addressed a real but incomplete theory). This logs the actual live id/combat level/raw
-		// name (tags intact) the moment such an NPC is evaluated, so the next report can include
-		// exact ground truth instead of another guess. Remove once this is confirmed fixed.
-		if (normalizedName != null && normalizedName.contains("enraged"))
-		{
-			log.info("[CustomHpBar] Enraged-named NPC id={} combatLevel={} rawName={}",
-				npc.getId(), npc.getCombatLevel(), rawName);
-		}
-
+		String normalizedName = normalizeNpcName(npc.getName());
 		return (!config.onlyShowCombatNpcNames() || npc.getCombatLevel() > 0)
 			&& !HIDDEN_MECHANIC_NPC_IDS.contains(npc.getId())
 			&& (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
