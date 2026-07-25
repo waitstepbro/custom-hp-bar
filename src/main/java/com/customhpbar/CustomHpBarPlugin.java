@@ -1010,8 +1010,11 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 
-		String name = npc.getName();
-		return name != null && COMMUNAL_LOOT_NAMES.contains(Text.removeTags(name).toLowerCase(Locale.ROOT));
+		// normalizeNpcName, not removeTags+toLowerCase: NPC names commonly carry U+00A0 non-breaking
+		// spaces, which the latter leaves intact - so "Blood<nbsp>Moon" silently missed this set and
+		// greyed the boss out anyway. Same root cause b5c04b9 fixed for HIDDEN_MECHANIC_NPC_NAMES.
+		String normalized = normalizeNpcName(npc.getName());
+		return normalized != null && COMMUNAL_LOOT_NAMES.contains(normalized);
 	}
 
 	private boolean isTrackedType(Actor actor)
