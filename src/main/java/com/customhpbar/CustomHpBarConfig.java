@@ -626,8 +626,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "hidePrayerBarWhenInactive",
 		name = "Hide Prayer Bar While Not Praying",
-		description = "Only draws the Prayer bar while a prayer is on and draining, instead of any time your " +
-			"HP bar shows. Prayer flicking keeps it up. Requires 'Show Prayer Bar'.",
+		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
+			"Requires 'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
 		position = 19
 	)

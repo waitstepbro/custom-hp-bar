@@ -4,7 +4,9 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
 tracking, and status-effect debuffs.
 
-> **Note:** PvP (fighting other players) remains largely untested for now.
+> **Note:** PvP (fighting other players) remains largely untested for now. Tombs of Amascut
+> minions show a percentage instead of a number - their max HP scales with raid level, path
+> level, and party size together, and a partial formula would just be confidently wrong.
 
 <p align="center">
   <img src="images/burn-example.png" width="49%">
@@ -22,7 +24,13 @@ tracking, and status-effect debuffs.
 - **Precise NPC HP** — tracks exact current HP for ~4,000 NPCs, not just the native bar's coarse
   ratio/scale bucket. Falls back to a percentage for NPCs not in the dataset, and uses the game's
   own boss HP HUD directly at supported encounters (CoX, ToA, Gauntlet, Moons of Peril, and
-  others) for exact numbers at any scaled difficulty.
+  others) for exact numbers at any scaled difficulty. Bosses whose Normal and Challenge Mode
+  forms share one NPC ID (Vasa Nistirio/Crystalline) are read live rather than from the table.
+- **Bars the moment you arrive** — anything already fighting you when you log in or teleport in
+  gets its bar immediately, rather than only once the first hitsplat lands.
+- **Encounter props skipped** — invisible or unattackable mechanic entities never get a bar:
+  the "Enraged" ghosts the Moons of Peril bosses leave behind on death, and Blue Moon's tornado
+  hazards. Previously these could leave a phantom percentage bar sitting on the tile.
 - **Status effect tinting and icons** — the bar changes color and shows a debuff icon while
   poisoned, envenomed, burning, diseased, or corrupted - on NPCs, yourself, and other players
   alike (bleed also applies to your own bar). Multiple effects at once show side by side.
@@ -34,10 +42,13 @@ tracking, and status-effect debuffs.
   (undamaged NPCs show a full bar); non-attackable NPCs never get one.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name red and/or
   show an icon by its bar as soon as it's visible, reverting after a 10-minute tolerance timer
-  (leaving the area and returning turns it red again).
+  (leaving the area and returning turns it red again). The timer uses the game's real tolerance
+  mechanic, tracking the area you've actually been standing in, so its expiry doesn't recolor
+  hostile NPCs elsewhere on screen that were never aggressive toward you.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar once another player damages
   it, so an Ironman can tell at a glance the kill isn't exclusively theirs. Never triggers for
-  CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared or personal loot.
+  CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared or personal loot, nor for
+  summoned minions with no drop table of their own (Blood Moon's jaguar).
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
   combat, or on its own whenever a prayer is active even outside combat. Can optionally be
   restricted to only while a prayer is actually draining; prayer flicking keeps it up either way.
@@ -107,7 +118,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Show for Other Players | Draw the player bar over other players | Off |
 | Other Players' Display Mode | Display mode for other players' bars (always percent - their max HP isn't available) | Number |
 | Show Prayer Bar | Draws a Prayer points bar - beneath your HP bar, or standalone when a prayer is active outside combat. Requires Show for Self. | On |
-| Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is on and draining, instead of any time your HP bar shows. Prayer flicking keeps it up. Requires Show Prayer Bar. | Off |
+| Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
