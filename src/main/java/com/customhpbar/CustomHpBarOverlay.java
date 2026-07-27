@@ -223,7 +223,7 @@ class CustomHpBarOverlay extends Overlay
 		// the main loop above already drew it.
 		Player localPlayer = client.getLocalPlayer();
 		if (localPlayer != null && config.showForSelf() && config.showPrayerBar()
-				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isAnyPrayerActive())
+				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isPrayerActive())
 		{
 			Point anchor = Perspective.localToCanvas(
 				client, localPlayer.getLocalLocation(), localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight());
@@ -514,7 +514,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		int bottomY = y + h;
-		if (actor == client.getLocalPlayer() && config.showPrayerBar())
+		if (actor == client.getLocalPlayer() && prayerBarAttached())
 		{
 			// Flush against the bottom edge of the HP bar, mirroring the Player Bar profile
 			// rather than getting its own size/shape config.
@@ -742,6 +742,12 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
+	/** Whether the Prayer bar draws beneath your HP bar right now - hidePrayerBarWhenInactive gates it on praying. */
+	private boolean prayerBarAttached()
+	{
+		return config.showPrayerBar() && (!config.hidePrayerBarWhenInactive() || plugin.isPrayerActive());
+	}
+
 	/** Draws just the Prayer bar at the HP bar's would-be position - reached only when the local player isn't tracked. */
 	private void drawStandalonePrayerBar(Graphics2D g, Point anchor, BarStyle style)
 	{
@@ -912,13 +918,13 @@ class CustomHpBarOverlay extends Overlay
 
 		int y;
 		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
-		boolean barShown = tracked || (config.showPrayerBar() && plugin.isAnyPrayerActive());
+		boolean barShown = tracked || (config.showPrayerBar() && plugin.isPrayerActive());
 		if (barShown)
 		{
 			// Tucked beneath the bar stack: the HP bar, plus the Prayer bar's row if attached.
 			int[] rect = barRect(anchor, style, zoom);
 			int stackBottom = rect[1] + rect[3];
-			if (tracked && config.showPrayerBar())
+			if (tracked && prayerBarAttached())
 			{
 				stackBottom += rect[3];
 			}

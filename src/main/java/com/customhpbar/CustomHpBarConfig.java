@@ -45,8 +45,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetDisplayMode",
 		name = "Display Mode",
-		description = "Show HP as a raw number, a percentage, or both. Falls back to percent for NPCs with " +
-			"unknown max HP.",
+		description = "Show HP as a raw number, a percentage, or both.",
 		section = TARGET_SECTION,
 		position = 0
 	)
@@ -84,7 +83,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetCornerRadius",
 		name = "Corner Radius",
-		description = "Rounds the corners of the bar. 0 = sharp corners, matching the native health bar.",
+		description = "Rounds the corners of the bar. 0 = sharp corners.",
 		section = TARGET_SECTION,
 		position = 3
 	)
@@ -122,7 +121,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBarColor",
 		name = "Bar Color",
-		description = "Fill color of the bar, matching the native health bar's single green fill",
+		description = "Fill color of the bar",
 		section = TARGET_SECTION,
 		position = 6
 	)
@@ -159,7 +158,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetFontFamily",
 		name = "Font",
-		description = "Typeface for the HP text - RuneScape options use the game's own UI font.",
+		description = "Typeface for the HP text.",
 		section = TARGET_SECTION,
 		position = 9
 	)
@@ -171,7 +170,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetFontStyle",
 		name = "Font Style",
-		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already bold.",
+		description = "Applied on top of the chosen font.",
 		section = TARGET_SECTION,
 		position = 10
 	)
@@ -183,7 +182,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetFontSize",
 		name = "Font Size",
-		description = "Size of the HP number text. Smaller sizes are harder to read - see Text Outline below.",
+		description = "Size of the HP number text.",
 		section = TARGET_SECTION,
 		position = 11
 	)
@@ -208,7 +207,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetTextOutline",
 		name = "Text Outline",
-		description = "Full outline around the text for readability at small sizes. Recommended on.",
+		description = "Full outline around the text for readability at small sizes.",
 		section = TARGET_SECTION,
 		position = 13
 	)
@@ -233,7 +232,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showNpcName",
 		name = "Show NPC Name",
-		description = "Draws the NPC's name above its HP bar. Color is set separately below.",
+		description = "Draws the NPC's name above its HP bar.",
 		section = TARGET_SECTION,
 		position = 15
 	)
@@ -245,7 +244,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "alwaysShowNpcName",
 		name = "Always Show NPC Name",
-		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name' above.",
+		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name'.",
 		section = TARGET_SECTION,
 		position = 16
 	)
@@ -257,8 +256,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
-		description = "Shows the HP bar on every attackable NPC, not just once engaged (full bar until damaged). " +
-			"Non-attackable NPCs never get one.",
+		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
 		section = TARGET_SECTION,
 		position = 17
 	)
@@ -270,7 +268,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "onlyShowCombatNpcNames",
 		name = "Only Show Combat NPC Names",
-		description = "Excludes non-attackable NPCs (bankers, shop owners, fishing spots, pets) from bars and names.",
+		description = "Excludes non-attackable NPCs from bars and names.",
 		section = TARGET_SECTION,
 		position = 18
 	)
@@ -282,7 +280,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "npcNameColor",
 		name = "NPC Name Color",
-		description = "Color of the NPC name text, independent of the HP number's Text Color above.",
+		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_SECTION,
 		position = 19
 	)
@@ -294,8 +292,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "colorAggressiveNpcNames",
 		name = "Color Aggressive NPC Names",
-		description = "Colors an NPC's name (see below) while it's aggressive toward you, reverting after a " +
-			"10-minute tolerance timer.",
+		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
+			"timer expires.",
 		section = TARGET_SECTION,
 		position = 20
 	)
@@ -320,8 +318,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showAggressiveNpcIcon",
 		name = "Show Aggressive NPC Icon",
-		description = "Shows an icon next to an NPC's bar while it's aggressive toward you - an alternative to " +
-			"(or paired with) the name color above.",
+		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_SECTION,
 		position = 22
 	)
@@ -373,9 +370,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "greyOutOtherPlayerDamage",
 		name = "Grey Out Health Bars",
 		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
-			"isn't exclusively theirs anymore. Ironman accounts only. Never triggers inside CoX/ToB/ToA, or " +
-			"for Hueycoatl, Zalcano, Nex, and other bosses where loot doesn't depend on who else damaged it. " +
-			"Can't detect another player's poison/venom/burn/bleed damage - only direct hits.",
+			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
 		section = TARGET_SECTION,
 		position = 26
 	)
@@ -425,8 +420,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerDisplayMode",
 		name = "Other Players' Display Mode",
-		description = "Display mode for other players' bars (always percent - their max HP isn't available). " +
-			"Requires 'Show for Other Players'.",
+		description = "Display mode for other players' bars. Requires 'Show for Other Players'.",
 		section = PLAYER_SECTION,
 		position = 3
 	)
@@ -464,7 +458,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerCornerRadius",
 		name = "Corner Radius",
-		description = "Rounds the corners of the bar. 0 = sharp corners, matching the native health bar.",
+		description = "Rounds the corners of the bar. 0 = sharp corners.",
 		section = PLAYER_SECTION,
 		position = 6
 	)
@@ -502,7 +496,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarColor",
 		name = "Bar Color",
-		description = "Fill color of the bar, matching the native health bar's single green fill",
+		description = "Fill color of the bar",
 		section = PLAYER_SECTION,
 		position = 9
 	)
@@ -539,7 +533,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerFontFamily",
 		name = "Font",
-		description = "Typeface for the HP text - RuneScape options use the game's own UI font.",
+		description = "Typeface for the HP text.",
 		section = PLAYER_SECTION,
 		position = 12
 	)
@@ -551,7 +545,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerFontStyle",
 		name = "Font Style",
-		description = "Applied on top of the chosen font. Leave Plain for 'RuneScape Bold' - it's already bold.",
+		description = "Applied on top of the chosen font.",
 		section = PLAYER_SECTION,
 		position = 13
 	)
@@ -563,7 +557,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerFontSize",
 		name = "Font Size",
-		description = "Size of the HP number text. Smaller sizes are harder to read - see Text Outline below.",
+		description = "Size of the HP number text.",
 		section = PLAYER_SECTION,
 		position = 14
 	)
@@ -588,7 +582,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerTextOutline",
 		name = "Text Outline",
-		description = "Full outline around the text for readability at small sizes. Recommended on.",
+		description = "Full outline around the text for readability at small sizes.",
 		section = PLAYER_SECTION,
 		position = 16
 	)
@@ -613,8 +607,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
-		description = "Draws a Prayer points bar - beneath your HP bar, or standalone when a prayer is active " +
-			"outside combat. Requires 'Show for Self'.",
+		description = "Draws a Prayer points bar beneath your HP bar, or on its own outside combat. " +
+			"Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 18
 	)
@@ -624,12 +618,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "selfColorByStatusEffect",
-		name = "Color By Status Effect",
-		description = "Tints a player's bar (yours or others') while poisoned, envenomed, burning, diseased, " +
-			"or corrupted - plus bleeding, for your own bar only.",
+		keyName = "hidePrayerBarWhenInactive",
+		name = "Hide Prayer Bar While Not Praying",
+		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
+			"Requires 'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
 		position = 19
+	)
+	default boolean hidePrayerBarWhenInactive()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "selfColorByStatusEffect",
+		name = "Color By Status Effect",
+		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
+		section = PLAYER_SECTION,
+		position = 20
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -639,10 +645,10 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfShowStatusIcon",
 		name = "Show Status Icon",
-		description = "Shows a debuff icon beneath a player's bar (yours or others') while poisoned, " +
-			"envenomed, burning, bleeding, diseased, or corrupted.",
+		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
+			"bleeding, diseased, or corrupted.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 21
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -655,7 +661,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 22
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -669,7 +675,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 23
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -682,7 +688,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 24
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -695,7 +701,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 24
+		position = 25
 	)
 	default boolean replaceOverheadIcon()
 	{
@@ -707,8 +713,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "scaleWithZoom",
 		name = "Scale With Zoom",
-		description = "Grows/shrinks bars and text with camera zoom, relative to the zoom level when the " +
-			"plugin starts.",
+		description = "Grows and shrinks bars and text with camera zoom.",
 		section = BEHAVIOR_SECTION,
 		position = 0
 	)
@@ -734,8 +739,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Filter",
-		description = "Comma-separated NPC names to hide (blacklist, supports skele* wildcards). Leave blank " +
-			"to show all.",
+		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = FILTER_SECTION,
 		position = 0
 	)
