@@ -257,8 +257,9 @@ class CustomHpBarOverlay extends Overlay
 					continue;
 				}
 
-				// Combat level 0 (bankers, fishing spots, pets) has no HP to show a bar for.
-				boolean drawBarForThis = alwaysBar && npc.getCombatLevel() > 0;
+				// Bankers and fishing spots have no HP to show; talk-only NPCs have a level but no
+				// fight in them. Either way the name below can still draw.
+				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc);
 				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName());
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing

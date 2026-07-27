@@ -1073,7 +1073,10 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		if (actor instanceof NPC)
 		{
-			return isTrackedNpc((NPC) actor);
+			// Tracking exists to drive bars, so it takes the stricter attackable test - talking to a
+			// guard makes it interact with you, which would otherwise track it via onGameTick.
+			NPC npc = (NPC) actor;
+			return isTrackedNpc(npc) && isAttackableNpc(npc);
 		}
 		if (!(actor instanceof Player))
 		{
@@ -1083,17 +1086,16 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Whether npc is eligible for a bar/name at all, independent of current tracked state - also what
-	 * the overlay's "Always Show NPC Bar/Name" pass filters on, so tracking and names stay consistent.
-	 * Combat level 0 excludes NPCs that never fight, gated behind onlyShowCombatNpcNames(); a combat
-	 * level with no Attack option is excluded outright, see hasAttackOption(). Cheap ID/level checks
-	 * run first - the composition and name checks below are the expensive part and this runs for
-	 * every NPC in the scene every frame.
+	 * Whether npc is eligible for a bar or a name at all, independent of current tracked state - also
+	 * what the overlay's "Always Show NPC Bar/Name" pass filters on. Bar eligibility is the stricter
+	 * isAttackableNpc() on top of this, so a talk-only NPC still gets its name. Combat level 0
+	 * excludes NPCs that never fight, gated behind onlyShowCombatNpcNames(). Cheap ID/level checks
+	 * run first - the name checks below are the expensive part and this runs for every NPC in the
+	 * scene every frame.
 	 */
 	boolean isTrackedNpc(NPC npc)
 	{
-		int combatLevel = npc.getCombatLevel();
-		if (config.onlyShowCombatNpcNames() && combatLevel <= 0)
+		if (config.onlyShowCombatNpcNames() && npc.getCombatLevel() <= 0)
 		{
 			return false;
 		}
@@ -1104,16 +1106,20 @@ public class CustomHpBarPlugin extends Plugin
 			return false;
 		}
 
-		// Not gated by the toggle: a level it can never use is bad data, not a display preference.
-		if (combatLevel > 0 && !hasAttackOption(npc))
-		{
-			return false;
-		}
-
 		String name = npc.getName();
 		String normalizedName = normalizeNpcName(name);
 		return (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
 			&& matchesFilter(name);
+	}
+
+	/**
+	 * Whether npc can have an HP bar - it must be able to fight back. Deliberately separate from
+	 * isTrackedNpc(): a talk-only NPC still gets its name under "Always Show NPC Name", it just
+	 * never gets a bar it could only ever show at 100%.
+	 */
+	boolean isAttackableNpc(NPC npc)
+	{
+		return npc.getCombatLevel() > 0 && hasAttackOption(npc);
 	}
 
 	/**
