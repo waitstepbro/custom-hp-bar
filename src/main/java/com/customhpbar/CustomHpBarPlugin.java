@@ -194,7 +194,7 @@ public class CustomHpBarPlugin extends Plugin
 		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
 
 	/** How long prayer keeps counting as active after the last "on" sighting - see CLAUDE.md's prayer-flick section. */
-	private static final int PRAYER_FLICK_GRACE_TICKS = 2;
+	private static final int PRAYER_FLICK_GRACE_TICKS = 1;
 
 	/** Prayer varbit IDs, for spotting prayer toggles among all other VarbitChanged traffic. */
 	private static final Set<Integer> PRAYER_VARBITS = buildPrayerVarbits();
