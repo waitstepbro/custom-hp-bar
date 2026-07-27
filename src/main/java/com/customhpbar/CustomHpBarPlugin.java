@@ -27,6 +27,7 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
@@ -192,6 +193,22 @@ public class CustomHpBarPlugin extends Plugin
 	private static final Pattern DOOM_DELVE_MESSAGE = Pattern.compile(
 		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
 
+	/** How long prayer keeps counting as active after the last "on" sighting - see CLAUDE.md's prayer-flick section. */
+	private static final int PRAYER_FLICK_GRACE_TICKS = 2;
+
+	/** Prayer varbit IDs, for spotting prayer toggles among all other VarbitChanged traffic. */
+	private static final Set<Integer> PRAYER_VARBITS = buildPrayerVarbits();
+
+	private static Set<Integer> buildPrayerVarbits()
+	{
+		Set<Integer> varbits = new HashSet<>();
+		for (Prayer prayer : Prayer.values())
+		{
+			varbits.add(prayer.getVarbit());
+		}
+		return varbits;
+	}
+
 	@Inject
 	private Client client;
 
@@ -260,6 +277,9 @@ public class CustomHpBarPlugin extends Plugin
 	/** Current Doom of Mokhaiotl delve level, indexes DOOM_DELVE_HP - advanced via onChatMessage/DOOM_DELVE_MESSAGE. */
 	private int doomDelveLevel = 1;
 
+	/** Tick a prayer was last seen active, counting mid-tick flicks caught by onVarbitChanged. */
+	private int lastPrayerActiveTick = Integer.MIN_VALUE;
+
 	/** Live HP/boss name from the game's own native boss HP HUD - preferred over every other HP source, see nativeHudHp(). */
 	private String nativeHudBossName;
 	private int nativeHudCurrentHp;
@@ -296,6 +316,7 @@ public class CustomHpBarPlugin extends Plugin
 		Arrays.fill(aggressionSafeCenters, null);
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
+		lastPrayerActiveTick = Integer.MIN_VALUE;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -472,6 +493,12 @@ public class CustomHpBarPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		int currentTick = client.getTickCount();
+
+		// Tick-boundary sample, mirroring core's Prayer plugin; onVarbitChanged covers the rest.
+		if (isAnyPrayerActive())
+		{
+			lastPrayerActiveTick = currentTick;
+		}
 
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
 		// controls when a hitsplat stops drawing; this just bounds the list's size between prunes.
@@ -914,8 +941,29 @@ public class CustomHpBarPlugin extends Plugin
 		return null;
 	}
 
-	/** Whether the local player has any prayer active, so the Prayer bar can show outside combat too (e.g. at a bank). */
-	boolean isAnyPrayerActive()
+	/** Catches a prayer switching on between ticks, so a flick's off-half can't be all onGameTick ever samples. */
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getValue() != 0 && PRAYER_VARBITS.contains(event.getVarbitId()))
+		{
+			lastPrayerActiveTick = client.getTickCount();
+		}
+	}
+
+	/**
+	 * Whether the Prayer bar should treat prayer as on - a prayer seen active within the last
+	 * PRAYER_FLICK_GRACE_TICKS, so flicking holds the bar up. Long arithmetic so the
+	 * never-seen sentinel and a tick counter reset both read as "not active".
+	 */
+	boolean isPrayerActive()
+	{
+		long elapsed = (long) client.getTickCount() - lastPrayerActiveTick;
+		return elapsed >= 0 && elapsed <= PRAYER_FLICK_GRACE_TICKS;
+	}
+
+	/** Raw "is any prayer on right now" sample; isPrayerActive() is what drives the bar. */
+	private boolean isAnyPrayerActive()
 	{
 		for (Prayer prayer : Prayer.values())
 		{

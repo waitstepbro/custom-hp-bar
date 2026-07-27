@@ -624,12 +624,25 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "hidePrayerBarWhenInactive",
+		name = "Hide Prayer Bar While Not Praying",
+		description = "Only draws the Prayer bar while a prayer is on and draining, instead of any time your " +
+			"HP bar shows. Prayer flicking keeps it up. Requires 'Show Prayer Bar'.",
+		section = PLAYER_SECTION,
+		position = 19
+	)
+	default boolean hidePrayerBarWhenInactive()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints a player's bar (yours or others') while poisoned, envenomed, burning, diseased, " +
 			"or corrupted - plus bleeding, for your own bar only.",
 		section = PLAYER_SECTION,
-		position = 19
+		position = 20
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -642,7 +655,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath a player's bar (yours or others') while poisoned, " +
 			"envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 21
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -655,7 +668,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 22
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -669,7 +682,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 23
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -682,7 +695,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 24
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -695,7 +708,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 24
+		position = 25
 	)
 	default boolean replaceOverheadIcon()
 	{

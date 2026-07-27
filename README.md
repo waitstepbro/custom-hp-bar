@@ -39,7 +39,8 @@ tracking, and status-effect debuffs.
   it, so an Ironman can tell at a glance the kill isn't exclusively theirs. Never triggers for
   CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared or personal loot.
 - **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
-  combat, or on its own whenever a prayer is active even outside combat.
+  combat, or on its own whenever a prayer is active even outside combat. Can optionally be
+  restricted to only while a prayer is actually draining; prayer flicking keeps it up either way.
 - **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
   preview of where HP would land if you consumed it.
 - **Prayer restore preview** — same idea for your Prayer bar, when hovering a Prayer-restoring
@@ -106,6 +107,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Show for Other Players | Draw the player bar over other players | Off |
 | Other Players' Display Mode | Display mode for other players' bars (always percent - their max HP isn't available) | Number |
 | Show Prayer Bar | Draws a Prayer points bar - beneath your HP bar, or standalone when a prayer is active outside combat. Requires Show for Self. | On |
+| Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is on and draining, instead of any time your HP bar shows. Prayer flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
