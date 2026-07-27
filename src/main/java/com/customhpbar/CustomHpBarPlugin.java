@@ -2,7 +2,6 @@ package com.customhpbar;
 
 import com.google.inject.Provides;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -69,7 +68,6 @@ import java.util.regex.Pattern;
 )
 // Lets ItemStatChangesService be @Inject-ed below for the food/prayer restore hover previews.
 @PluginDependency(ItemStatPlugin.class)
-@Slf4j
 public class CustomHpBarPlugin extends Plugin
 {
 	/** OSRS game tick length, for converting the configurable persist duration to ticks. */
@@ -286,9 +284,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** Tick a prayer was last seen active, counting mid-tick flicks caught by onVarbitChanged. */
 	private int lastPrayerActiveTick = Integer.MIN_VALUE;
 
-	/** TEMPORARY: NPC ids already logged by logNpcDiagnostic, so it fires once each rather than every frame. */
-	private final Set<Integer> diagnosticLoggedNpcIds = new HashSet<>();
-
 	/** Live HP/boss name from the game's own native boss HP HUD - preferred over every other HP source, see nativeHudHp(). */
 	private String nativeHudBossName;
 	private int nativeHudCurrentHp;
@@ -326,7 +321,6 @@ public class CustomHpBarPlugin extends Plugin
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
 		lastPrayerActiveTick = Integer.MIN_VALUE;
-		diagnosticLoggedNpcIds.clear();
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -1091,16 +1085,15 @@ public class CustomHpBarPlugin extends Plugin
 	/**
 	 * Whether npc is eligible for a bar/name at all, independent of current tracked state - also what
 	 * the overlay's "Always Show NPC Bar/Name" pass filters on, so tracking and names stay consistent.
-	 * Combat level and the Attack option both exclude non-attackable NPCs, gated behind
-	 * onlyShowCombatNpcNames(). Cheap ID/level checks run first - the composition and name checks
-	 * below are the expensive part and this runs for every NPC in the scene every frame.
+	 * Combat level 0 excludes NPCs that never fight, gated behind onlyShowCombatNpcNames(); a combat
+	 * level with no Attack option is excluded outright, see hasAttackOption(). Cheap ID/level checks
+	 * run first - the composition and name checks below are the expensive part and this runs for
+	 * every NPC in the scene every frame.
 	 */
 	boolean isTrackedNpc(NPC npc)
 	{
-		logNpcDiagnostic(npc);
-
-		boolean combatOnly = config.onlyShowCombatNpcNames();
-		if (combatOnly && npc.getCombatLevel() <= 0)
+		int combatLevel = npc.getCombatLevel();
+		if (config.onlyShowCombatNpcNames() && combatLevel <= 0)
 		{
 			return false;
 		}
@@ -1111,7 +1104,8 @@ public class CustomHpBarPlugin extends Plugin
 			return false;
 		}
 
-		if (combatOnly && !hasAttackOption(npc))
+		// Not gated by the toggle: a level it can never use is bad data, not a display preference.
+		if (combatLevel > 0 && !hasAttackOption(npc))
 		{
 			return false;
 		}
@@ -1120,22 +1114,6 @@ public class CustomHpBarPlugin extends Plugin
 		String normalizedName = normalizeNpcName(name);
 		return (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
 			&& matchesFilter(name);
-	}
-
-	/** TEMPORARY: one line per NPC id, to find why talk-only NPCs still get a bar. Remove once confirmed. */
-	private void logNpcDiagnostic(NPC npc)
-	{
-		if (!diagnosticLoggedNpcIds.add(npc.getId()))
-		{
-			return;
-		}
-
-		NPCComposition base = npc.getComposition();
-		NPCComposition transformed = npc.getTransformedComposition();
-		log.info("[CustomHpBar] id={} name='{}' level={} onlyShowCombat={} hasAttack={} baseActions={} transformedActions={}",
-			npc.getId(), npc.getName(), npc.getCombatLevel(), config.onlyShowCombatNpcNames(), hasAttackOption(npc),
-			base == null ? "<null composition>" : Arrays.toString(base.getActions()),
-			transformed == null ? "<null composition>" : Arrays.toString(transformed.getActions()));
 	}
 
 	/**
