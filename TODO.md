@@ -20,8 +20,11 @@ Pushed deliberately untested on branch `refactor-code-base-for-efficiency-and-de
 
 Also still open from that pass, not yet acted on (details in `CLAUDE.md`'s "Second cleanup pass"
 and "Multi-combat / 3+ player Moons" sections): the `claimBarStackSlot()` prayer-bar
-under-reservation, the deprecated `Client.isPrayerActive()` call, and the remaining lootless Moons
-mechanic NPCs (Eclipse clone/shield, icicles, "Frozen weapons") that can still grey out.
+under-reservation, and the deprecated `Client.isPrayerActive()` call.
+
+Not open, recorded so they aren't re-raised: **Eclipse Moon's clones have never been an issue** in
+play, so no clone handling is wanted. Icicles are already covered by the combat-level gate, and the
+"Frozen weapons" ice block is genuinely damageable so its bar is correct.
 
 ## 1. Aggression timer wrongly colors all hostile NPCs yellow on expiry, not just nearby ones
 
