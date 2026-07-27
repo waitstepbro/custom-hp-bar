@@ -4,7 +4,7 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
 tracking, and status-effect debuffs.
 
-> **Note:** PvP (fighting other players) remains largely untested for now.
+> **Note:** PvP remains largely untested for now.
 
 <p align="center">
   <img src="images/burn-example.png" width="49%">
