@@ -46,7 +46,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,23 +144,11 @@ class CustomHpBarOverlay extends Overlay
 	/** Camera zoom observed the first time we render, used as the "1.0x" baseline for zoom scaling - see zoomFactor(). */
 	private int baselineZoom = -1;
 
-	/** Poison/Venom/Burn hitsplat sprites, loaded live via SpriteManager and cached here to skip repeat lookups. */
-	private BufferedImage poisonIcon;
-	private BufferedImage venomIcon;
-	private BufferedImage burnIcon;
+	/** Client sprites already loaded, keyed by sprite ID + frame index - see clientSprite(). */
+	private final Map<Long, BufferedImage> clientSprites = new HashMap<>();
 
-	/** The real client skull sprite used for the aggressive-NPC badge - see aggressiveIcon(). */
-	private BufferedImage aggressiveIcon;
-
-	/** Disease/Corruption debuff icons - bundled resource images, since no confirmed SpriteID.Hitmark entry exists for either. */
-	private BufferedImage diseaseIcon;
-	private BufferedImage corruptionIcon;
-
-	/** All 15 overhead icon graphics are sub-frames of one client sprite, indexed by HeadIcon.ordinal(). */
-	private final Map<HeadIcon, BufferedImage> headIconImages = new EnumMap<>(HeadIcon.class);
-
-	/** Real hitsplat background sprites, cached per HitsplatID type once loaded (see HITSPLAT_SPRITE_IDS). */
-	private final Map<Integer, BufferedImage> hitsplatImages = new HashMap<>();
+	/** Icons bundled as plugin resources, keyed by file name - for graphics with no confirmed client SpriteID. */
+	private final Map<String, BufferedImage> bundledIcons = new HashMap<>();
 
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
@@ -265,7 +252,18 @@ class CustomHpBarOverlay extends Overlay
 			double zoom = zoomFactor();
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
-				if (npc == null || !plugin.matchesNpcFilter(npc))
+				if (npc == null || !plugin.isTrackedNpc(npc))
+				{
+					continue;
+				}
+
+				// Combat level 0 (bankers, fishing spots, pets) has no HP to show a bar for.
+				boolean drawBarForThis = alwaysBar && npc.getCombatLevel() > 0;
+				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName());
+
+				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
+				// would shift every other bar on its tile upwards for no visible reason.
+				if (!drawBarForThis && !drawNameForThis)
 				{
 					continue;
 				}
@@ -279,10 +277,8 @@ class CustomHpBarOverlay extends Overlay
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
 
-				// Combat level 0 (bankers, fishing spots, pets) has no HP to show a bar for.
-				boolean drawBarForThis = alwaysBar && npc.getCombatLevel() > 0;
-
-				boolean barAlreadyDrawn = appliedStacks.containsKey(npc);
+				// Non-null once the main loop above already drew this NPC's bar - reuse its shift
+				// rather than claiming a second slot for the same actor.
 				Integer applied = appliedStacks.get(npc);
 				int shift = applied != null ? applied
 					: (drawBarForThis ? claimBarStackSlot(tileStacks, npc, targetStyle, zoom)
@@ -293,7 +289,7 @@ class CustomHpBarOverlay extends Overlay
 				}
 
 				// No live HP yet (never hit) shows a full bar until real data takes over.
-				if (drawBarForThis && !barAlreadyDrawn)
+				if (drawBarForThis && applied == null)
 				{
 					int maxHp = resolveMaxHp(npc);
 					int[] hp = resolveHp(npc, maxHp);
@@ -304,7 +300,7 @@ class CustomHpBarOverlay extends Overlay
 					drawBar(g, npc, anchor, hp[0], hp[1], maxHp, targetStyle);
 				}
 
-				if (alwaysName)
+				if (drawNameForThis)
 				{
 					drawNpcNameOnly(g, npc, anchor, targetStyle, zoom);
 				}
@@ -656,75 +652,31 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** Maps a status effect to its debuff icon, or null if it has none (e.g. Bleed has no confirmed Hitmark sprite of its own). */
+	/**
+	 * Maps a status effect to its debuff icon, or null if it has none. Disease/Corruption are
+	 * bundled resources rather than client sprites, since no confirmed SpriteID.Hitmark entry
+	 * exists for either.
+	 */
 	private BufferedImage statusIcon(CustomHpBarPlugin.StatusEffect effect)
 	{
 		switch (effect)
 		{
 			case POISON:
-				return poisonIcon();
+				return clientSprite(SpriteID.Hitmark.HITSPLAT_GREEN_POISON, 0);
 			case VENOM:
-				return venomIcon();
+				return clientSprite(SpriteID.Hitmark.HITSPLAT_DARK_GREEN_VENOM, 0);
 			case BURN:
-				return burnIcon();
+				return clientSprite(SpriteID.Hitmark.BURN_DAMAGE, 0);
 			case BLEED:
 				// Reuses the Bleed hitsplat sprite as a debuff icon.
 				return hitsplatImage(HitsplatID.BLEED);
 			case DISEASE:
-				return diseaseIcon();
+				return bundledIcon("disease_hitsplat.png");
 			case CORRUPTION:
-				return corruptionIcon();
+				return bundledIcon("corruption_hitsplat.png");
 			default:
 				return null;
 		}
-	}
-
-	private BufferedImage poisonIcon()
-	{
-		if (poisonIcon != null)
-		{
-			return poisonIcon;
-		}
-		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.HITSPLAT_GREEN_POISON, 0);
-		if (cached != null)
-		{
-			poisonIcon = cached;
-			return poisonIcon;
-		}
-		spriteManager.getSpriteAsync(SpriteID.Hitmark.HITSPLAT_GREEN_POISON, 0, loaded -> poisonIcon = loaded);
-		return null;
-	}
-
-	private BufferedImage venomIcon()
-	{
-		if (venomIcon != null)
-		{
-			return venomIcon;
-		}
-		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.HITSPLAT_DARK_GREEN_VENOM, 0);
-		if (cached != null)
-		{
-			venomIcon = cached;
-			return venomIcon;
-		}
-		spriteManager.getSpriteAsync(SpriteID.Hitmark.HITSPLAT_DARK_GREEN_VENOM, 0, loaded -> venomIcon = loaded);
-		return null;
-	}
-
-	private BufferedImage burnIcon()
-	{
-		if (burnIcon != null)
-		{
-			return burnIcon;
-		}
-		BufferedImage cached = spriteManager.getSprite(SpriteID.Hitmark.BURN_DAMAGE, 0);
-		if (cached != null)
-		{
-			burnIcon = cached;
-			return burnIcon;
-		}
-		spriteManager.getSpriteAsync(SpriteID.Hitmark.BURN_DAMAGE, 0, loaded -> burnIcon = loaded);
-		return null;
 	}
 
 	/**
@@ -733,37 +685,51 @@ class CustomHpBarOverlay extends Overlay
 	 * wrong sprite once actually seen rendered in-game - a name is not proof of appearance, same
 	 * lesson as the earlier StandardPrayer/venom-color corrections), so this is a bundled resource
 	 * image instead, downloaded directly from oldschool.runescape.wiki's own "Skull (status) icon"
-	 * file - the exact graphic OSRS shows above a skulled player's head - same fallback pattern as
-	 * diseaseIcon()/corruptionIcon() below.
+	 * file - the exact graphic OSRS shows above a skulled player's head.
 	 */
 	private BufferedImage aggressiveIcon()
 	{
-		if (aggressiveIcon == null)
-		{
-			aggressiveIcon = loadBundledIcon("pk_skull_icon.png");
-		}
-		return aggressiveIcon;
+		return bundledIcon("pk_skull_icon.png");
 	}
 
-	private BufferedImage diseaseIcon()
+	/**
+	 * A client sprite, cached once loaded. SpriteManager only serves an already-cached sprite
+	 * synchronously, so the first miss starts an async load and returns null - callers skip
+	 * drawing that badge for the frame and pick it up once it arrives.
+	 */
+	private BufferedImage clientSprite(int spriteId, int frame)
 	{
-		if (diseaseIcon == null)
+		long key = ((long) spriteId << 32) | (frame & 0xFFFFFFFFL);
+		BufferedImage cached = clientSprites.get(key);
+		if (cached != null)
 		{
-			diseaseIcon = loadBundledIcon("disease_hitsplat.png");
+			return cached;
 		}
-		return diseaseIcon;
+
+		BufferedImage loaded = spriteManager.getSprite(spriteId, frame);
+		if (loaded != null)
+		{
+			clientSprites.put(key, loaded);
+			return loaded;
+		}
+
+		spriteManager.getSpriteAsync(spriteId, frame, image ->
+		{
+			if (image != null)
+			{
+				clientSprites.put(key, image);
+			}
+		});
+		return null;
 	}
 
-	private BufferedImage corruptionIcon()
+	/** An icon bundled as a plugin resource. computeIfAbsent never stores null, so a failed load is just retried. */
+	private BufferedImage bundledIcon(String resourceName)
 	{
-		if (corruptionIcon == null)
-		{
-			corruptionIcon = loadBundledIcon("corruption_hitsplat.png");
-		}
-		return corruptionIcon;
+		return bundledIcons.computeIfAbsent(resourceName, CustomHpBarOverlay::loadBundledIcon);
 	}
 
-	/** Loads a debuff icon bundled as a plugin resource. Returns null on any failure - a missing icon just skips that badge. */
+	/** Loads a bundled icon off the classpath. Returns null on any failure - a missing icon just skips that badge. */
 	private static BufferedImage loadBundledIcon(String resourceName)
 	{
 		try (InputStream in = CustomHpBarOverlay.class.getResourceAsStream(resourceName))
@@ -821,24 +787,10 @@ class CustomHpBarOverlay extends Overlay
 		g.drawImage(image, x, y, w, h, null);
 	}
 
+	/** All 15 overhead icon graphics are sub-frames of one client sprite, indexed by HeadIcon.ordinal(). */
 	private BufferedImage headIconImage(HeadIcon headIcon)
 	{
-		BufferedImage cached = headIconImages.get(headIcon);
-		if (cached != null)
-		{
-			return cached;
-		}
-
-		BufferedImage loaded = spriteManager.getSprite(SpriteID.HEADICONS_PRAYER, headIcon.ordinal());
-		if (loaded != null)
-		{
-			headIconImages.put(headIcon, loaded);
-			return loaded;
-		}
-
-		spriteManager.getSpriteAsync(SpriteID.HEADICONS_PRAYER, headIcon.ordinal(),
-			image -> headIconImages.put(headIcon, image));
-		return null;
+		return clientSprite(SpriteID.HEADICONS_PRAYER, headIcon.ordinal());
 	}
 
 	/** Redraws hitsplats on the local player (real sprite + amount), replacing the ones the render callback suppresses. */
@@ -921,29 +873,11 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
+	/** A hitsplat's background sprite, or null if that type has no confirmed sprite mapping (see HITSPLAT_SPRITE_IDS). */
 	private BufferedImage hitsplatImage(int hitsplatType)
 	{
-		BufferedImage cached = hitsplatImages.get(hitsplatType);
-		if (cached != null)
-		{
-			return cached;
-		}
-
 		Integer spriteId = HITSPLAT_SPRITE_IDS.get(hitsplatType);
-		if (spriteId == null)
-		{
-			return null;
-		}
-
-		BufferedImage loaded = spriteManager.getSprite(spriteId, 0);
-		if (loaded != null)
-		{
-			hitsplatImages.put(hitsplatType, loaded);
-			return loaded;
-		}
-
-		spriteManager.getSpriteAsync(spriteId, 0, image -> hitsplatImages.put(hitsplatType, image));
-		return null;
+		return spriteId != null ? clientSprite(spriteId, 0) : null;
 	}
 
 	/** Redraws the local player's overhead chat text, replacing the native text; tucks under the bar stack when one is shown. */

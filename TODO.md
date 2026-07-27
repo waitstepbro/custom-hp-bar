@@ -1,5 +1,25 @@
 # TODO
 
+## 0. Leftovers from the cleanup pass (low priority, not blocking)
+
+The cleanup/Moons batch on `refactor-code-base-for-efficiency-and-deduplication`
+(`7292418`..`b39e4cd`) is **verified in-game and good** - bar stacking, Blood jaguar (bar shows
+percent, no grey-out), the Moons communal-loot exemption, bleed, and status icons were all
+confirmed working. Branch is ready to merge to `master`.
+
+Still open from that pass, neither urgent (details in `CLAUDE.md`'s "Second cleanup pass" section):
+- `claimBarStackSlot()` under-reserves for your own bar when the prayer bar is on - it draws `2h`
+  tall but reserves `h`. Only shows if another actor shares your exact tile. One-line fix, but it
+  shifts hand-tuned layout, so it needs a deliberate call.
+- `Client.isPrayerActive()` is deprecated. `Prayer.getVarbit()` is the presumed replacement but
+  equivalence couldn't be confirmed from bytecode, and it drives the standalone prayer bar.
+
+Not open, recorded so they aren't re-raised: **Eclipse Moon's clones have never been an issue** in
+play, so no clone handling is wanted. Icicles are already covered by the combat-level gate, and the
+"Frozen weapons" ice block is genuinely damageable so its bar is correct. The one Moons item that
+could still surface is the "Frozen weapons" block greying out on another player's damage - chase it
+only if actually seen.
+
 ## 1. Aggression timer wrongly colors all hostile NPCs yellow on expiry, not just nearby ones
 
 When the aggression tolerance timer expires, it turns **all** hostile enemies' names yellow
