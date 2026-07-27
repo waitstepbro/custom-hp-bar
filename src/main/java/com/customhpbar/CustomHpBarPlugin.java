@@ -8,6 +8,7 @@ import net.runelite.api.Client;
 import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.NPC;
+import net.runelite.api.NPCComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
@@ -192,6 +193,9 @@ public class CustomHpBarPlugin extends Plugin
 	/** Matches the "Delve level: N duration: ..." end-of-fight message (deep delves report the real level in group 2). */
 	private static final Pattern DOOM_DELVE_MESSAGE = Pattern.compile(
 		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
+
+	/** Menu action every attackable NPC carries; its absence is what marks a talk-only NPC. */
+	private static final String ATTACK_ACTION = "Attack";
 
 	/** How long prayer keeps counting as active after the last "on" sighting - see CLAUDE.md's prayer-flick section. */
 	private static final int PRAYER_FLICK_GRACE_TICKS = 1;
@@ -1069,7 +1073,10 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		if (actor instanceof NPC)
 		{
-			return isTrackedNpc((NPC) actor);
+			// Tracking exists to drive bars, so it takes the stricter attackable test - talking to a
+			// guard makes it interact with you, which would otherwise track it via onGameTick.
+			NPC npc = (NPC) actor;
+			return isTrackedNpc(npc) && isAttackableNpc(npc);
 		}
 		if (!(actor instanceof Player))
 		{
@@ -1079,11 +1086,12 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Whether npc is eligible for a bar/name at all, independent of current tracked state - also what
-	 * the overlay's "Always Show NPC Bar/Name" pass filters on, so tracking and names stay consistent.
-	 * Combat level 0 excludes non-attackable NPCs (bankers, fishing spots, pets), gated behind
-	 * onlyShowCombatNpcNames(). Cheap ID/level checks run first - the name checks below are the
-	 * expensive part and this runs for every NPC in the scene every frame.
+	 * Whether npc is eligible for a bar or a name at all, independent of current tracked state - also
+	 * what the overlay's "Always Show NPC Bar/Name" pass filters on. Bar eligibility is the stricter
+	 * isAttackableNpc() on top of this, so a talk-only NPC still gets its name. Combat level 0
+	 * excludes NPCs that never fight, gated behind onlyShowCombatNpcNames(). Cheap ID/level checks
+	 * run first - the name checks below are the expensive part and this runs for every NPC in the
+	 * scene every frame.
 	 */
 	boolean isTrackedNpc(NPC npc)
 	{
@@ -1102,6 +1110,30 @@ public class CustomHpBarPlugin extends Plugin
 		String normalizedName = normalizeNpcName(name);
 		return (normalizedName == null || !HIDDEN_MECHANIC_NPC_NAMES.contains(normalizedName))
 			&& matchesFilter(name);
+	}
+
+	/**
+	 * Whether npc can have an HP bar - it must be able to fight back. Deliberately separate from
+	 * isTrackedNpc(): a talk-only NPC still gets its name under "Always Show NPC Name", it just
+	 * never gets a bar it could only ever show at 100%.
+	 */
+	boolean isAttackableNpc(NPC npc)
+	{
+		return npc.getCombatLevel() > 0 && hasAttackOption(npc);
+	}
+
+	/**
+	 * Whether npc can actually be fought. Combat level alone isn't enough - Cam Torum's guards and
+	 * other talk-only NPCs carry a real level but offer no Attack option, so they'd otherwise get a
+	 * bar they can never fill. Same signal core's NpcUtil/IdleNotifier/MenuEntrySwapper use, read
+	 * off the transformed composition so varbit-driven form changes are followed. Unknown
+	 * composition keeps the bar rather than hiding one we can't rule on.
+	 */
+	private static boolean hasAttackOption(NPC npc)
+	{
+		NPCComposition composition = npc.getTransformedComposition();
+		return composition == null
+			|| Arrays.stream(composition.getActions()).anyMatch(ATTACK_ACTION::equalsIgnoreCase);
 	}
 
 	/** Pure blacklist: empty filter shows all, any matching entry hides that NPC. Patterns are comma-separated, case-insensitive, '*' wildcards. */
