@@ -4,9 +4,7 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
 tracking, and status-effect debuffs.
 
-> **Note:** PvP (fighting other players) remains largely untested for now. Tombs of Amascut
-> minions show a percentage instead of a number - their max HP scales with raid level, path
-> level, and party size together, and a partial formula would just be confidently wrong.
+> **Note:** PvP (fighting other players) remains largely untested for now.
 
 <p align="center">
   <img src="images/burn-example.png" width="49%">
@@ -19,50 +17,34 @@ tracking, and status-effect debuffs.
 
 ## Features
 
-- **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with its
-  own fully independent size, shape, color, and font settings.
-- **Precise NPC HP** — tracks exact current HP for ~4,000 NPCs, not just the native bar's coarse
-  ratio/scale bucket. Falls back to a percentage for NPCs not in the dataset, and uses the game's
-  own boss HP HUD directly at supported encounters (CoX, ToA, Gauntlet, Moons of Peril, and
-  others) for exact numbers at any scaled difficulty. Bosses whose Normal and Challenge Mode
-  forms share one NPC ID (Vasa Nistirio/Crystalline) are read live rather than from the table.
-- **Bars the moment you arrive** — anything already fighting you when you log in or teleport in
-  gets its bar immediately, rather than only once the first hitsplat lands.
-- **Encounter props skipped** — invisible or unattackable mechanic entities never get a bar:
-  the "Enraged" ghosts the Moons of Peril bosses leave behind on death, and Blue Moon's tornado
-  hazards. Previously these could leave a phantom percentage bar sitting on the tile.
-- **Status effect tinting and icons** — the bar changes color and shows a debuff icon while
-  poisoned, envenomed, burning, diseased, or corrupted - on NPCs, yourself, and other players
-  alike (bleed also applies to your own bar). Multiple effects at once show side by side.
-- **NPC names** — shown above the bar, optionally at all times rather than only in combat, with
-  non-attackable NPCs (bankers, shop owners, fishing spots, pets) excluded by default.
-- **Same-tile stacking** — actors standing on the exact same tile get their bars and names
-  stacked vertically instead of drawn on top of each other.
-- **Always show NPC bars** — optionally show the HP bar on every attackable NPC at all times
-  (undamaged NPCs show a full bar); non-attackable NPCs never get one.
-- **Aggressive NPC indicator** — optionally color a known-aggressive monster's name red and/or
-  show an icon by its bar as soon as it's visible, reverting after a 10-minute tolerance timer
-  (leaving the area and returning turns it red again). The timer uses the game's real tolerance
-  mechanic, tracking the area you've actually been standing in, so its expiry doesn't recolor
-  hostile NPCs elsewhere on screen that were never aggressive toward you.
+- **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with fully
+  independent size, shape, color, and font settings.
+- **Precise NPC HP** — tracks exact current HP instead of the native bar's coarse ratio bucket,
+  falling back to a percentage where max HP isn't known.
+- **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
+  burn, disease, and corruption. Multiple effects show side by side.
+- **NPC names** — drawn above the bar, optionally at all times rather than only in combat.
+  Non-attackable NPCs are excluded by default.
+- **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
+  instead of overlapping.
+- **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
+  engage it.
+- **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and show an
+  icon by its bar, reverting once the game's tolerance timer expires.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar once another player damages
-  it, so an Ironman can tell at a glance the kill isn't exclusively theirs. Never triggers for
-  CoX/ToB/ToA, Hueycoatl, Zalcano, and other bosses with shared or personal loot, nor for
-  summoned minions with no drop table of their own (Blood Moon's jaguar).
-- **Prayer bar** — an optional bar showing current Prayer points, drawn below your HP bar in
-  combat, or on its own whenever a prayer is active even outside combat. Can optionally be
-  restricted to only while a prayer is actually draining; prayer flicking keeps it up either way.
-- **Food heal preview** — hovering any food or potion in your inventory extends your bar with a
-  preview of where HP would land if you consumed it.
-- **Prayer restore preview** — same idea for your Prayer bar, when hovering a Prayer-restoring
-  item.
-- **Replaced overhead icon** — optionally replaces the native overhead prayer icon, hitsplats, and
-  chat text on your character with a redrawn copy positioned above your HP bar.
-- **Hide the native health bar** — replaces the game's own overhead bar client-wide (sprite-level
-  override) so only this plugin's bar shows.
-- **Zoom scaling** — bars and text grow/shrink with camera zoom to match the actor model.
+  it. Bosses with shared or personal loot are exempt.
+- **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
+  Can be limited to while a prayer is active; flicking keeps it up.
+- **Food heal preview** — hovering food or a potion extends your bar with a preview of where HP
+  would land.
+- **Prayer restore preview** — the same for your Prayer bar, when hovering a Prayer-restoring item.
+- **Replaced overhead icon** — optionally redraws your overhead prayer icon, hitsplats, and chat
+  text above your HP bar.
+- **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
+  plugin's bar shows.
+- **Zoom scaling** — bars and text grow and shrink with camera zoom.
 - **Independent persist duration** — NPCs and players each keep showing their last known HP for
-  their own configurable duration after combat ends.
+  their own configurable duration after combat.
 - **NPC filter** — hide specific NPCs by name, wildcards supported.
 
 ## Configuration
