@@ -1113,13 +1113,16 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Whether npc can have an HP bar - it must be able to fight back. Deliberately separate from
-	 * isTrackedNpc(): a talk-only NPC still gets its name under "Always Show NPC Name", it just
-	 * never gets a bar it could only ever show at 100%.
+	 * Whether npc can have an HP bar. Deliberately separate from isTrackedNpc(): a talk-only NPC
+	 * still gets its name under "Always Show NPC Name", it just never gets a bar it could only ever
+	 * show at 100%. A live health ratio overrides the Attack-option test outright - if the client is
+	 * drawing this thing a health bar, it is damageable whatever its menu options say, and hiding
+	 * ours would leave it with none at all once hideNativeBar is on. Combat level is deliberately
+	 * NOT required: Moons' "Frozen weapons" ice blocks are level 0 and still take real damage.
 	 */
 	boolean isAttackableNpc(NPC npc)
 	{
-		return npc.getCombatLevel() > 0 && hasAttackOption(npc);
+		return npc.getHealthRatio() != -1 || hasAttackOption(npc);
 	}
 
 	/**
