@@ -1,7 +1,7 @@
 # Custom HP Bar
 
 A RuneLite plugin that replaces the native health bar with a fully custom overlay - HP numbers
-drawn directly on the bar, independent styling for NPCs vs. players, precise (not bucketed) HP
+drawn directly on the bar, independent styling for NPCs vs. players, precise HP
 tracking, and status-effect debuffs.
 
 > **Note:** PvP remains largely untested for now.
@@ -11,8 +11,9 @@ tracking, and status-effect debuffs.
   <img src="images/aggressive-icon-example.png" width="49%">
 </p>
 <p align="center">
-  <img src="images/grey-bar-example.png" width="49%">
-  <img src="images/stacking-example.png" width="49%">
+  <img src="images/grey-bar-example.png" width="32%">
+  <img src="images/grey-example-2.png" width="32%">
+  <img src="images/stacking-example.png" width="32%">
 </p>
 
 ## Features
