@@ -379,6 +379,19 @@ public interface CustomHpBarConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "greyOutOtherPlayerDamageNames",
+		name = "Grey Out Names",
+		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
+			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
+		section = TARGET_SECTION,
+		position = 27
+	)
+	default boolean greyOutOtherPlayerDamageNames()
+	{
+		return true;
+	}
+
 	// ==================== Player bar (self + other players) ====================
 
 	@ConfigItem(
