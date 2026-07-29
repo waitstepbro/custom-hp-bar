@@ -18,6 +18,7 @@ import net.runelite.api.SpritePixels;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.events.ChatMessage;
@@ -284,6 +285,12 @@ public class CustomHpBarPlugin extends Plugin
 	/** Tick a prayer was last seen active, counting mid-tick flicks caught by onVarbitChanged. */
 	private int lastPrayerActiveTick = Integer.MIN_VALUE;
 
+	/** Whether a BLEED_END_VARCS entry was still counting down last time it was read - see isSelfBleeding(). */
+	private boolean bleedEndVarcCounting;
+
+	/** Tick a varc-timed bleed was last seen to end; bleed hitsplats at or before it belong to that finished bleed. */
+	private int bleedEndedTick = Integer.MIN_VALUE;
+
 	/** Live HP/boss name from the game's own native boss HP HUD - preferred over every other HP source, see nativeHudHp(). */
 	private String nativeHudBossName;
 	private int nativeHudCurrentHp;
@@ -321,6 +328,8 @@ public class CustomHpBarPlugin extends Plugin
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
 		lastPrayerActiveTick = Integer.MIN_VALUE;
+		bleedEndVarcCounting = false;
+		bleedEndedTick = Integer.MIN_VALUE;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
 	}
 
@@ -796,21 +805,27 @@ public class CustomHpBarPlugin extends Plugin
 		preciseNpcHp.put(npc, updated);
 	}
 
-	/** Ticks a Poison/Venom/Bleed tint stays active, matching PoisonPlugin's cadence. Not used for Burn - see BURN_STATUS_TICKS. */
+	/** Ticks a Poison/Venom/Disease tint stays active, matching PoisonPlugin's cadence. Not used for Burn/Bleed - they tick far faster. */
 	private static final int STATUS_EFFECT_TICKS = 31;
 
 	/** Ticks a Burn hitsplat's tint/icon stays active - short, since Burn applies instantly and fades fast. */
 	private static final int BURN_STATUS_TICKS = 8;
 
+	/** Same idea for Bleed, tuned a notch shorter than Burn by in-game testing - 8 still outlasted the real bleed slightly. */
+	private static final int BLEED_STATUS_TICKS = 6;
+
 	/** VarPlayerID.POISON value at and above which the player is envenomed rather than poisoned - matches PoisonPlugin's own VENOM_THRESHOLD. */
 	private static final int VENOM_THRESHOLD = 1_000_000;
+
+	/** Game cycle each of the player's bleed debuffs ends on - the only signal that reacts to a haemostatic dressing, see isSelfBleeding(). */
+	private static final int[] BLEED_END_VARCS = {VarClientID.BUFF_BLEED_END, VarClientID.BUFF_ZEBAK_BLEED_END};
 
 	enum StatusEffect
 	{
 		VENOM, POISON, BURN, BLEED, DISEASE, CORRUPTION
 	}
 
-	/** Every status effect currently active for actor; local player uses the exact Poison/Venom varp, others use hitsplat timing. */
+	/** Every status effect currently active for actor; local player uses the exact Poison/Venom/Disease varps, others use hitsplat timing. */
 	Set<StatusEffect> activeStatusEffects(Actor actor)
 	{
 		int currentTick = client.getTickCount();
@@ -819,7 +834,8 @@ public class CustomHpBarPlugin extends Plugin
 
 		if (actor == client.getLocalPlayer())
 		{
-			// Exact signal for the local player - preferred over the hitsplat heuristic below.
+			// Exact signals for the local player - preferred over the hitsplat heuristic below.
+			// Every cure writes these vars, so any of them ending shows up on the same tick.
 			int poison = client.getVarpValue(VarPlayerID.POISON);
 			if (poison >= VENOM_THRESHOLD)
 			{
@@ -830,12 +846,21 @@ public class CustomHpBarPlugin extends Plugin
 				active.add(StatusEffect.POISON);
 			}
 
-			addIfActive(active, StatusEffect.BLEED, ticks.get(StatusEffect.BLEED), currentTick);
+			if (client.getVarpValue(VarPlayerID.DISEASE) > 0)
+			{
+				active.add(StatusEffect.DISEASE);
+			}
+
+			if (isSelfBleeding(ticks, currentTick))
+			{
+				active.add(StatusEffect.BLEED);
+			}
 		}
 		else if (actor instanceof NPC || actor instanceof Player)
 		{
 			addIfActive(active, StatusEffect.VENOM, ticks.get(StatusEffect.VENOM), currentTick);
 			addIfActive(active, StatusEffect.POISON, ticks.get(StatusEffect.POISON), currentTick);
+			addIfActive(active, StatusEffect.DISEASE, ticks.get(StatusEffect.DISEASE), currentTick);
 		}
 		else
 		{
@@ -843,9 +868,39 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		addIfActive(active, StatusEffect.BURN, ticks.get(StatusEffect.BURN), currentTick);
-		addIfActive(active, StatusEffect.DISEASE, ticks.get(StatusEffect.DISEASE), currentTick);
 		addIfActive(active, StatusEffect.CORRUPTION, ticks.get(StatusEffect.CORRUPTION), currentTick);
 		return active;
+	}
+
+	/**
+	 * Whether the local player is bleeding. Prefers the client's own bleed-end cycle, which starts
+	 * the moment the bleed lands and clears when it's cured or expires. The hitsplat window still
+	 * covers bleeds that drive no varc at all, but only for hitsplats after the last varc-timed
+	 * bleed ended - that's what stops a cured bleed lingering. See CLAUDE.md.
+	 */
+	private boolean isSelfBleeding(Map<StatusEffect, Integer> ticks, int currentTick)
+	{
+		int cycle = client.getGameCycle();
+		for (int varc : BLEED_END_VARCS)
+		{
+			if (client.getVarcIntValue(varc) > cycle)
+			{
+				bleedEndVarcCounting = true;
+				return true;
+			}
+		}
+
+		// Countdown gone since the last read - the bleed it was timing was cured or ran out.
+		if (bleedEndVarcCounting)
+		{
+			bleedEndVarcCounting = false;
+			bleedEndedTick = currentTick;
+		}
+
+		Integer lastBleedTick = ticks.get(StatusEffect.BLEED);
+		return lastBleedTick != null
+			&& lastBleedTick > bleedEndedTick
+			&& withinStatusWindow(lastBleedTick, currentTick, BLEED_STATUS_TICKS);
 	}
 
 	private static void addIfActive(EnumSet<StatusEffect> active, StatusEffect effect, Integer lastTick, int currentTick)
