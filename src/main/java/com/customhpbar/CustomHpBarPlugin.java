@@ -29,7 +29,6 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.ScriptPostFired;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
@@ -211,22 +210,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** Menu action every attackable NPC carries; its absence is what marks a talk-only NPC. */
 	private static final String ATTACK_ACTION = "Attack";
 
-	/** How long prayer keeps counting as active after the last "on" sighting - see CLAUDE.md's prayer-flick section. */
-	private static final int PRAYER_FLICK_GRACE_TICKS = 1;
-
-	/** Prayer varbit IDs, for spotting prayer toggles among all other VarbitChanged traffic. */
-	private static final Set<Integer> PRAYER_VARBITS = buildPrayerVarbits();
-
-	private static Set<Integer> buildPrayerVarbits()
-	{
-		Set<Integer> varbits = new HashSet<>();
-		for (Prayer prayer : Prayer.values())
-		{
-			varbits.add(prayer.getVarbit());
-		}
-		return varbits;
-	}
-
 	@Inject
 	private Client client;
 
@@ -295,8 +278,8 @@ public class CustomHpBarPlugin extends Plugin
 	/** Current Doom of Mokhaiotl delve level, indexes DOOM_DELVE_HP - advanced via onChatMessage/DOOM_DELVE_MESSAGE. */
 	private int doomDelveLevel = 1;
 
-	/** Tick a prayer was last seen active, counting mid-tick flicks caught by onVarbitChanged. */
-	private int lastPrayerActiveTick = Integer.MIN_VALUE;
+	/** Latched once per game tick, exactly as core PrayerPlugin latches prayersActive - never sampled mid-tick. */
+	private boolean prayerActive;
 
 	/** Whether a BLEED_END_VARCS entry was still counting down last time it was read - see isSelfBleeding(). */
 	private boolean bleedEndVarcCounting;
@@ -340,7 +323,7 @@ public class CustomHpBarPlugin extends Plugin
 		Arrays.fill(aggressionSafeCenters, null);
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
-		lastPrayerActiveTick = Integer.MIN_VALUE;
+		prayerActive = false;
 		bleedEndVarcCounting = false;
 		bleedEndedTick = Integer.MIN_VALUE;
 		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
@@ -520,11 +503,8 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		int currentTick = client.getTickCount();
 
-		// Tick-boundary sample, mirroring core's Prayer plugin; onVarbitChanged covers the rest.
-		if (isAnyPrayerActive())
-		{
-			lastPrayerActiveTick = currentTick;
-		}
+		// The only prayer sample there is, exactly as core PrayerPlugin.onGameTick does it.
+		prayerActive = isAnyPrayerActive();
 
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
 		// controls when a hitsplat stops drawing; this just bounds the list's size between prunes.
@@ -1055,25 +1035,14 @@ public class CustomHpBarPlugin extends Plugin
 		return null;
 	}
 
-	/** Catches a prayer switching on between ticks, so a flick's off-half can't be all onGameTick ever samples. */
-	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		if (event.getValue() != 0 && PRAYER_VARBITS.contains(event.getVarbitId()))
-		{
-			lastPrayerActiveTick = client.getTickCount();
-		}
-	}
-
 	/**
-	 * Whether the Prayer bar should treat prayer as on - a prayer seen active within the last
-	 * PRAYER_FLICK_GRACE_TICKS, so flicking holds the bar up. Long arithmetic so the
-	 * never-seen sentinel and a tick counter reset both read as "not active".
+	 * Whether the Prayer bar should treat prayer as on. Reads the once-per-tick latch and nothing
+	 * else, mirroring core PrayerPlugin's prayersActive - the bar can only change on a tick
+	 * boundary, which is what gives it a tick of lead-in and a tick of hang-on.
 	 */
 	boolean isPrayerActive()
 	{
-		long elapsed = (long) client.getTickCount() - lastPrayerActiveTick;
-		return elapsed >= 0 && elapsed <= PRAYER_FLICK_GRACE_TICKS;
+		return prayerActive;
 	}
 
 	/** Raw "is any prayer on right now" sample; isPrayerActive() is what drives the bar. */
