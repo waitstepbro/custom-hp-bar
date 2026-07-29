@@ -191,6 +191,19 @@ public class CustomHpBarPlugin extends Plugin
 	private static final int[] DOOM_DELVE_HP = {525, 550, 575, 600, 625, 650, 650, 675};
 	private static final int DOOM_DEEP_DELVE_HP = 625;
 
+	/**
+	 * Distinctive fragments of the game's two Ironman loot warnings:
+	 * "As an Ironman, you might not receive kill-credit for this monster." and
+	 * "As an Ironman, you don't get loot if other players helped you kill this monster."
+	 * Kept to the invariant middle of each - the observed wording has already varied ("might"/"may",
+	 * "this monster"/"the monster"), so matching whole sentences would break on a reword. Lowercase
+	 * because Text.standardize() lowercases first.
+	 */
+	private static final String[] NO_LOOT_MESSAGES = {
+		"not receive kill-credit",
+		"don't get loot if other players helped you"
+	};
+
 	/** Matches the "Delve level: N duration: ..." end-of-fight message (deep delves report the real level in group 2). */
 	private static final Pattern DOOM_DELVE_MESSAGE = Pattern.compile(
 		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
@@ -634,7 +647,16 @@ public class CustomHpBarPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		if (event.getType() != ChatMessageType.GAMEMESSAGE)
+		ChatMessageType type = event.getType();
+		if (type != ChatMessageType.SPAM && type != ChatMessageType.GAMEMESSAGE)
+		{
+			return;
+		}
+
+		// Checked for both types: only one of the two wordings has had its type confirmed in-game.
+		markLootTaintedFromMessage(event.getMessage());
+
+		if (type != ChatMessageType.GAMEMESSAGE)
 		{
 			return;
 		}
@@ -649,6 +671,39 @@ public class CustomHpBarPlugin extends Plugin
 			? Integer.parseInt(matcher.group(2))
 			: Integer.parseInt(matcher.group(1));
 		doomDelveLevel = completedLevel + 1;
+	}
+
+	/**
+	 * The game's own Ironman no-loot warning, which fires on the first hit against an NPC another
+	 * player has already damaged - so the current target is the NPC it refers to. Feeds the same set
+	 * the hitsplat heuristic does: an extra source, not a replacement, since the message fires once
+	 * per kill and says nothing about NPCs the player never attacks.
+	 */
+	private void markLootTaintedFromMessage(String message)
+	{
+		if (message == null || !isNoLootMessage(Text.standardize(message)))
+		{
+			return;
+		}
+
+		Player localPlayer = client.getLocalPlayer();
+		Actor target = localPlayer == null ? null : localPlayer.getInteracting();
+		if (target instanceof NPC)
+		{
+			otherPlayerDamaged.add((NPC) target);
+		}
+	}
+
+	private static boolean isNoLootMessage(String standardized)
+	{
+		for (String fragment : NO_LOOT_MESSAGES)
+		{
+			if (standardized.contains(fragment))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Refreshes nativeHudBossName/Current/MaxHp from the native boss HP HUD widget - fires on ScriptID.HP_HUD_UPDATE. */
@@ -1087,10 +1142,10 @@ public class CustomHpBarPlugin extends Plugin
 		return client.getVarbitValue(VarbitID.IRONMAN) > 0;
 	}
 
-	/** Whether npc's bar should grey out because someone else damaged it (Ironman-only, gated by the config toggle). */
+	/** Whether another player's damage has cost npc its exclusive loot (Ironman-only). Callers apply their own grey-out toggle. */
 	boolean isLootTainted(NPC npc)
 	{
-		return config.greyOutOtherPlayerDamage() && isIronman() && otherPlayerDamaged.contains(npc)
+		return isIronman() && otherPlayerDamaged.contains(npc)
 			&& !LOOTLESS_NPC_IDS.contains(npc.getId())
 			&& !isCommunalLootEncounter(npc);
 	}

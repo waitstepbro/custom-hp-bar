@@ -62,7 +62,7 @@ class CustomHpBarOverlay extends Overlay
 	/** Fixed prayer bar fill color, matching OSRS's own prayer orb blue. Not configurable. */
 	private static final Color PRAYER_COLOR = new Color(60, 130, 220);
 
-	/** Fixed grey fill for greyOutOtherPlayerDamage - overrides any status-effect tint so it reads unambiguously. */
+	/** Fixed grey for both grey-out toggles - overrides the status-effect tint and the aggressive name color so it reads unambiguously. */
 	private static final Color LOOT_TAINTED_COLOR = new Color(120, 120, 120);
 
 	/** Alpha for a bar's heal/restore preview segment - reads as "not real yet" over whatever color the bar is showing. */
@@ -445,8 +445,17 @@ class CustomHpBarOverlay extends Overlay
 		int w = rect[2];
 		int h = rect[3];
 		int nameGap = scaled(NAME_GAP, zoom);
-		Color nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
-			? config.aggressiveNpcNameColor() : config.npcNameColor();
+		// Grey wins over the aggressive color, same as it overrides the bar's status tint.
+		Color nameColor;
+		if (config.greyOutOtherPlayerDamageNames() && plugin.isLootTainted(npc))
+		{
+			nameColor = LOOT_TAINTED_COLOR;
+		}
+		else
+		{
+			nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
+				? config.aggressiveNpcNameColor() : config.npcNameColor();
+		}
 		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, nameColor);
 	}
 
@@ -485,7 +494,8 @@ class CustomHpBarOverlay extends Overlay
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 
 		double hpFraction = (double) ratio / scale;
-		Color fillColor = actor instanceof NPC && plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
+		Color fillColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
+			&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
 		if (fillColor == null)
 		{
 			fillColor = plugin.statusEffectColor(actor);

@@ -91,6 +91,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
 | Show Aggressive NPC Icon | Shows an icon next to the bar while an NPC is aggressive | Off |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
+| Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 
 ### Player Bar (You & Others) only
 
