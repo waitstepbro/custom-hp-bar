@@ -50,8 +50,8 @@ tracking, and status-effect debuffs.
 
 ## Configuration
 
-Settings are grouped into four sections. Bar/text styling and status effect options are
-configured **separately for the Target Bar (NPCs) and Player Bar (You & Others)** - every
+Settings are grouped into five sections. Bar/text styling and status effect options are
+configured **separately for the target bar (NPCs) and the player bar (you & others)** - every
 setting in the table below exists twice, once per section, so NPCs and players can look
 completely different if you want. Defaults are the same for both unless noted.
 
@@ -98,6 +98,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Aggressive NPC Color | Shared color for the name and bar while an NPC is aggressive. | Red |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
+| NPC Filter | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
 ### Player Bar (You & Others) only
 
@@ -120,9 +121,3 @@ completely different if you want. Defaults are the same for both unless noted.
 |---|---|---|
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just filtered NPCs | On |
-
-### NPC Filter
-
-| Setting | Description | Default |
-|---|---|---|
-| NPC Filter | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |

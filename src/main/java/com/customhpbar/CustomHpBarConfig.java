@@ -13,34 +13,41 @@ import java.awt.Font;
 public interface CustomHpBarConfig extends Config
 {
 	@ConfigSection(
-		name = "Target Bar (NPCs)",
+		name = "Target Bar — Style",
 		description = "Size, shape, color, and text settings for the bar drawn over NPCs",
 		position = 0
 	)
 	String TARGET_SECTION = "target";
 
 	@ConfigSection(
-		name = "Player Bar (You & Others)",
-		description = "Whether to show, and size/shape/color/text settings for, the bar drawn over players",
+		name = "Target Bar — NPC Info",
+		description = "NPC names, aggression, status effects, and which NPCs get a bar",
 		position = 1
+	)
+	String TARGET_NPC_SECTION = "targetNpc";
+
+	@ConfigSection(
+		name = "Player Bar — Style",
+		description = "Whether to show, and size/shape/color/text settings for, the bar drawn over players",
+		position = 2
 	)
 	String PLAYER_SECTION = "player";
 
 	@ConfigSection(
+		name = "Player Bar — Player Info",
+		description = "Prayer bar, status effects, restore previews, and the overhead icon",
+		position = 3
+	)
+	String PLAYER_INFO_SECTION = "playerInfo";
+
+	@ConfigSection(
 		name = "Behavior",
 		description = "Settings shared by both bar types",
-		position = 2
+		position = 4
 	)
 	String BEHAVIOR_SECTION = "behavior";
 
-	@ConfigSection(
-		name = "NPC Filter",
-		description = "Which NPCs to show the target bar for",
-		position = 3
-	)
-	String FILTER_SECTION = "filter";
-
-	// ==================== Target bar (NPCs) ====================
+	// ==================== Target bar style ====================
 
 	@ConfigItem(
 		keyName = "targetDisplayMode",
@@ -292,12 +299,14 @@ public interface CustomHpBarConfig extends Config
 		return 0;
 	}
 
+	// ==================== Target bar NPC info ====================
+
 	@ConfigItem(
 		keyName = "showNpcName",
 		name = "Show NPC Name",
 		description = "Draws the NPC's name above its HP bar.",
-		section = TARGET_SECTION,
-		position = 20
+		section = TARGET_NPC_SECTION,
+		position = 0
 	)
 	default boolean showNpcName()
 	{
@@ -308,8 +317,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "alwaysShowNpcName",
 		name = "Always Show NPC Name",
 		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name'.",
-		section = TARGET_SECTION,
-		position = 21
+		section = TARGET_NPC_SECTION,
+		position = 1
 	)
 	default boolean alwaysShowNpcName()
 	{
@@ -320,8 +329,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
 		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
-		section = TARGET_SECTION,
-		position = 22
+		section = TARGET_NPC_SECTION,
+		position = 2
 	)
 	default boolean alwaysShowNpcBar()
 	{
@@ -332,8 +341,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "onlyShowCombatNpcNames",
 		name = "Only Show Combat NPC Names",
 		description = "Excludes non-attackable NPCs from bars and names.",
-		section = TARGET_SECTION,
-		position = 23
+		section = TARGET_NPC_SECTION,
+		position = 3
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -344,8 +353,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "npcNameColor",
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
-		section = TARGET_SECTION,
-		position = 24
+		section = TARGET_NPC_SECTION,
+		position = 4
 	)
 	default Color npcNameColor()
 	{
@@ -357,8 +366,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Color Aggressive NPC Names",
 		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
 			"timer expires.",
-		section = TARGET_SECTION,
-		position = 25
+		section = TARGET_NPC_SECTION,
+		position = 5
 	)
 	default boolean colorAggressiveNpcNames()
 	{
@@ -369,8 +378,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "showAggressiveNpcIcon",
 		name = "Show Aggressive NPC Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
-		section = TARGET_SECTION,
-		position = 26
+		section = TARGET_NPC_SECTION,
+		position = 6
 	)
 	default boolean showAggressiveNpcIcon()
 	{
@@ -382,8 +391,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Color Aggressive NPC Bars",
 		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
 			"A status effect tint takes precedence.",
-		section = TARGET_SECTION,
-		position = 27
+		section = TARGET_NPC_SECTION,
+		position = 7
 	)
 	default boolean colorAggressiveNpcBars()
 	{
@@ -396,8 +405,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Aggressive NPC Color",
 		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
 			"you. Applies to whichever of the options above are on.",
-		section = TARGET_SECTION,
-		position = 28
+		section = TARGET_NPC_SECTION,
+		position = 8
 	)
 	default Color aggressiveNpcColor()
 	{
@@ -408,8 +417,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
-		section = TARGET_SECTION,
-		position = 29
+		section = TARGET_NPC_SECTION,
+		position = 9
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -421,8 +430,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Status Icon",
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
-		section = TARGET_SECTION,
-		position = 30
+		section = TARGET_NPC_SECTION,
+		position = 10
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -434,8 +443,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Persist Duration (seconds)",
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
-		section = TARGET_SECTION,
-		position = 31
+		section = TARGET_NPC_SECTION,
+		position = 11
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -448,8 +457,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Grey Out Health Bars",
 		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
 			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
-		section = TARGET_SECTION,
-		position = 32
+		section = TARGET_NPC_SECTION,
+		position = 12
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -461,15 +470,27 @@ public interface CustomHpBarConfig extends Config
 		name = "Grey Out Names",
 		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
 			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
-		section = TARGET_SECTION,
-		position = 33
+		section = TARGET_NPC_SECTION,
+		position = 13
 	)
 	default boolean greyOutOtherPlayerDamageNames()
 	{
 		return true;
 	}
 
-	// ==================== Player bar (self + other players) ====================
+	@ConfigItem(
+		keyName = "npcFilter",
+		name = "NPC Filter",
+		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
+		section = TARGET_NPC_SECTION,
+		position = 14
+	)
+	default String npcFilter()
+	{
+		return "";
+	}
+
+	// ==================== Player bar style (self + other players) ====================
 
 	@ConfigItem(
 		keyName = "showForSelf",
@@ -757,13 +778,15 @@ public interface CustomHpBarConfig extends Config
 		return 0;
 	}
 
+	// ==================== Player bar player info ====================
+
 	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
 		description = "Draws a Prayer points bar beneath your HP bar, or on its own outside combat. " +
 			"Requires 'Show for Self'.",
-		section = PLAYER_SECTION,
-		position = 23
+		section = PLAYER_INFO_SECTION,
+		position = 0
 	)
 	default boolean showPrayerBar()
 	{
@@ -775,8 +798,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Hide Prayer Bar While Not Praying",
 		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
 			"Requires 'Show Prayer Bar'.",
-		section = PLAYER_SECTION,
-		position = 24
+		section = PLAYER_INFO_SECTION,
+		position = 1
 	)
 	default boolean hidePrayerBarWhenInactive()
 	{
@@ -787,8 +810,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "prayerBarColor",
 		name = "Prayer Bar Color",
 		description = "Fill color of the Prayer bar. Requires 'Show Prayer Bar'.",
-		section = PLAYER_SECTION,
-		position = 25
+		section = PLAYER_INFO_SECTION,
+		position = 2
 	)
 	default Color prayerBarColor()
 	{
@@ -799,8 +822,8 @@ public interface CustomHpBarConfig extends Config
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
-		section = PLAYER_SECTION,
-		position = 26
+		section = PLAYER_INFO_SECTION,
+		position = 3
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -812,8 +835,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Status Icon",
 		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
 			"bleeding, diseased, or corrupted.",
-		section = PLAYER_SECTION,
-		position = 27
+		section = PLAYER_INFO_SECTION,
+		position = 4
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -825,8 +848,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Persist Duration (seconds)",
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
-		section = PLAYER_SECTION,
-		position = 28
+		section = PLAYER_INFO_SECTION,
+		position = 5
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -839,8 +862,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Food Heal Preview",
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
-		section = PLAYER_SECTION,
-		position = 29
+		section = PLAYER_INFO_SECTION,
+		position = 6
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -852,8 +875,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Prayer Restore Preview",
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
-		section = PLAYER_SECTION,
-		position = 30
+		section = PLAYER_INFO_SECTION,
+		position = 7
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -865,8 +888,8 @@ public interface CustomHpBarConfig extends Config
 		name = "Replace Overhead Icon",
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
-		section = PLAYER_SECTION,
-		position = 31
+		section = PLAYER_INFO_SECTION,
+		position = 8
 	)
 	default boolean replaceOverheadIcon()
 	{
@@ -897,20 +920,6 @@ public interface CustomHpBarConfig extends Config
 	default boolean hideNativeBar()
 	{
 		return true;
-	}
-
-	// ==================== NPC filter ====================
-
-	@ConfigItem(
-		keyName = "npcFilter",
-		name = "NPC Filter",
-		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
-		section = FILTER_SECTION,
-		position = 0
-	)
-	default String npcFilter()
-	{
-		return "";
 	}
 
 	enum DisplayMode
