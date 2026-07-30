@@ -30,8 +30,8 @@ tracking, and status-effect debuffs.
   instead of overlapping.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
   engage it.
-- **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and show an
-  icon by its bar, reverting once the game's tolerance timer expires.
+- **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
+  show an icon by its bar, reverting once the game's tolerance timer expires.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar once another player damages
   it. Bosses with shared or personal loot are exempt.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
@@ -64,7 +64,11 @@ completely different if you want. Defaults are the same for both unless noted.
 | Corner Radius | Rounds the corners of the bar. 0 = sharp corners. | 2 |
 | Border Width | Thickness of the bar's outline in pixels. 0 = no border. | 1 |
 | Border Color | Color of the bar's outline | Black (translucent) |
-| Bar Color | Fill color of the bar | Green |
+| Bar Color | Fill color of the bar, and the full-HP color when HP Color Gradient is on. | Green |
+| HP Color Gradient | Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels. | Off |
+| Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient. | Yellow |
+| Midpoint | HP percentage at which the bar is exactly Mid HP Color. | 50 |
+| Low HP Color | Color reached at 0% HP. Requires HP Color Gradient. | Red |
 | Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
 | Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | Target: 5 · Player: 15 |
 | Font | Typeface for the HP text | System Default |
@@ -73,6 +77,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Text Color | Color of the HP number | White |
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
+| HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
 | Color By Status Effect | Tints the bar while poisoned, envenomed, burning, diseased, or corrupted. The Player Bar version also covers bleeding. | On |
 | Show Status Icon | Shows a debuff icon beneath the bar for the same effects | On |
 | Persist Duration (seconds) | How long a bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
@@ -88,8 +93,9 @@ completely different if you want. Defaults are the same for both unless noted.
 | Only Show Combat NPC Names | Excludes non-attackable NPCs from bars and names | On |
 | NPC Name Color | Color of the NPC name text, separate from the HP number's color | Yellow |
 | Color Aggressive NPC Names | Colors an NPC's name while it's aggressive toward you, reverting once the tolerance timer expires. | Off |
-| Aggressive NPC Name Color | Name color while an NPC is aggressive. Requires Color Aggressive NPC Names. | Red |
 | Show Aggressive NPC Icon | Shows an icon next to the bar while an NPC is aggressive | Off |
+| Color Aggressive NPC Bars | Fills an NPC's bar with the aggressive color while it's aggressive toward you. A status effect tint takes precedence. | Off |
+| Aggressive NPC Color | Shared color for the name and bar while an NPC is aggressive. | Red |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 
@@ -103,6 +109,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Other Players' Display Mode | Display mode for other players' bars. Requires Show for Other Players. | Number |
 | Show Prayer Bar | Draws a Prayer points bar beneath your HP bar, or on its own outside combat. Requires Show for Self. | On |
 | Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
+| Prayer Bar Color | Fill color of the Prayer bar. Requires Show Prayer Bar. | Blue |
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
