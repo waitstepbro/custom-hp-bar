@@ -8,6 +8,9 @@ import net.runelite.client.config.Range;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 @ConfigGroup("customhpbar")
 public interface CustomHpBarConfig extends Config
@@ -326,11 +329,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showNpcCombatLevel",
+		name = "Show Combat Level",
+		description = "Appends the NPC's combat level to its name. Requires 'Show NPC Name'.",
+		section = TARGET_NPC_SECTION,
+		position = 2
+	)
+	default boolean showNpcCombatLevel()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
 		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
 		section = TARGET_NPC_SECTION,
-		position = 2
+		position = 3
 	)
 	default boolean alwaysShowNpcBar()
 	{
@@ -342,7 +357,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Only Show Combat NPC Names",
 		description = "Excludes non-attackable NPCs from bars and names.",
 		section = TARGET_NPC_SECTION,
-		position = 3
+		position = 4
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -354,7 +369,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_NPC_SECTION,
-		position = 4
+		position = 5
 	)
 	default Color npcNameColor()
 	{
@@ -367,7 +382,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
 			"timer expires.",
 		section = TARGET_NPC_SECTION,
-		position = 5
+		position = 6
 	)
 	default boolean colorAggressiveNpcNames()
 	{
@@ -379,7 +394,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Aggressive NPC Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_NPC_SECTION,
-		position = 6
+		position = 7
 	)
 	default boolean showAggressiveNpcIcon()
 	{
@@ -392,7 +407,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
 			"A status effect tint takes precedence.",
 		section = TARGET_NPC_SECTION,
-		position = 7
+		position = 8
 	)
 	default boolean colorAggressiveNpcBars()
 	{
@@ -406,7 +421,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
 			"you. Applies to whichever of the options above are on.",
 		section = TARGET_NPC_SECTION,
-		position = 8
+		position = 9
 	)
 	default Color aggressiveNpcColor()
 	{
@@ -418,7 +433,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 9
+		position = 10
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -431,7 +446,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 10
+		position = 11
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -444,7 +459,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_NPC_SECTION,
-		position = 11
+		position = 12
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -458,7 +473,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
 			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
 		section = TARGET_NPC_SECTION,
-		position = 12
+		position = 13
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -471,7 +486,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
 			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
 		section = TARGET_NPC_SECTION,
-		position = 13
+		position = 14
 	)
 	default boolean greyOutOtherPlayerDamageNames()
 	{
@@ -483,7 +498,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Filter",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 14
+		position = 15
 	)
 	default String npcFilter()
 	{
@@ -819,11 +834,62 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showSpecialAttackBar",
+		name = "Show Special Attack Bar",
+		description = "Draws a special attack energy bar alongside your HP bar, in combat only. " +
+			"Requires 'Show for Self'.",
+		section = PLAYER_INFO_SECTION,
+		position = 3
+	)
+	default boolean showSpecialAttackBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "hideSpecialAttackBarWhenFull",
+		name = "Hide Special Attack Bar While Full",
+		description = "Only draws the special attack bar once some energy has been spent. Requires 'Show " +
+			"Special Attack Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 4
+	)
+	default boolean hideSpecialAttackBarWhenFull()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "specialAttackBarColor",
+		name = "Special Attack Bar Color",
+		description = "Fill color of the special attack bar. Requires 'Show Special Attack Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 5
+	)
+	default Color specialAttackBarColor()
+	{
+		return new Color(3, 153, 0);
+	}
+
+	@ConfigItem(
+		keyName = "barOrder",
+		name = "Bar Order",
+		description = "Order of your HP, Prayer, and special attack bars, top to bottom. Bars that are off " +
+			"are skipped.",
+		section = PLAYER_INFO_SECTION,
+		position = 6
+	)
+	default BarOrder barOrder()
+	{
+		return BarOrder.HP_PRAYER_SPECIAL;
+	}
+
+	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 3
+		position = 7
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -836,7 +902,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
 			"bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 4
+		position = 8
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -849,7 +915,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 5
+		position = 9
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -863,7 +929,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 6
+		position = 10
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -876,7 +942,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 7
+		position = 11
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -889,7 +955,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 8
+		position = 12
 	)
 	default boolean replaceOverheadIcon()
 	{
@@ -1006,6 +1072,59 @@ public interface CustomHpBarConfig extends Config
 				default:
 					return name();
 			}
+		}
+	}
+
+	/** One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP. */
+	enum BarKind
+	{
+		HP("HP"),
+		PRAYER("Prayer"),
+		SPECIAL("Special");
+
+		private final String label;
+
+		BarKind(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
+	/**
+	 * Every permutation of the three bars, top to bottom. Enumerated rather than offered as three
+	 * independent "which bar goes here" dropdowns so a duplicate or missing bar can't be selected.
+	 */
+	enum BarOrder
+	{
+		HP_PRAYER_SPECIAL(BarKind.HP, BarKind.PRAYER, BarKind.SPECIAL),
+		HP_SPECIAL_PRAYER(BarKind.HP, BarKind.SPECIAL, BarKind.PRAYER),
+		PRAYER_HP_SPECIAL(BarKind.PRAYER, BarKind.HP, BarKind.SPECIAL),
+		PRAYER_SPECIAL_HP(BarKind.PRAYER, BarKind.SPECIAL, BarKind.HP),
+		SPECIAL_HP_PRAYER(BarKind.SPECIAL, BarKind.HP, BarKind.PRAYER),
+		SPECIAL_PRAYER_HP(BarKind.SPECIAL, BarKind.PRAYER, BarKind.HP);
+
+		private final List<BarKind> kinds;
+
+		BarOrder(BarKind... kinds)
+		{
+			this.kinds = Collections.unmodifiableList(Arrays.asList(kinds));
+		}
+
+		List<BarKind> getKinds()
+		{
+			return kinds;
+		}
+
+		@Override
+		public String toString()
+		{
+			return kinds.get(0) + ", " + kinds.get(1) + ", " + kinds.get(2);
 		}
 	}
 }

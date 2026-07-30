@@ -83,6 +83,9 @@ class CustomHpBarOverlay extends Overlay
 	/** Vertical padding between bars of actors sharing the same tile, before zoom scaling. */
 	private static final int STACK_PADDING = 2;
 
+	/** Special attack energy, as the 0-100 percentage specialAttackEnergy() reports, at which the bar is full. */
+	private static final int FULL_SPECIAL_ENERGY = 100;
+
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
 
@@ -216,18 +219,18 @@ class CustomHpBarOverlay extends Overlay
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
-		// Independent path: shows the Prayer bar outside combat too (e.g. at a bank), skipped if
-		// the main loop above already drew it.
+		// Independent path: shows the Prayer bar outside combat too (e.g. at a bank), skipped if the
+		// main loop above already drew it. Only Prayer qualifies - see playerBarStack().
 		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer != null && config.showForSelf() && config.showPrayerBar()
-				&& !plugin.getTrackedActors().containsKey(localPlayer) && plugin.isPrayerActive())
+		if (localPlayer != null && config.showForSelf() && !plugin.getTrackedActors().containsKey(localPlayer))
 		{
-			Point anchor = Perspective.localToCanvas(
+			List<CustomHpBarConfig.BarKind> stack = playerBarStack(false);
+			Point anchor = stack.isEmpty() ? null : Perspective.localToCanvas(
 				client, localPlayer.getLocalLocation(), localPlayer.getWorldView().getPlane(), localPlayer.getLogicalHeight());
 			if (anchor != null)
 			{
 				playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
-				drawStandalonePrayerBar(g, anchor, playerStyle);
+				drawStandaloneBarStack(g, anchor, playerStyle, stack);
 			}
 		}
 
@@ -408,9 +411,15 @@ class CustomHpBarOverlay extends Overlay
 		{
 			consumed += scaled(style.fontSize + NAME_GAP, zoom);
 		}
-		else if (actor == client.getLocalPlayer() && config.replaceOverheadIcon())
+		else if (actor == client.getLocalPlayer())
 		{
-			consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
+			// Your stack can be three bars tall and the height above only covers one of them. This
+			// used to under-reserve for the Prayer bar too - see CLAUDE.md.
+			consumed += scaled(style.height * (playerBarStack(true).size() - 1), zoom);
+			if (config.replaceOverheadIcon())
+			{
+				consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
+			}
 		}
 
 		tileStacks.put(tile, shift + consumed);
@@ -457,7 +466,14 @@ class CustomHpBarOverlay extends Overlay
 			nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
 				? config.aggressiveNpcColor() : config.npcNameColor();
 		}
-		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, nameColor);
+		// Suffix only - shares the name's color and line, so it costs no stack height.
+		String label = Text.removeTags(npcName);
+		int level = npc.getCombatLevel();
+		if (config.showNpcCombatLevel() && level > 0)
+		{
+			label += " (lvl " + level + ")";
+		}
+		drawLabel(g, style, label, x, y - h - nameGap, w, h, zoom, nameColor);
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
@@ -494,6 +510,13 @@ class CustomHpBarOverlay extends Overlay
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 
+		// Only the local player stacks; every other actor is a lone HP bar at the anchor. hpY is
+		// where the HP bar actually lands once the configured order is applied - y stays the top of
+		// the whole stack, which is what the name, overhead icon, and same-tile shift key off.
+		boolean self = actor == client.getLocalPlayer();
+		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(true) : null;
+		int hpY = stack == null ? y : y + h * stack.indexOf(CustomHpBarConfig.BarKind.HP);
+
 		double hpFraction = (double) ratio / scale;
 		// Toggles first: isNpcAggressive allocates a stream once the tolerance window lapses, and
 		// this runs per NPC per frame. One shared read feeds both the fill and the icon.
@@ -514,38 +537,38 @@ class CustomHpBarOverlay extends Overlay
 		{
 			fillColor = hpFillColor(style, hpFraction);
 		}
-		drawBarShape(g, style, x, y, w, h, border, arc, hpFraction, fillColor);
+		drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
 
 		if (aggressive && config.showAggressiveNpcIcon())
 		{
-			drawAggressiveNpcIcon(g, x, y, h, zoom);
+			drawAggressiveNpcIcon(g, x, hpY, h, zoom);
 		}
 
-		if (actor == client.getLocalPlayer() && config.showFoodHealPreview())
+		if (self && config.showFoodHealPreview())
 		{
 			// ratio/scale are the local player's real current/max HP already, not a bucket.
-			drawHealPreview(g, x, y, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
+			drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
 				translucent(fillColor));
 		}
 
 		String label = buildLabel(actor, hpFraction, maxHp);
 		if (label != null)
 		{
-			drawLabel(g, style, label, x, y, w, h, zoom, style.textColor, hpTextSpacing(actor));
+			drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor));
 		}
 
 		int bottomY = y + h;
-		if (actor == client.getLocalPlayer() && prayerBarAttached())
+		if (stack != null)
 		{
-			// Flush against the bottom edge of the HP bar, mirroring the Player Bar profile
-			// rather than getting its own size/shape config.
-			drawPrayerBar(g, style, x, bottomY, w, h, border, arc, zoom);
-			bottomY += h;
+			// Flush against each other, mirroring the Player Bar profile rather than each bar
+			// getting its own size/shape config.
+			drawStackedBars(g, style, stack, x, y, w, h, border, arc, zoom);
+			bottomY = y + h * stack.size();
 		}
 
 		if (showStatusIcons(actor))
 		{
-			// Below whichever bar is currently lowest, so it doesn't overlap the prayer bar.
+			// Below whichever bar is currently lowest, so it doesn't overlap the stack.
 			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
 		}
 
@@ -763,20 +786,89 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** Whether the Prayer bar draws beneath your HP bar right now - hidePrayerBarWhenInactive gates it on praying. */
+	/** Whether the Prayer bar is part of your stack right now - hidePrayerBarWhenInactive gates it on praying. */
 	private boolean prayerBarAttached()
 	{
 		return config.showPrayerBar() && (!config.hidePrayerBarWhenInactive() || plugin.isPrayerActive());
 	}
 
-	/** Draws just the Prayer bar at the HP bar's would-be position - reached only when the local player isn't tracked. */
-	private void drawStandalonePrayerBar(Graphics2D g, Point anchor, BarStyle style)
+	/** Whether the special attack bar is part of your stack right now - hideSpecialAttackBarWhenFull gates it on spent energy. */
+	private boolean specialBarAttached()
+	{
+		return config.showSpecialAttackBar()
+			&& (!config.hideSpecialAttackBarWhenFull() || plugin.specialAttackEnergy() < FULL_SPECIAL_ENERGY);
+	}
+
+	/**
+	 * The bars stacked over the local player right now, topmost first, in the user's configured
+	 * order with the ones that are off left out. Only the local player ever stacks - NPCs and other
+	 * players get a lone HP bar.
+	 *
+	 * Outside combat (tracked == false) only the Prayer bar can show, and only while a prayer is
+	 * actually on - its pre-existing standalone rule, unchanged. The special attack bar is combat
+	 * only, like HP: energy regenerates at 10% per 30s, so a standalone one would linger for up to
+	 * five minutes after a spec rather than the moment or two the Prayer bar does.
+	 */
+	private List<CustomHpBarConfig.BarKind> playerBarStack(boolean tracked)
+	{
+		List<CustomHpBarConfig.BarKind> stack = new ArrayList<>(3);
+		for (CustomHpBarConfig.BarKind kind : config.barOrder().getKinds())
+		{
+			boolean visible;
+			switch (kind)
+			{
+				case PRAYER:
+					visible = prayerBarAttached() && (tracked || plugin.isPrayerActive());
+					break;
+				case SPECIAL:
+					visible = tracked && specialBarAttached();
+					break;
+				case HP:
+				default:
+					visible = tracked;
+					break;
+			}
+			if (visible)
+			{
+				stack.add(kind);
+			}
+		}
+		return stack;
+	}
+
+	/** Draws the Prayer/special bars at the HP bar's would-be position - reached only when the local player isn't tracked. */
+	private void drawStandaloneBarStack(Graphics2D g, Point anchor, BarStyle style, List<CustomHpBarConfig.BarKind> stack)
 	{
 		double zoom = zoomFactor();
 		int[] rect = barRect(anchor, style, zoom);
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
-		drawPrayerBar(g, style, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
+		drawStackedBars(g, style, stack, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
+	}
+
+	/**
+	 * Draws every bar in the stack except HP at its configured slot. HP is skipped because drawBar()
+	 * owns it - its fill color, heal preview, and label all depend on state this doesn't have - so
+	 * this only ever positions it by leaving its slot empty.
+	 */
+	private void drawStackedBars(Graphics2D g, BarStyle style, List<CustomHpBarConfig.BarKind> stack,
+			int x, int stackTop, int w, int h, int border, int arc, double zoom)
+	{
+		for (int i = 0; i < stack.size(); i++)
+		{
+			int y = stackTop + h * i;
+			switch (stack.get(i))
+			{
+				case PRAYER:
+					drawPrayerBar(g, style, x, y, w, h, border, arc, zoom);
+					break;
+				case SPECIAL:
+					drawSpecialAttackBar(g, style, x, y, w, h, border, arc, zoom);
+					break;
+				default:
+					break;
+			}
+		}
 	}
 
 	/** Draws the replacement overhead prayer icon above the HP bar - the render callback has already suppressed the native one. */
@@ -939,16 +1031,12 @@ class CustomHpBarOverlay extends Overlay
 
 		int y;
 		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
-		boolean barShown = tracked || (config.showPrayerBar() && plugin.isPrayerActive());
-		if (barShown)
+		List<CustomHpBarConfig.BarKind> stack = playerBarStack(tracked);
+		if (!stack.isEmpty())
 		{
-			// Tucked beneath the bar stack: the HP bar, plus the Prayer bar's row if attached.
+			// Tucked beneath whatever the stack currently is, however many bars that turns out to be.
 			int[] rect = barRect(anchor, style, zoom);
-			int stackBottom = rect[1] + rect[3];
-			if (tracked && prayerBarAttached())
-			{
-				stackBottom += rect[3];
-			}
+			int stackBottom = rect[1] + rect[3] * stack.size();
 			y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
 		}
 		else
@@ -983,6 +1071,20 @@ class CustomHpBarOverlay extends Overlay
 				translucent(prayerColor));
 		}
 
+		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
+	}
+
+	/**
+	 * Special attack energy, already a 0-100 percentage from the varp - so unlike HP and Prayer there
+	 * is no separate max to divide by. No restore preview to mirror the other two bars: itemstats'
+	 * Stats has no special-attack Stat to match on, so the service can't report one. See CLAUDE.md -
+	 * Surge potion does restore energy, this is a limit of the service, not of the game.
+	 */
+	private void drawSpecialAttackBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)
+	{
+		int current = plugin.specialAttackEnergy();
+		Color specialColor = config.specialAttackBarColor();
+		drawBarShape(g, style, x, y, w, h, border, arc, current / (double) FULL_SPECIAL_ENERGY, specialColor);
 		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
 	}
 

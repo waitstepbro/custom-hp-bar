@@ -1045,6 +1045,16 @@ public class CustomHpBarPlugin extends Plugin
 		return prayerActive;
 	}
 
+	/**
+	 * Special attack energy as a 0-100 percentage. VarPlayerID.SA_ENERGY (varp 300) counts in tenths
+	 * of a percent, so this divides by 10 - the exact read core's StatusBarsOverlay uses for its own
+	 * special attack bar, against a literal max of 100.
+	 */
+	int specialAttackEnergy()
+	{
+		return client.getVarpValue(VarPlayerID.SA_ENERGY) / 10;
+	}
+
 	/** Raw "is any prayer on right now" sample; isPrayerActive() is what drives the bar. */
 	private boolean isAnyPrayerActive()
 	{

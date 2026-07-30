@@ -24,8 +24,8 @@ tracking, and status-effect debuffs.
   falling back to a percentage where max HP isn't known.
 - **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
   burn, disease, and corruption. Multiple effects show side by side.
-- **NPC names** — drawn above the bar, optionally at all times rather than only in combat.
-  Non-attackable NPCs are excluded by default.
+- **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
+  optionally with the NPC's combat level. Non-attackable NPCs are excluded by default.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
@@ -36,6 +36,9 @@ tracking, and status-effect debuffs.
   it. Bosses with shared or personal loot are exempt.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
   Can be limited to while a prayer is active; flicking keeps it up.
+- **Special attack bar** — an optional special attack energy bar, shown in combat alongside your HP
+  bar. Can be limited to once some energy has been spent.
+- **Bar order** — choose the top-to-bottom order of your HP, Prayer, and special attack bars.
 - **Food heal preview** — hovering food or a potion extends your bar with a preview of where HP
   would land.
 - **Prayer restore preview** — the same for your Prayer bar, when hovering a Prayer-restoring item.
@@ -89,6 +92,7 @@ completely different if you want. Defaults are the same for both unless noted.
 | Display Mode | Show HP as a raw number, a percentage, or both. | Number |
 | Show NPC Name | Draws the NPC's name above its HP bar | On |
 | Always Show NPC Name | Shows the NPC name at all times, not just in combat. Requires Show NPC Name. | On |
+| Show Combat Level | Appends the NPC's combat level to its name. Requires Show NPC Name. | Off |
 | Always Show NPC Bar | Shows the HP bar on every attackable NPC, not just once engaged. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs from bars and names | On |
 | NPC Name Color | Color of the NPC name text, separate from the HP number's color | Yellow |
@@ -111,6 +115,10 @@ completely different if you want. Defaults are the same for both unless noted.
 | Show Prayer Bar | Draws a Prayer points bar beneath your HP bar, or on its own outside combat. Requires Show for Self. | On |
 | Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Prayer Bar Color | Fill color of the Prayer bar. Requires Show Prayer Bar. | Blue |
+| Show Special Attack Bar | Draws a special attack energy bar alongside your HP bar, in combat only. Requires Show for Self. | Off |
+| Hide Special Attack Bar While Full | Only draws the special attack bar once some energy has been spent. Requires Show Special Attack Bar. | Off |
+| Special Attack Bar Color | Fill color of the special attack bar. Requires Show Special Attack Bar. | Green |
+| Bar Order | Order of your HP, Prayer, and special attack bars, top to bottom. Bars that are off are skipped. | HP, Prayer, Special |
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
