@@ -59,9 +59,6 @@ class CustomHpBarOverlay extends Overlay
 	/** Subtle top-of-bar highlight for a glossier, less flat look. */
 	private static final float GRADIENT_HIGHLIGHT = 0.2f;
 
-	/** Fixed prayer bar fill color, matching OSRS's own prayer orb blue. Not configurable. */
-	private static final Color PRAYER_COLOR = new Color(60, 130, 220);
-
 	/** Fixed grey for both grey-out toggles - overrides the status-effect tint and the aggressive name color so it reads unambiguously. */
 	private static final Color LOOT_TAINTED_COLOR = new Color(120, 120, 120);
 
@@ -368,6 +365,8 @@ class CustomHpBarOverlay extends Overlay
 			return new BarStyle(
 				config.playerBarWidth(), config.playerBarHeight(), config.playerCornerRadius(),
 				config.playerBorderWidth(), config.playerBorderColor(), config.playerBarColor(),
+				config.playerHpColorGradient(), config.playerColorMid(), config.playerColorLow(),
+				config.playerMidpoint(),
 				config.playerBarBackground(), config.playerVerticalOffset(),
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
 				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge());
@@ -375,6 +374,8 @@ class CustomHpBarOverlay extends Overlay
 		return new BarStyle(
 			config.targetBarWidth(), config.targetBarHeight(), config.targetCornerRadius(),
 			config.targetBorderWidth(), config.targetBorderColor(), config.targetBarColor(),
+			config.targetHpColorGradient(), config.targetColorMid(), config.targetColorLow(),
+			config.targetMidpoint(),
 			config.targetBarBackground(), config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
 			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge());
@@ -454,7 +455,7 @@ class CustomHpBarOverlay extends Overlay
 		else
 		{
 			nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
-				? config.aggressiveNpcNameColor() : config.npcNameColor();
+				? config.aggressiveNpcColor() : config.npcNameColor();
 		}
 		drawLabel(g, style, Text.removeTags(npcName), x, y - h - nameGap, w, h, zoom, nameColor);
 	}
@@ -494,19 +495,28 @@ class CustomHpBarOverlay extends Overlay
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 
 		double hpFraction = (double) ratio / scale;
+		// Toggles first: isNpcAggressive allocates a stream once the tolerance window lapses, and
+		// this runs per NPC per frame. One shared read feeds both the fill and the icon.
+		boolean aggressive = actor instanceof NPC
+			&& (config.colorAggressiveNpcBars() || config.showAggressiveNpcIcon())
+			&& plugin.isNpcAggressive((NPC) actor);
 		Color fillColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
 			&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
 		if (fillColor == null)
 		{
 			fillColor = plugin.statusEffectColor(actor);
 		}
+		if (fillColor == null && aggressive && config.colorAggressiveNpcBars())
+		{
+			fillColor = config.aggressiveNpcColor();
+		}
 		if (fillColor == null)
 		{
-			fillColor = style.barColor;
+			fillColor = hpFillColor(style, hpFraction);
 		}
 		drawBarShape(g, style, x, y, w, h, border, arc, hpFraction, fillColor);
 
-		if (actor instanceof NPC && config.showAggressiveNpcIcon() && plugin.isNpcAggressive((NPC) actor))
+		if (aggressive && config.showAggressiveNpcIcon())
 		{
 			drawAggressiveNpcIcon(g, x, y, h, zoom);
 		}
@@ -521,7 +531,7 @@ class CustomHpBarOverlay extends Overlay
 		String label = buildLabel(actor, hpFraction, maxHp);
 		if (label != null)
 		{
-			drawLabel(g, style, label, x, y, w, h, zoom, style.textColor);
+			drawLabel(g, style, label, x, y, w, h, zoom, style.textColor, hpTextSpacing(actor));
 		}
 
 		int bottomY = y + h;
@@ -964,15 +974,54 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		double fraction = (double) current / max;
-		drawBarShape(g, style, x, y, w, h, border, arc, fraction, PRAYER_COLOR);
+		Color prayerColor = config.prayerBarColor();
+		drawBarShape(g, style, x, y, w, h, border, arc, fraction, prayerColor);
 
 		if (config.showPrayerRestorePreview())
 		{
 			drawHealPreview(g, x, y, w, h, border, current, max, hoveredRestoreValue(Skill.PRAYER),
-				translucent(PRAYER_COLOR));
+				translucent(prayerColor));
 		}
 
 		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
+	}
+
+	/** Bar Color at full HP, blending through Mid at the midpoint to Low at empty. */
+	private static Color hpFillColor(BarStyle style, double fraction)
+	{
+		if (!style.hpColorGradient)
+		{
+			return style.barColor;
+		}
+
+		double percent = clamp01(fraction) * 100;
+		double mid = style.midpoint;
+
+		// Guarded rather than clamped: midpoint 100 leaves no room above it, so the whole bar is
+		// the low->mid ramp. Divisors below can't be zero once this case is out of the way.
+		if (mid >= 100)
+		{
+			return blend(style.colorLow, style.colorMid, percent / 100);
+		}
+		return percent >= mid
+			? blend(style.colorMid, style.barColor, (percent - mid) / (100 - mid))
+			: blend(style.colorLow, style.colorMid, percent / mid);
+	}
+
+	/** Linear per-channel interpolation, alpha included. t=0 is from, t=1 is to. */
+	private static Color blend(Color from, Color to, double t)
+	{
+		double f = clamp01(t);
+		return new Color(
+			(int) Math.round(from.getRed() + (to.getRed() - from.getRed()) * f),
+			(int) Math.round(from.getGreen() + (to.getGreen() - from.getGreen()) * f),
+			(int) Math.round(from.getBlue() + (to.getBlue() - from.getBlue()) * f),
+			(int) Math.round(from.getAlpha() + (to.getAlpha() - from.getAlpha()) * f));
+	}
+
+	private static double clamp01(double v)
+	{
+		return Math.max(0, Math.min(1, v));
 	}
 
 	/** A bar's own fill color, at the fixed preview alpha - see PREVIEW_ALPHA. */
@@ -1043,6 +1092,16 @@ class CustomHpBarOverlay extends Overlay
 
 	private void drawLabel(Graphics2D g, BarStyle style, String label, int x, int y, int w, int h, double zoom, Color textColor)
 	{
+		drawLabel(g, style, label, x, y, w, h, zoom, textColor, 0);
+	}
+
+	/**
+	 * spacing pushes the label's two space-separated halves apart by that many (zoom-scaled) pixels,
+	 * keeping the pair centered as a group; 0 draws it as one undivided string. See hpTextSpacing().
+	 */
+	private void drawLabel(Graphics2D g, BarStyle style, String label, int x, int y, int w, int h, double zoom,
+			Color textColor, int spacing)
+	{
 		Font font = resolveFont(style.fontFamily, style.fontStyle, scaled(style.fontSize, zoom));
 		g.setFont(font);
 
@@ -1051,9 +1110,32 @@ class CustomHpBarOverlay extends Overlay
 		FontRenderContext frc = g.getFontRenderContext();
 		Rectangle pixelBounds = new TextLayout(label, font, frc).getPixelBounds(frc, 0, 0);
 		int nudge = scaled(style.textNudge, zoom);
-		int textX = x + (int) Math.round((w - pixelBounds.getWidth()) / 2.0) - pixelBounds.x;
+
+		// Measured off the undivided label either way, so the split halves keep the exact baseline
+		// and starting pen position they'd have had as one string - at spacing 0 this is identical.
+		int split = spacing > 0 ? label.lastIndexOf(' ') : -1;
+		int gap = split < 0 ? 0
+			: Math.max(0, Math.min(scaled(spacing, zoom), w - (int) Math.round(pixelBounds.getWidth())));
+		int textX = x + (int) Math.round((w - pixelBounds.getWidth() - gap) / 2.0) - pixelBounds.x;
 		int textY = y + (int) Math.round((h - pixelBounds.getHeight()) / 2.0) - pixelBounds.y + nudge;
 
+		if (gap == 0)
+		{
+			drawText(g, style, label, textX, textY, textColor);
+			return;
+		}
+
+		String head = label.substring(0, split);
+		String tail = label.substring(split + 1);
+		// Advance, not pixel bounds: this is where drawString would have put the tail's pen.
+		int tailX = textX + (int) Math.round(font.getStringBounds(label.substring(0, split + 1), frc).getWidth()) + gap;
+		drawText(g, style, head, textX, textY, textColor);
+		drawText(g, style, tail, tailX, textY, textColor);
+	}
+
+	/** One string with its outline/shadow, at an already-resolved pen position. */
+	private static void drawText(Graphics2D g, BarStyle style, String text, int textX, int textY, Color textColor)
+	{
 		g.setColor(Color.BLACK);
 		if (style.textOutline)
 		{
@@ -1063,18 +1145,18 @@ class CustomHpBarOverlay extends Overlay
 				{
 					if (dx != 0 || dy != 0)
 					{
-						g.drawString(label, textX + dx, textY + dy);
+						g.drawString(text, textX + dx, textY + dy);
 					}
 				}
 			}
 		}
 		else
 		{
-			g.drawString(label, textX + 1, textY + 1);
+			g.drawString(text, textX + 1, textY + 1);
 		}
 
 		g.setColor(textColor);
-		g.drawString(label, textX, textY);
+		g.drawString(text, textX, textY);
 	}
 
 	private Font resolveFont(CustomHpBarConfig.FontFamily family, CustomHpBarConfig.FontStyle style, float size)
@@ -1107,23 +1189,7 @@ class CustomHpBarOverlay extends Overlay
 	private String buildLabel(Actor actor, double hpFraction, int maxHp)
 	{
 		int pct = (int) Math.round(hpFraction * 100);
-		CustomHpBarConfig.DisplayMode mode;
-		boolean isTarget;
-		if (actor == client.getLocalPlayer())
-		{
-			mode = config.selfDisplayMode();
-			isTarget = false;
-		}
-		else if (actor instanceof Player)
-		{
-			mode = config.playerDisplayMode();
-			isTarget = false;
-		}
-		else
-		{
-			mode = config.targetDisplayMode();
-			isTarget = true;
-		}
+		CustomHpBarConfig.DisplayMode mode = displayMode(actor);
 
 		switch (mode)
 		{
@@ -1137,10 +1203,36 @@ class CustomHpBarOverlay extends Overlay
 					return pct + "%";
 				}
 				int hp = (int) Math.round(hpFraction * maxHp);
-				return isTarget ? hp + " " + pct + "%" : hp + " (" + pct + "%)";
+				// One BOTH format for every actor type - see CLAUDE.md for why players lost their parentheses.
+				return hp + " " + pct + "%";
 			default:
 				return null;
 		}
+	}
+
+	/** The Display Mode governing this actor: self, other players, and NPCs each have their own. */
+	private CustomHpBarConfig.DisplayMode displayMode(Actor actor)
+	{
+		if (actor == client.getLocalPlayer())
+		{
+			return config.selfDisplayMode();
+		}
+		return actor instanceof Player ? config.playerDisplayMode() : config.targetDisplayMode();
+	}
+
+	/**
+	 * Configured pixels to push a bar's HP number and percentage apart, or 0 for one undivided
+	 * label. BOTH only - no other mode has two parts to separate. Per-profile, like the rest of
+	 * the text settings. Not clamped to the bar here; drawLabel does that, since only it knows
+	 * the rendered width.
+	 */
+	private int hpTextSpacing(Actor actor)
+	{
+		if (displayMode(actor) != CustomHpBarConfig.DisplayMode.BOTH)
+		{
+			return 0;
+		}
+		return actor instanceof Player ? config.playerHpTextSpacing() : config.targetHpTextSpacing();
 	}
 
 	/** Actor's max HP, or -1 if unknown (falls back to percent). Native HUD wins first, then resolveNpcMaxHp()/Hitpoints skill. */
@@ -1171,6 +1263,10 @@ class CustomHpBarOverlay extends Overlay
 		final int borderWidth;
 		final Color borderColor;
 		final Color barColor;
+		final boolean hpColorGradient;
+		final Color colorMid;
+		final Color colorLow;
+		final int midpoint;
 		final Color background;
 		final int verticalOffset;
 		final CustomHpBarConfig.FontFamily fontFamily;

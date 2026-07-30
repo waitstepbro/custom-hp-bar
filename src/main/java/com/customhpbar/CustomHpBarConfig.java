@@ -121,7 +121,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetBarColor",
 		name = "Bar Color",
-		description = "Fill color of the bar",
+		description = "Fill color of the bar, and the full-HP color when HP Color Gradient is on.",
 		section = TARGET_SECTION,
 		position = 6
 	)
@@ -131,11 +131,60 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "targetHpColorGradient",
+		name = "HP Color Gradient",
+		description = "Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels.",
+		section = TARGET_SECTION,
+		position = 7
+	)
+	default boolean targetHpColorGradient()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "targetColorMid",
+		name = "Mid HP Color",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient.",
+		section = TARGET_SECTION,
+		position = 8
+	)
+	default Color targetColorMid()
+	{
+		return new Color(180, 180, 0);
+	}
+
+	@ConfigItem(
+		keyName = "targetMidpoint",
+		name = "Midpoint",
+		description = "HP percentage at which the bar is exactly Mid HP Color.",
+		section = TARGET_SECTION,
+		position = 9
+	)
+	@Range(min = 0, max = 100)
+	default int targetMidpoint()
+	{
+		return 50;
+	}
+
+	@ConfigItem(
+		keyName = "targetColorLow",
+		name = "Low HP Color",
+		description = "Color reached at 0% HP. Requires HP Color Gradient.",
+		section = TARGET_SECTION,
+		position = 10
+	)
+	default Color targetColorLow()
+	{
+		return new Color(180, 0, 0);
+	}
+
+	@ConfigItem(
 		keyName = "targetBarBackground",
 		name = "Background Color",
 		description = "Color of the empty portion of the bar",
 		section = TARGET_SECTION,
-		position = 7
+		position = 11
 	)
 	default Color targetBarBackground()
 	{
@@ -147,7 +196,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Vertical Offset",
 		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = TARGET_SECTION,
-		position = 8
+		position = 12
 	)
 	@Range(min = -50, max = 100)
 	default int targetVerticalOffset()
@@ -160,7 +209,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font",
 		description = "Typeface for the HP text.",
 		section = TARGET_SECTION,
-		position = 9
+		position = 13
 	)
 	default FontFamily targetFontFamily()
 	{
@@ -172,7 +221,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Style",
 		description = "Applied on top of the chosen font.",
 		section = TARGET_SECTION,
-		position = 10
+		position = 14
 	)
 	default FontStyle targetFontStyle()
 	{
@@ -184,7 +233,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Size",
 		description = "Size of the HP number text.",
 		section = TARGET_SECTION,
-		position = 11
+		position = 15
 	)
 	@Range(min = 6, max = 20)
 	default int targetFontSize()
@@ -197,7 +246,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Color",
 		description = "Color of the HP number",
 		section = TARGET_SECTION,
-		position = 12
+		position = 16
 	)
 	default Color targetTextColor()
 	{
@@ -209,7 +258,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Outline",
 		description = "Full outline around the text for readability at small sizes.",
 		section = TARGET_SECTION,
-		position = 13
+		position = 17
 	)
 	default boolean targetTextOutline()
 	{
@@ -221,10 +270,24 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Vertical Nudge",
 		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = TARGET_SECTION,
-		position = 14
+		position = 18
 	)
 	@Range(min = -10, max = 10)
 	default int targetTextVerticalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "targetHpTextSpacing",
+		name = "HP Text Spacing",
+		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
+			"Display Mode of 'Both'.",
+		section = TARGET_SECTION,
+		position = 19
+	)
+	@Range(min = 0, max = 200)
+	default int targetHpTextSpacing()
 	{
 		return 0;
 	}
@@ -234,7 +297,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show NPC Name",
 		description = "Draws the NPC's name above its HP bar.",
 		section = TARGET_SECTION,
-		position = 15
+		position = 20
 	)
 	default boolean showNpcName()
 	{
@@ -246,7 +309,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Always Show NPC Name",
 		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name'.",
 		section = TARGET_SECTION,
-		position = 16
+		position = 21
 	)
 	default boolean alwaysShowNpcName()
 	{
@@ -258,7 +321,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Always Show NPC Bar",
 		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
 		section = TARGET_SECTION,
-		position = 17
+		position = 22
 	)
 	default boolean alwaysShowNpcBar()
 	{
@@ -270,7 +333,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Only Show Combat NPC Names",
 		description = "Excludes non-attackable NPCs from bars and names.",
 		section = TARGET_SECTION,
-		position = 18
+		position = 23
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -282,7 +345,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 24
 	)
 	default Color npcNameColor()
 	{
@@ -295,7 +358,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
 			"timer expires.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 25
 	)
 	default boolean colorAggressiveNpcNames()
 	{
@@ -303,24 +366,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "aggressiveNpcNameColor",
-		name = "Aggressive NPC Name Color",
-		description = "Name color for an NPC that's currently aggressive toward you. Requires 'Color " +
-			"Aggressive NPC Names'.",
-		section = TARGET_SECTION,
-		position = 21
-	)
-	default Color aggressiveNpcNameColor()
-	{
-		return new Color(255, 0, 0);
-	}
-
-	@ConfigItem(
 		keyName = "showAggressiveNpcIcon",
 		name = "Show Aggressive NPC Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_SECTION,
-		position = 22
+		position = 26
 	)
 	default boolean showAggressiveNpcIcon()
 	{
@@ -328,11 +378,38 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "colorAggressiveNpcBars",
+		name = "Color Aggressive NPC Bars",
+		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
+			"A status effect tint takes precedence.",
+		section = TARGET_SECTION,
+		position = 27
+	)
+	default boolean colorAggressiveNpcBars()
+	{
+		return false;
+	}
+
+	// keyName stays "aggressiveNpcNameColor" so saved profiles carry over - see CLAUDE.md.
+	@ConfigItem(
+		keyName = "aggressiveNpcNameColor",
+		name = "Aggressive NPC Color",
+		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
+			"you. Applies to whichever of the options above are on.",
+		section = TARGET_SECTION,
+		position = 28
+	)
+	default Color aggressiveNpcColor()
+	{
+		return new Color(255, 0, 0);
+	}
+
+	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_SECTION,
-		position = 23
+		position = 29
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -345,7 +422,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_SECTION,
-		position = 24
+		position = 30
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -358,7 +435,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_SECTION,
-		position = 25
+		position = 31
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -372,7 +449,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
 			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
 		section = TARGET_SECTION,
-		position = 26
+		position = 32
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -385,7 +462,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
 			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
 		section = TARGET_SECTION,
-		position = 27
+		position = 33
 	)
 	default boolean greyOutOtherPlayerDamageNames()
 	{
@@ -509,7 +586,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarColor",
 		name = "Bar Color",
-		description = "Fill color of the bar",
+		description = "Fill color of the bar, and the full-HP color when HP Color Gradient is on.",
 		section = PLAYER_SECTION,
 		position = 9
 	)
@@ -519,11 +596,60 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "playerHpColorGradient",
+		name = "HP Color Gradient",
+		description = "Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels.",
+		section = PLAYER_SECTION,
+		position = 10
+	)
+	default boolean playerHpColorGradient()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "playerColorMid",
+		name = "Mid HP Color",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient.",
+		section = PLAYER_SECTION,
+		position = 11
+	)
+	default Color playerColorMid()
+	{
+		return new Color(180, 180, 0);
+	}
+
+	@ConfigItem(
+		keyName = "playerMidpoint",
+		name = "Midpoint",
+		description = "HP percentage at which the bar is exactly Mid HP Color.",
+		section = PLAYER_SECTION,
+		position = 12
+	)
+	@Range(min = 1, max = 99)
+	default int playerMidpoint()
+	{
+		return 50;
+	}
+
+	@ConfigItem(
+		keyName = "playerColorLow",
+		name = "Low HP Color",
+		description = "Color reached at 0% HP. Requires HP Color Gradient.",
+		section = PLAYER_SECTION,
+		position = 13
+	)
+	default Color playerColorLow()
+	{
+		return new Color(180, 0, 0);
+	}
+
+	@ConfigItem(
 		keyName = "playerBarBackground",
 		name = "Background Color",
 		description = "Color of the empty portion of the bar",
 		section = PLAYER_SECTION,
-		position = 10
+		position = 14
 	)
 	default Color playerBarBackground()
 	{
@@ -535,7 +661,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Vertical Offset",
 		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = PLAYER_SECTION,
-		position = 11
+		position = 15
 	)
 	@Range(min = -50, max = 100)
 	default int playerVerticalOffset()
@@ -548,7 +674,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font",
 		description = "Typeface for the HP text.",
 		section = PLAYER_SECTION,
-		position = 12
+		position = 16
 	)
 	default FontFamily playerFontFamily()
 	{
@@ -560,7 +686,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Style",
 		description = "Applied on top of the chosen font.",
 		section = PLAYER_SECTION,
-		position = 13
+		position = 17
 	)
 	default FontStyle playerFontStyle()
 	{
@@ -572,7 +698,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Size",
 		description = "Size of the HP number text.",
 		section = PLAYER_SECTION,
-		position = 14
+		position = 18
 	)
 	@Range(min = 6, max = 20)
 	default int playerFontSize()
@@ -585,7 +711,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Color",
 		description = "Color of the HP number",
 		section = PLAYER_SECTION,
-		position = 15
+		position = 19
 	)
 	default Color playerTextColor()
 	{
@@ -597,7 +723,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Outline",
 		description = "Full outline around the text for readability at small sizes.",
 		section = PLAYER_SECTION,
-		position = 16
+		position = 20
 	)
 	default boolean playerTextOutline()
 	{
@@ -609,10 +735,24 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Vertical Nudge",
 		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
-		position = 17
+		position = 21
 	)
 	@Range(min = -10, max = 10)
 	default int playerTextVerticalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "playerHpTextSpacing",
+		name = "HP Text Spacing",
+		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
+			"Display Mode of 'Both'.",
+		section = PLAYER_SECTION,
+		position = 22
+	)
+	@Range(min = 0, max = 200)
+	default int playerHpTextSpacing()
 	{
 		return 0;
 	}
@@ -623,7 +763,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Draws a Prayer points bar beneath your HP bar, or on its own outside combat. " +
 			"Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 18
+		position = 23
 	)
 	default boolean showPrayerBar()
 	{
@@ -636,7 +776,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
 			"Requires 'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
-		position = 19
+		position = 24
 	)
 	default boolean hidePrayerBarWhenInactive()
 	{
@@ -644,11 +784,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "prayerBarColor",
+		name = "Prayer Bar Color",
+		description = "Fill color of the Prayer bar. Requires 'Show Prayer Bar'.",
+		section = PLAYER_SECTION,
+		position = 25
+	)
+	default Color prayerBarColor()
+	{
+		return new Color(60, 130, 220);
+	}
+
+	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Color By Status Effect",
 		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 26
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -661,7 +813,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
 			"bleeding, diseased, or corrupted.",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 27
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -674,7 +826,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 28
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -688,7 +840,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 29
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -701,7 +853,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_SECTION,
-		position = 24
+		position = 30
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -714,7 +866,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
-		position = 25
+		position = 31
 	)
 	default boolean replaceOverheadIcon()
 	{
