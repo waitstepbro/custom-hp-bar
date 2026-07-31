@@ -341,11 +341,37 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "truncateNpcNames",
+		name = "Truncate Long NPC Names",
+		description = "Shortens NPC names past a character limit and appends a period. Requires " +
+			"'Show NPC Name'.",
+		section = TARGET_NPC_SECTION,
+		position = 3
+	)
+	default boolean truncateNpcNames()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "npcNameMaxLength",
+		name = "NPC Name Length Limit",
+		description = "Characters to keep before the period. Requires 'Truncate Long NPC Names'.",
+		section = TARGET_NPC_SECTION,
+		position = 4
+	)
+	@Range(min = 1, max = 50)
+	default int npcNameMaxLength()
+	{
+		return 16;
+	}
+
+	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
 		name = "Always Show NPC Bar",
 		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
 		section = TARGET_NPC_SECTION,
-		position = 3
+		position = 5
 	)
 	default boolean alwaysShowNpcBar()
 	{
@@ -357,7 +383,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Only Show Combat NPC Names",
 		description = "Excludes non-attackable NPCs from bars and names.",
 		section = TARGET_NPC_SECTION,
-		position = 4
+		position = 6
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -369,7 +395,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_NPC_SECTION,
-		position = 5
+		position = 7
 	)
 	default Color npcNameColor()
 	{
@@ -382,7 +408,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
 			"timer expires.",
 		section = TARGET_NPC_SECTION,
-		position = 6
+		position = 8
 	)
 	default boolean colorAggressiveNpcNames()
 	{
@@ -394,7 +420,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Aggressive NPC Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_NPC_SECTION,
-		position = 7
+		position = 9
 	)
 	default boolean showAggressiveNpcIcon()
 	{
@@ -407,7 +433,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
 			"A status effect tint takes precedence.",
 		section = TARGET_NPC_SECTION,
-		position = 8
+		position = 10
 	)
 	default boolean colorAggressiveNpcBars()
 	{
@@ -421,7 +447,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
 			"you. Applies to whichever of the options above are on.",
 		section = TARGET_NPC_SECTION,
-		position = 9
+		position = 11
 	)
 	default Color aggressiveNpcColor()
 	{
@@ -433,7 +459,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 10
+		position = 12
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -446,7 +472,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 11
+		position = 13
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -459,7 +485,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_NPC_SECTION,
-		position = 12
+		position = 14
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -473,7 +499,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
 			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
 		section = TARGET_NPC_SECTION,
-		position = 13
+		position = 15
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -486,7 +512,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
 			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
 		section = TARGET_NPC_SECTION,
-		position = 14
+		position = 16
 	)
 	default boolean greyOutOtherPlayerDamageNames()
 	{
@@ -498,7 +524,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Filter",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 15
+		position = 17
 	)
 	default String npcFilter()
 	{

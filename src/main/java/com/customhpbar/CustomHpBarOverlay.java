@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 class CustomHpBarOverlay extends Overlay
 {
@@ -67,6 +68,9 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
+
+	/** Trailing whitespace left behind by a name truncation, non-breaking space included. */
+	private static final Pattern TRAILING_SPACE = Pattern.compile("[\\s\\u00A0]+$");
 
 	/** Size of the aggressive-NPC badge icon (see showAggressiveNpcIcon), before zoom scaling. */
 	private static final int AGGRESSIVE_ICON_SIZE = 12;
@@ -467,7 +471,7 @@ class CustomHpBarOverlay extends Overlay
 				? config.aggressiveNpcColor() : config.npcNameColor();
 		}
 		// Suffix only - shares the name's color and line, so it costs no stack height.
-		String label = Text.removeTags(npcName);
+		String label = truncateName(Text.removeTags(npcName));
 		int level = npc.getCombatLevel();
 		if (config.showNpcCombatLevel() && level > 0)
 		{
@@ -490,6 +494,18 @@ class CustomHpBarOverlay extends Overlay
 		int iconX = barX - gap - size;
 		int iconY = barY + barH / 2 - size / 2;
 		g.drawImage(icon, iconX, iconY, size, size, null);
+	}
+
+	/** Cuts a name to npcNameMaxLength characters plus a period. The combat level suffix is appended after this, so it never gets cut. */
+	private String truncateName(String name)
+	{
+		int limit = config.npcNameMaxLength();
+		if (!config.truncateNpcNames() || name.length() <= limit)
+		{
+			return name;
+		}
+		// NPC names carry U+00A0, which String.trim() doesn't strip - see normalizeNpcName.
+		return TRAILING_SPACE.matcher(name.substring(0, limit)).replaceAll("") + ".";
 	}
 
 	/** Filters internal/placeholder names: literal "null", or a "Category:Label" name with a colon/semicolon. Label only, not the bar. */

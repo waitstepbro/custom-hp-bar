@@ -53,6 +53,3 @@ stack-height reservation. Would carry the combat level the same way NPC names no
 **5. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
 are the obvious case) because the anchor point moves with the model each frame. Look at smoothing
 or snapping the canvas position rather than following the raw per-frame value.
-
-**6. Truncate long NPC names with an ellipsis** - cut off after a configurable character limit,
-behind a toggle option.

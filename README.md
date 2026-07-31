@@ -25,7 +25,8 @@ tracking, and status-effect debuffs.
 - **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
   burn, disease, and corruption. Multiple effects show side by side.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
-  optionally with the NPC's combat level. Non-attackable NPCs are excluded by default.
+  optionally with the NPC's combat level. Long names can be truncated to a character limit.
+  Non-attackable NPCs are excluded by default.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
@@ -93,6 +94,8 @@ completely different if you want. Defaults are the same for both unless noted.
 | Show NPC Name | Draws the NPC's name above its HP bar | On |
 | Always Show NPC Name | Shows the NPC name at all times, not just in combat. Requires Show NPC Name. | On |
 | Show Combat Level | Appends the NPC's combat level to its name. Requires Show NPC Name. | Off |
+| Truncate Long NPC Names | Shortens NPC names past a character limit and appends a period. Requires Show NPC Name. | Off |
+| NPC Name Length Limit | Characters to keep before the period. Requires Truncate Long NPC Names. | 16 |
 | Always Show NPC Bar | Shows the HP bar on every attackable NPC, not just once engaged. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs from bars and names | On |
 | NPC Name Color | Color of the NPC name text, separate from the HP number's color | Yellow |
