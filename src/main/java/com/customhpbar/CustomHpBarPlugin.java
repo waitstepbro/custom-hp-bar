@@ -93,10 +93,16 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.BLOCK_ME, HitsplatID.BLOCK_OTHER
 	));
 
-	/** "_OTHER" hitsplats mean damage dealt by someone other than the local player - powers greyOutOtherPlayerDamage. */
+	/**
+	 * "_OTHER"/BLOCK_OTHER hitsplats mean an action landed on the NPC from someone other than the
+	 * local player - powers greyOutOtherPlayerDamage. BLOCK_OTHER (a 0-damage hit) belongs here too:
+	 * DAMAGE_HITSPLATS already treats it as HP-relevant, so this set should agree on what counts as
+	 * another player's hit rather than only recognizing their nonzero ones.
+	 */
 	private static final Set<Integer> OTHER_PLAYER_DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
 		HitsplatID.DAMAGE_OTHER, HitsplatID.DAMAGE_OTHER_CYAN, HitsplatID.DAMAGE_OTHER_ORANGE,
-		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE
+		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE,
+		HitsplatID.BLOCK_OTHER
 	));
 
 	/** Hitsplat type -> the status effect it signals. Also the source of truth for which hitsplats are status-relevant. */
@@ -402,7 +408,24 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		if (isTrackedType(actor))
+		// Before cacheHp() below, so updatePreciseHp()'s clamp is the last word on this tick - see
+		// CLAUDE.md ("precise NPC HP oscillates"). Applying the delta after the clamp double-counts
+		// the hitsplat whenever getHealthRatio() has already caught up with it.
+		if (actor instanceof NPC)
+		{
+			applyHitsplatDamage((NPC) actor, hitsplat);
+		}
+
+		// A landed HP-relevant hitsplat is itself proof the NPC is a valid combat target - stronger
+		// evidence than isAttackableNpc()'s getHealthRatio() check, which races the same hitsplat
+		// on the tick it lands (see CLAUDE.md, "precise NPC HP oscillates"). That race is normally
+		// harmless because onGameTick's interacting()-based resync catches whatever it misses next
+		// tick - but scenery-like combat NPCs with no Attack option and no interacting relationship
+		// to the player in either direction (ToB's Supporting Pillars, taking only AoE splash
+		// damage) have no other door in, so losing the race here means never tracked at all. See
+		// CLAUDE.md ("no-attack-option NPCs never get tracked").
+		boolean trackable = actor instanceof NPC ? isTrackedNpc((NPC) actor) : isTrackedType(actor);
+		if (trackable)
 		{
 			trackedActors.put(actor, client.getTickCount());
 			cacheHp(actor);
@@ -410,13 +433,9 @@ public class CustomHpBarPlugin extends Plugin
 
 		trackStatusEffect(actor, hitsplat.getHitsplatType());
 
-		if (actor instanceof NPC)
+		if (actor instanceof NPC && OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
 		{
-			applyHitsplatDamage((NPC) actor, hitsplat);
-			if (OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
-			{
-				otherPlayerDamaged.add((NPC) actor);
-			}
+			otherPlayerDamaged.add((NPC) actor);
 		}
 	}
 
@@ -737,10 +756,12 @@ public class CustomHpBarPlugin extends Plugin
 		int[] hp = readHp(client, actor);
 		if (hp != null)
 		{
-			lastKnownHp.put(actor, hp);
+			int[] previous = lastKnownHp.put(actor, hp);
 			if (actor instanceof NPC)
 			{
-				updatePreciseHp((NPC) actor, hp[0], hp[1]);
+				// An identical ratio/scale is the same server reading re-read, not a new one.
+				boolean freshRead = previous == null || previous[0] != hp[0] || previous[1] != hp[1];
+				updatePreciseHp((NPC) actor, hp[0], hp[1], freshRead);
 			}
 		}
 	}
@@ -770,13 +791,21 @@ public class CustomHpBarPlugin extends Plugin
 		return localPlayer != null && TOA_REGION_IDS.contains(localPlayer.getWorldLocation().getRegionID());
 	}
 
-	/** Establishes/sanity-checks the precise HP baseline from a fresh ratio/scale read - only overwrites if it's drifted out of bucket range. */
-	private void updatePreciseHp(NPC npc, int ratio, int scale)
+	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact [minHealth, maxHealth] bound. */
+	private void updatePreciseHp(NPC npc, int ratio, int scale, boolean freshRead)
 	{
 		int maxHp = resolveNpcMaxHp(npc.getId());
 		if (maxHp <= 0)
 		{
 			preciseNpcHp.remove(npc);
+			return;
+		}
+
+		Integer current = preciseNpcHp.get(npc);
+		// A repeat of the last reading carries no new information, so it must not overwrite
+		// hitsplat deltas accumulated since - those are strictly fresher than it is.
+		if (current != null && !freshRead)
+		{
 			return;
 		}
 
@@ -791,18 +820,36 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		int ratioEstimate = (int) Math.round((double) ratio / scale * maxHp);
-		Integer current = preciseNpcHp.get(npc);
-		if (current == null)
+		if (scale <= 1)
 		{
-			preciseNpcHp.put(npc, ratioEstimate);
+			// Ratio is always 1 while alive at this scale - it bounds nothing, so only seed a
+			// baseline if there isn't one yet rather than pretending the ratio constrains anything.
+			if (current == null)
+			{
+				preciseNpcHp.put(npc, maxHp / 2);
+			}
 			return;
 		}
 
-		int bucketWidth = Math.max(1, maxHp / scale);
-		if (Math.abs(current - ratioEstimate) > bucketWidth)
+		// Inverse of the server's ratio = 1 + (scale - 1) * hp / maxHp (integer division) - see
+		// OpponentInfoOverlay. This bounds the true HP to an exact interval instead of a point
+		// estimate, so accumulated hitsplat tracking only gets clamped into range, never snapped
+		// away from it by a tolerance heuristic - see CLAUDE.md ("precise NPC HP pins at 0") for why
+		// the old point-estimate/dead-zone approach could get stuck at 0 while alive.
+		int minHealth = ratio == 1 ? 1 : (maxHp * (ratio - 1) + scale - 2) / (scale - 1);
+		int maxHealth = Math.min(maxHp, (maxHp * ratio - 1) / (scale - 1));
+
+		if (current == null)
 		{
-			preciseNpcHp.put(npc, ratioEstimate);
+			preciseNpcHp.put(npc, (minHealth + maxHealth) / 2);
+		}
+		else if (current < minHealth)
+		{
+			preciseNpcHp.put(npc, minHealth);
+		}
+		else if (current > maxHealth)
+		{
+			preciseNpcHp.put(npc, maxHealth);
 		}
 	}
 

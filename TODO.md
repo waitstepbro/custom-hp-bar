@@ -10,29 +10,28 @@ core's `npcunaggroarea` plugin.
 raid level, path level *and* party size. Verified formula and region-to-path mapping are in
 `CLAUDE.md` ("ToA minion HP") - just needs implementing.
 
-**3. Precise NPC HP pins at 0 while the NPC is still alive.** Reported on Corrupted Gauntlet
-demi-bosses (bar reads `0`, boss alive at 1-3 HP); the Hunllef is worse, up to 34 HP. Fully
-diagnosed with a repro simulation and the intended fix written up in `CLAUDE.md` ("OPEN BUG:
-precise NPC HP pins at 0"). Two causes: `updatePreciseHp()` uses `round(ratio/scale*maxHp)`, which
-is the wrong inverse of the server's `1 + (scale-1)*hp/maxHp`, and the drift check's
-`> maxHp/scale` dead zone is exactly as wide as that estimator's own error, so the drift never
-self-corrects. Fix is to clamp into core's bounded `[minHealth, maxHealth]` interval instead.
-Read the CLAUDE.md section first - it flags an `onHitsplatApplied` call-order question that must
-be confirmed in-game rather than flipped blind. **Not a data problem, `npc_hp.csv` is correct.**
+**3. FIXED (needs in-game re-test): no-attack-option destructible NPCs never got a bar with
+"hide native health bar" enabled** - reported on ToB Verzik's Supporting Pillars, confirmed the
+same mechanism also affects The Whisperer's Floating Columns. Root cause and fix are in
+`CLAUDE.md` ("no-attack-option NPCs never get tracked").
 
-**4. Players who hit a 0 on an NPC don't trigger the grey bar/name detection.** A 0 from another
-player is a `BLOCK_OTHER` (13) hitsplat, not `DAMAGE_OTHER` - and `OTHER_PLAYER_DAMAGE_HITSPLATS`
-in `CustomHpBarPlugin.java` lists only the six `DAMAGE_OTHER*` types, so `otherPlayerDamaged`
-never gets the NPC. Note `DAMAGE_HITSPLATS` (the HP-accumulation allowlist) *does* already include
-`BLOCK_ME`/`BLOCK_OTHER`, so the two sets disagree on what counts as another player's hit. Lead
-only, not verified in-game.
-
-**5. Duke health bars on barrels not showing with "hide native health bar" enabled.** Our custom
-bar doesn't draw for the barrels in the Duke Sucellus fight, so with `hideNativeBar` on there's no
-overhead HP indicator left at all - the exact failure mode called out in `CLAUDE.md`'s
-`NativeHealthBarSprites` notes. Check whether the barrels pass `isTrackedType()`/`isTrackable()`
-(they may have no attack option and never report a `getHealthRatio()`), and whether the sprite
-swap is hitting a bar we then fail to replace. Not investigated yet.
+**3b. TABLED - Duke Sucellus's Fermentation Vat "bar" disappears with `hideNativeBar` on, but
+this is a different bug from 3, not the same one.** The vat (wiki: `Fermentation_Vat`) is
+**scenery, not an NPC** - object IDs `47536`/`47537` (empty/brewing) plus per-poison-combo states
+`47538`-`47543`, no NPC ID, no Attack option, no hitpoints anywhere on the wiki. So this can't be
+a tracking-discovery bug (fix 3 doesn't apply - there's no Actor to track). User confirmed in-game
+it's a fill/progress indicator, not real HP, and confirmed toggling `hideNativeBar` off makes it
+reappear. Leading theory: it reuses one of the generic `Standard*` sprite IDs already in
+`NativeHealthBarSprites.ALL` (a small reused texture set, not unique per-boss), so the client-wide
+sprite-transparent override catches it as collateral damage - `Client.getSpriteOverrides()` has no
+per-actor/per-object scoping, so there may be no way to hide combat bars but keep this one without
+knowing whether that exact ID is safe to exclude (unshared with any real boss bar) or not (shared,
+so excluding it would also un-hide a real native bar somewhere). Checked `SpriteID.java` and
+`ObjectID.java` from the cached `runelite-api-1.12.32-sources.jar` for anything vat/ferment/duke-
+named - nothing; the object IDs aren't even mapped to friendly names in this runelite-api version,
+so this is a dead end for static analysis. **Needs a live sprite-ID capture at the vat** (RuneLite
+Developer Tools' widget inspector, or a one-off debug build that tints `NativeHealthBarSprites.ALL`
+instead of hiding it) before any fix can be attempted - tabled until that's done.
 
 ## Ideas
 
@@ -46,10 +45,6 @@ ideas, but needs a per-NPC threshold table with the same maintenance problem as 
 
 **3. Dim non-target bars** - cuts multi-combat clutter. Target from `localPlayer.getInteracting()`.
 
-**4. Player name label** - players have no name label at all, so this needs a new draw path plus
-stack-height reservation. Would carry the combat level the same way NPC names now do
-(`showNpcCombatLevel`). The NPC half of this item is done.
-
-**5. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
+**4. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
 are the obvious case) because the anchor point moves with the model each frame. Look at smoothing
 or snapping the canvas position rather than following the raw per-frame value.
