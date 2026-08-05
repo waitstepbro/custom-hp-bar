@@ -15,6 +15,7 @@ import net.runelite.api.Renderable;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SpritePixels;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.NpcID;
@@ -163,6 +164,33 @@ public class CustomHpBarPlugin extends Plugin
 	private static final Set<Integer> VASA_NPC_IDS = new HashSet<>(Arrays.asList(7566, 7567));
 	private static final int VASA_NORMAL_HP = 300;
 	private static final int VASA_CM_HP = 450;
+
+	/**
+	 * ToA's five boss encounters' own combat-form NPC IDs - the only ToA NPCs allowed to pull a
+	 * number from the native boss HP HUD (see nativeHudHp()). Every other ToA NPC is a minion and
+	 * must fall back to percent via resolveNpcMaxHp()'s -1, even though the HUD widget itself
+	 * would happily report a real number for one too - see "ToA minion HP" in CLAUDE.md.
+	 */
+	private static final Set<Integer> TOA_BOSS_NPC_IDS = new HashSet<>(Arrays.asList(
+		// Akkha
+		NpcID.AKKHA_SPAWN, NpcID.AKKHA_MELEE, NpcID.AKKHA_RANGE, NpcID.AKKHA_MAGE,
+		NpcID.AKKHA_ENRAGE_SPAWN, NpcID.AKKHA_ENRAGE_INITIAL, NpcID.AKKHA_ENRAGE, NpcID.AKKHA_ENRAGE_DUMMY,
+		NpcID.AKKHA_HEADBAR_NPC,
+		// Zebak
+		NpcID.TOA_ZEBAK, NpcID.TOA_ZEBAK_ENRAGED, NpcID.TOA_ZEBAK_DEAD,
+		// Kephri
+		NpcID.TOA_KEPHRI_BOSS_SHIELDED, NpcID.TOA_KEPHRI_BOSS_WEAK, NpcID.TOA_KEPHRI_BOSS_ENRAGE, NpcID.TOA_KEPHRI_BOSS_DEAD,
+		// Ba-Ba
+		NpcID.TOA_BABA, NpcID.TOA_BABA_COFFIN, NpcID.TOA_BABA_DIGGING,
+		// Wardens - both forms, all three phases
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE1_INACTIVE, NpcID.TOA_WARDEN_TUMEKEN_PHASE1_INACTIVE,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE1, NpcID.TOA_WARDEN_TUMEKEN_PHASE1,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE2_MAGE, NpcID.TOA_WARDEN_ELIDINIS_PHASE2_RANGE, NpcID.TOA_WARDEN_ELIDINIS_PHASE2_EXPOSED,
+		NpcID.TOA_WARDEN_TUMEKEN_PHASE2_MAGE, NpcID.TOA_WARDEN_TUMEKEN_PHASE2_RANGE, NpcID.TOA_WARDEN_TUMEKEN_PHASE2_EXPOSED,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE3_INACTIVE, NpcID.TOA_WARDEN_TUMEKEN_PHASE3_INACTIVE,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE3, NpcID.TOA_WARDEN_TUMEKEN_PHASE3,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE3_CHARGING, NpcID.TOA_WARDEN_TUMEKEN_PHASE3_CHARGING
+	));
 
 	/** NPC IDs for encounters where loot is based on personal participation, not "who dealt the kill" - exempt from greyOutOtherPlayerDamage. */
 	private static final Set<Integer> COMMUNAL_LOOT_NPC_IDS = new HashSet<>(Arrays.asList(
@@ -742,6 +770,16 @@ public class CustomHpBarPlugin extends Plugin
 			return null;
 		}
 
+		// The HUD follows whatever the player is currently fighting, not just the fixed boss - so a
+		// minion targeted mid-encounter (a scarab, a baboon, one of Akkha's Shadows) can briefly
+		// become the HUD's tracked creature and leak a real number onto its bar. ToA's minions are
+		// meant to be percent-only regardless (resolveNpcMaxHp() returns -1 for them) - only the
+		// actual boss NPCs get to use this path while inside ToA.
+		if (actor instanceof NPC && isInsideToa() && !TOA_BOSS_NPC_IDS.contains(((NPC) actor).getId()))
+		{
+			return null;
+		}
+
 		String actorName = actor.getName();
 		if (actorName == null || !nativeHudBossName.equalsIgnoreCase(Text.removeTags(actorName)))
 		{
@@ -784,11 +822,29 @@ public class CustomHpBarPlugin extends Plugin
 		return NpcMaxHpTable.getMaxHp(npcId);
 	}
 
+	/**
+	 * Local player's current region ID, translated through the instance template via
+	 * WorldPoint.fromLocalInstance() - Actor.getWorldLocation() alone returns raw instance-chunk
+	 * coordinates inside instanced content (raids), which never match a static region ID like the
+	 * ones in TOA_REGION_IDS/TOB_REGION_IDS. Confirmed against LlemonDuck/tombs-of-amascut's own
+	 * RaidStateTracker, which does the same translation - see CLAUDE.md ("grey bars on ToA bosses").
+	 */
+	private int localPlayerRegion()
+	{
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null)
+		{
+			return -1;
+		}
+		LocalPoint localPoint = localPlayer.getLocalLocation();
+		WorldPoint worldPoint = localPoint == null ? null : WorldPoint.fromLocalInstance(client, localPoint);
+		return worldPoint == null ? -1 : worldPoint.getRegionID();
+	}
+
 	/** Whether the local player is currently inside Tombs of Amascut - see TOA_REGION_IDS. */
 	private boolean isInsideToa()
 	{
-		Player localPlayer = client.getLocalPlayer();
-		return localPlayer != null && TOA_REGION_IDS.contains(localPlayer.getWorldLocation().getRegionID());
+		return TOA_REGION_IDS.contains(localPlayerRegion());
 	}
 
 	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact [minHealth, maxHealth] bound. */
@@ -1188,14 +1244,10 @@ public class CustomHpBarPlugin extends Plugin
 			return true;
 		}
 
-		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer != null)
+		int region = localPlayerRegion();
+		if (TOB_REGION_IDS.contains(region) || TOA_REGION_IDS.contains(region))
 		{
-			int region = localPlayer.getWorldLocation().getRegionID();
-			if (TOB_REGION_IDS.contains(region) || TOA_REGION_IDS.contains(region))
-			{
-				return true;
-			}
+			return true;
 		}
 
 		// normalizeNpcName, not removeTags+toLowerCase: NPC names commonly carry U+00A0 non-breaking
