@@ -24,6 +24,8 @@ tracking, and status-effect debuffs.
   falling back to a percentage where max HP isn't known.
 - **HP color gradient** — optionally blend the bar from full-HP color through a mid color at a
   configurable midpoint to a low color at empty, per bar type.
+- **Bar opacity** — an optional transparency slider for the bar's background, fill, and border,
+  configurable separately per bar type.
 - **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
   burn, disease, and corruption. Multiple effects show side by side.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
@@ -40,11 +42,17 @@ tracking, and status-effect debuffs.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
   Can be limited to while a prayer is active; flicking keeps it up. Color configurable.
 - **Special attack bar** — an optional special attack energy bar, shown in combat alongside your HP
-  bar. Can be limited to once some energy has been spent. Color configurable.
-- **Bar order** — choose the top-to-bottom order of your HP, Prayer, and special attack bars.
+  bar. Color configurable.
+- **Run energy bar** — an optional run energy bar, shown regardless of combat state. Switches to a
+  distinct color while a Stamina potion's drain-reduction effect is active, and can time out after a
+  configurable period of not running.
+- **Bar order** — four independent pickers choose which bar (HP, Prayer, Special Attack, or Run
+  Energy) goes in each of the four stack positions.
 - **Food heal preview** — hovering food or a potion extends your bar with a preview of where HP
   would land.
 - **Prayer restore preview** — the same for your Prayer bar, when hovering a Prayer-restoring item.
+- **Run energy restore preview** — the same for your run energy bar, when hovering a Stamina potion
+  or other run-restoring item.
 - **Replaced overhead icon** — optionally redraws your overhead prayer icon, hitsplats, and chat
   text above your HP bar.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
@@ -92,6 +100,7 @@ can look completely different if you want. Defaults are the same for both unless
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
+| Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. Player bar also covers the Prayer, Special Attack, and Run Energy bars. | 100 |
 
 ### Target Bar — Style (in addition to the above)
 
@@ -139,14 +148,18 @@ can look completely different if you want. Defaults are the same for both unless
 | Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Prayer Bar Color | Fill color of the Prayer bar. Requires Show Prayer Bar. | Blue |
 | Show Special Attack Bar | Draws a special attack energy bar alongside your HP bar, in combat only. Requires Show for Self. | Off |
-| Hide Special Attack Bar While Full | Only draws the special attack bar once some energy has been spent. Requires Show Special Attack Bar. | Off |
 | Special Attack Bar Color | Fill color of the special attack bar. Requires Show Special Attack Bar. | Green |
-| Bar Order | Order of your HP, Prayer, and special attack bars, top to bottom. Bars that are off are skipped. | HP, Prayer, Special |
+| Show Run Energy Bar | Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows regardless of combat state. Requires Show for Self. | Off |
+| Run Energy Bar Timeout (seconds) | Hides the run energy bar this many seconds after you last actively ran (regen and item restores don't count). 0 = never time out. Requires Show Run Energy Bar. | 0 |
+| Run Energy Bar Color | Fill color of the run energy bar. Requires Show Run Energy Bar. | Gold |
+| Run Energy Bar Color (Stamina Active) | Fill color of the run energy bar while a Stamina potion's drain-reduction effect is active. Requires Show Run Energy Bar. | Brown |
+| Bar 1 (Top) / Bar 2 / Bar 3 / Bar 4 (Bottom) | Four independent pickers choosing which bar (HP, Prayer, Special, Run Energy) is drawn in each stack position. A bar picked in more than one position only shows at its topmost pick. | HP, Prayer, Special, Run Energy |
 | Color By Status Effect | Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted. | On |
 | Show Status Icon | Shows a debuff icon beneath the bar for the same effects | On |
 | Persist Duration (seconds) | How long the bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
+| Show Run Energy Restore Preview | Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra bar segment. Requires Show Run Energy Bar. | On |
 | Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
 
 ### Behavior
