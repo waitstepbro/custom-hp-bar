@@ -11,7 +11,7 @@ repositories {
     mavenCentral()
 }
 
-def runeLiteVersion = "1.12.32"
+def runeLiteVersion = "1.12.35"
 def pluginMainClass = "com.customhpbar.CustomHpBarPluginTest"
 def rlRepoDir = "${System.properties['user.home']}/.runelite/repository2"
 
@@ -42,7 +42,7 @@ checkstyle {
     ignoreFailures = false
 }
 
-def rlClientVersion = "1.12.33"
+def rlClientVersion = "1.12.35"
 
 task runClient(type: JavaExec, dependsOn: jar) {
     group = "runelite"

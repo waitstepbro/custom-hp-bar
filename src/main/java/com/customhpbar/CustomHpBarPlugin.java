@@ -315,6 +315,29 @@ public class CustomHpBarPlugin extends Plugin
 	/** Latched once per game tick, exactly as core PrayerPlugin latches prayersActive - never sampled mid-tick. */
 	private boolean prayerActive;
 
+	/**
+	 * Run energy last seen by trackRunEnergyChange() - see isRunEnergyBarTimedOut(). -1 means
+	 * never sampled; only used to establish a baseline for detecting the next decrease, not itself
+	 * timestamped.
+	 */
+	private int lastRunEnergyValue = -1;
+
+	/**
+	 * Wall-clock ms run energy last visibly decreased - the only time it drops is while actively
+	 * running, which is what isRunEnergyBarTimedOut() actually gates the bar on (not "any change" -
+	 * regen and item restores also change the value but aren't running, and showing the bar for
+	 * those was explicitly not wanted). Long.MIN_VALUE means never observed this session.
+	 *
+	 * Wall-clock, not client.getTickCount(): getTickCount() is documented as "the current SERVER
+	 * tick count", and a raid instance (ToA etc.) is a genuinely separate server-side instance - its
+	 * tick counter isn't guaranteed continuous with the overworld's. Reported symptom this avoids:
+	 * zoning into a ToA instance left the run energy bar showing indefinitely, because a
+	 * tick-count-delta computed across that boundary could go negative (recorded tick now ahead of
+	 * the fresh instance's counter) and never cross the timeout threshold again. See CLAUDE.md,
+	 * "Run Energy bar timing: tick-count deltas aren't safe across instance boundaries".
+	 */
+	private long lastRunEnergyDrainMs = Long.MIN_VALUE;
+
 	/** Whether a BLEED_END_VARCS entry was still counting down last time it was read - see isSelfBleeding(). */
 	private boolean bleedEndVarcCounting;
 
@@ -552,6 +575,8 @@ public class CustomHpBarPlugin extends Plugin
 
 		// The only prayer sample there is, exactly as core PrayerPlugin.onGameTick does it.
 		prayerActive = isAnyPrayerActive();
+
+		trackRunEnergyChange();
 
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
 		// controls when a hitsplat stops drawing; this just bounds the list's size between prunes.
@@ -1156,6 +1181,70 @@ public class CustomHpBarPlugin extends Plugin
 	int specialAttackEnergy()
 	{
 		return client.getVarpValue(VarPlayerID.SA_ENERGY) / 10;
+	}
+
+	/**
+	 * Run energy as a 0-100 percentage. Client.getEnergy() is documented as "1/100th of a percent",
+	 * so this divides by 100 - the exact read core's StatusBarsOverlay uses for its own run energy bar.
+	 */
+	int runEnergy()
+	{
+		return client.getEnergy() / 100;
+	}
+
+	/**
+	 * Whether a Stamina potion's drain-reduction effect is currently active - the same varbit
+	 * core's StatusBarsOverlay checks to swap its run energy bar to a different color while it's
+	 * up, which is what this drives too. Not the same thing as a Stamina potion's restore-on-drink
+	 * amount (that's an ordinary "Run Energy" itemstats heal, already covered by the restore
+	 * preview) - this is the ongoing buff, tracked separately by the game via this varbit.
+	 */
+	boolean isStaminaActive()
+	{
+		return client.getVarbitValue(VarbitID.STAMINA_ACTIVE) != 0;
+	}
+
+	/**
+	 * Latches lastRunEnergyValue/lastRunEnergyDrainMs whenever run energy actually decreases -
+	 * called once per tick from onGameTick, same "sample once, not per frame" reasoning as
+	 * prayerActive (the cadence, not the clock, is tick-based - see the field doc for why the
+	 * clock itself is wall-clock). -1 is the "never sampled yet" sentinel, not a real energy
+	 * value - it only seeds lastRunEnergyValue as a baseline, it never counts as a "decrease" on
+	 * its own (there being no prior value to have decreased from).
+	 */
+	private void trackRunEnergyChange()
+	{
+		int current = runEnergy();
+		if (lastRunEnergyValue >= 0 && current < lastRunEnergyValue)
+		{
+			lastRunEnergyDrainMs = System.currentTimeMillis();
+		}
+		lastRunEnergyValue = current;
+	}
+
+	/**
+	 * Whether the run energy bar's configured timeout has elapsed since energy was last actually
+	 * draining - runEnergyBarTimeout <= 0 disables the timeout (never hides). Deliberately keyed
+	 * on lastRunEnergyDrainMs (decreases only), not "any change": regen and item restores also
+	 * change the value but aren't running, and letting those alone keep the bar up - either
+	 * generally or just within a post-combat window - was explicitly asked against. One rule,
+	 * true everywhere, rather than the two-tier general-vs-post-combat split this replaced. See
+	 * CLAUDE.md, "Run Energy bar timeout: drain-only, one rule everywhere".
+	 */
+	boolean isRunEnergyBarTimedOut()
+	{
+		int timeoutSeconds = config.runEnergyBarTimeout();
+		if (timeoutSeconds <= 0)
+		{
+			return false;
+		}
+		if (lastRunEnergyDrainMs == Long.MIN_VALUE)
+		{
+			// Never actually run this session - nothing to justify showing the bar yet.
+			return true;
+		}
+		long elapsedMs = System.currentTimeMillis() - lastRunEnergyDrainMs;
+		return elapsedMs >= timeoutSeconds * 1000L;
 	}
 
 	/** Raw "is any prayer on right now" sample; isPrayerActive() is what drives the bar. */

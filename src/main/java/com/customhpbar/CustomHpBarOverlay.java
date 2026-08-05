@@ -29,8 +29,10 @@ import net.runelite.client.util.Text;
 
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GradientPaint;
@@ -46,6 +48,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,8 +90,8 @@ class CustomHpBarOverlay extends Overlay
 	/** Vertical padding between bars of actors sharing the same tile, before zoom scaling. */
 	private static final int STACK_PADDING = 2;
 
-	/** Special attack energy, as the 0-100 percentage specialAttackEnergy() reports, at which the bar is full. */
-	private static final int FULL_SPECIAL_ENERGY = 100;
+	/** Full value for a 0-100 percentage bar with no separate max - special attack and run energy both work this way. */
+	private static final int FULL_PERCENT_ENERGY = 100;
 
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
@@ -178,6 +181,17 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle targetStyle = null;
 		BarStyle playerStyle = null;
 
+		Player localPlayer = client.getLocalPlayer();
+
+		// The local player's own bar is drawn last of everything below, so it never ends up buried
+		// under an NPC's bar (map/loop order is otherwise arbitrary - see TODO.md idea 7). These
+		// hold whichever path (tracked HP bar vs. untracked standalone Prayer/Run bar) applies this frame.
+		Point playerAnchor = null;
+		int[] playerHp = null;
+		int playerMaxHp = 0;
+		BarStyle playerDrawStyle = null;
+		List<CustomHpBarConfig.BarKind> playerStandaloneStack = null;
+
 		// Same-tile stacking, rebuilt each frame: tileStacks tracks claimed pixels per tile;
 		// appliedStacks lets the "Always Show NPC Name" pass below reuse an already-drawn shift.
 		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
@@ -220,13 +234,23 @@ class CustomHpBarOverlay extends Overlay
 			}
 			appliedStacks.put(actor, shift);
 
+			if (actor == localPlayer)
+			{
+				// Stashed, not drawn here - see the deferred draw below.
+				playerAnchor = anchor;
+				playerHp = hp;
+				playerMaxHp = maxHp;
+				playerDrawStyle = style;
+				continue;
+			}
+
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
-		// Independent path: shows the Prayer bar outside combat too (e.g. at a bank), skipped if the
-		// main loop above already drew it. Only Prayer qualifies - see playerBarStack().
-		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer != null && config.showForSelf() && !plugin.getTrackedActors().containsKey(localPlayer))
+		// Independent path: shows the Prayer/Run Energy bars outside combat too (e.g. at a bank),
+		// skipped if the main loop above already drew it. Only those two qualify - see
+		// playerBarStack(). Stashed for the same deferred-draw reason as the tracked case above.
+		if (playerHp == null && localPlayer != null && config.showForSelf() && !plugin.getTrackedActors().containsKey(localPlayer))
 		{
 			List<CustomHpBarConfig.BarKind> stack = playerBarStack(false);
 			Point anchor = stack.isEmpty() ? null : Perspective.localToCanvas(
@@ -234,17 +258,10 @@ class CustomHpBarOverlay extends Overlay
 			if (anchor != null)
 			{
 				playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
-				drawStandaloneBarStack(g, anchor, playerStyle, stack);
+				playerAnchor = anchor;
+				playerDrawStyle = playerStyle;
+				playerStandaloneStack = stack;
 			}
-		}
-
-		// Replacement for the native overhead prayer icon, which the render callback suppresses.
-		if (localPlayer != null && config.showForSelf() && config.replaceOverheadIcon())
-		{
-			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
-			drawOverheadIcon(g, localPlayer, playerStyle);
-			drawSelfHitsplats(g, localPlayer);
-			drawOverheadChatText(g, localPlayer, playerStyle);
 		}
 
 		// Second pass for "regardless of combat" behaviors: Always Show NPC Bar/Name, one shared
@@ -312,6 +329,27 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
+		// Deferred from above so it paints over every NPC bar/name already drawn this frame.
+		if (playerHp != null)
+		{
+			drawBar(g, localPlayer, playerAnchor, playerHp[0], playerHp[1], playerMaxHp, playerDrawStyle);
+		}
+		else if (playerStandaloneStack != null)
+		{
+			drawStandaloneBarStack(g, playerAnchor, playerDrawStyle, playerStandaloneStack);
+		}
+
+		// Replacement for the native overhead prayer icon, which the render callback suppresses.
+		// Drawn last of all - it's anchored above the player's own bar, so it's already clear of
+		// every NPC bar drawn above.
+		if (localPlayer != null && config.showForSelf() && config.replaceOverheadIcon())
+		{
+			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
+			drawOverheadIcon(g, localPlayer, playerStyle);
+			drawSelfHitsplats(g, localPlayer);
+			drawOverheadChatText(g, localPlayer, playerStyle);
+		}
+
 		return null;
 	}
 
@@ -374,7 +412,7 @@ class CustomHpBarOverlay extends Overlay
 				config.playerBorderWidth(), config.playerBorderColor(), config.playerBarColor(),
 				config.playerHpColorGradient(), config.playerColorMid(), config.playerColorLow(),
 				config.playerMidpoint(),
-				config.playerBarBackground(), config.playerVerticalOffset(),
+				config.playerBarBackground(), config.playerBarOpacity(), config.playerVerticalOffset(),
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
 				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge());
 		}
@@ -383,7 +421,7 @@ class CustomHpBarOverlay extends Overlay
 			config.targetBorderWidth(), config.targetBorderColor(), config.targetBarColor(),
 			config.targetHpColorGradient(), config.targetColorMid(), config.targetColorLow(),
 			config.targetMidpoint(),
-			config.targetBarBackground(), config.targetVerticalOffset(),
+			config.targetBarBackground(), config.targetBarOpacity(), config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
 			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge());
 	}
@@ -391,9 +429,22 @@ class CustomHpBarOverlay extends Overlay
 	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
 	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
+		return barRect(anchor, style, zoom, false);
+	}
+
+	/**
+	 * As above, but ignoreOffset skips the configured vertical offset entirely (bar sits directly
+	 * against the anchor). Used for the local player's own bar stack when it's down to a single bar
+	 * - asked for explicitly, testing whether a lone bar should sit right above the head rather than
+	 * at the position tuned for a taller stack, then snap to the configured offset once more bars
+	 * join it. Every NPC/other-player bar, and any player stack of 2+ bars, keeps passing false (the
+	 * plain 3-arg overload above) - unaffected. See CLAUDE.md ("solo player bar offset").
+	 */
+	private int[] barRect(Point anchor, BarStyle style, double zoom, boolean ignoreOffset)
+	{
 		int w = scaled(style.width, zoom);
 		int h = scaled(style.height, zoom);
-		int vOffset = scaled(style.verticalOffset, zoom);
+		int vOffset = ignoreOffset ? 0 : scaled(style.verticalOffset, zoom);
 		int x = anchor.getX() - w / 2;
 		int y = anchor.getY() - h / 2 - vOffset;
 		return new int[]{x, y, w, h};
@@ -417,8 +468,8 @@ class CustomHpBarOverlay extends Overlay
 		}
 		else if (actor == client.getLocalPlayer())
 		{
-			// Your stack can be three bars tall and the height above only covers one of them. This
-			// used to under-reserve for the Prayer bar too - see CLAUDE.md.
+			// Your stack can be up to four bars tall and the height above only covers one of them.
+			// This used to under-reserve for the Prayer bar too - see CLAUDE.md.
 			consumed += scaled(style.height * (playerBarStack(true).size() - 1), zoom);
 			if (config.replaceOverheadIcon())
 			{
@@ -518,7 +569,14 @@ class CustomHpBarOverlay extends Overlay
 	private void drawBar(Graphics2D g, Actor actor, Point anchor, int ratio, int scale, int maxHp, BarStyle style)
 	{
 		double zoom = zoomFactor();
-		int[] rect = barRect(anchor, style, zoom);
+
+		// Only the local player stacks; every other actor is a lone HP bar at the anchor. Computed
+		// before barRect() so a lone player bar (stack.size() <= 1) can skip the configured offset -
+		// see barRect()'s ignoreOffset doc.
+		boolean self = actor == client.getLocalPlayer();
+		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(true) : null;
+
+		int[] rect = barRect(anchor, style, zoom, stack != null && stack.size() <= 1);
 		int x = rect[0];
 		int y = rect[1];
 		int w = rect[2];
@@ -526,11 +584,8 @@ class CustomHpBarOverlay extends Overlay
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 
-		// Only the local player stacks; every other actor is a lone HP bar at the anchor. hpY is
-		// where the HP bar actually lands once the configured order is applied - y stays the top of
-		// the whole stack, which is what the name, overhead icon, and same-tile shift key off.
-		boolean self = actor == client.getLocalPlayer();
-		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(true) : null;
+		// hpY is where the HP bar actually lands once the configured order is applied - y stays the
+		// top of the whole stack, which is what the name, overhead icon, and same-tile shift key off.
 		int hpY = stack == null ? y : y + h * stack.indexOf(CustomHpBarConfig.BarKind.HP);
 
 		double hpFraction = (double) ratio / scale;
@@ -596,8 +651,14 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
+	/** Same as hoveredRestoreValue(String), keyed by a Skill's own name - the common case (HP, Prayer). */
+	private int hoveredRestoreValue(Skill stat)
+	{
+		return hoveredRestoreValue(stat.getName());
+	}
+
 	/**
-	 * The stat points the item currently under the cursor would restore, for the given stat, or
+	 * The stat points the item currently under the cursor would restore, for the given stat name, or
 	 * -1 if nothing applicable is hovered. Same hover-detection core's "Item Stats" plugin uses:
 	 * the last menu entry (what the cursor is over), confirmed as an inventory item slot.
 	 *
@@ -606,8 +667,12 @@ class CustomHpBarOverlay extends Overlay
 	 * table, so level/gear-dependent formulas (Cooked Moss Lizard, Saradomin Brew, restore
 	 * potions) resolve correctly. Mirrors StatusBarsOverlay.getRestoreValue(String): find the
 	 * StatChange whose stat name matches and whose getTheoretical() is non-zero.
+	 *
+	 * Takes a raw name, not just a Skill, because Run Energy's ItemStatChangesService entry
+	 * (EnergyStat) is a plain-named Stat, not a Skill - unlike special attack, which has no Stat
+	 * at all (see CLAUDE.md, "No restore preview" under the special attack bar).
 	 */
-	private int hoveredRestoreValue(Skill stat)
+	private int hoveredRestoreValue(String statName)
 	{
 		if (client.isMenuOpen())
 		{
@@ -635,7 +700,7 @@ class CustomHpBarOverlay extends Overlay
 		StatsChanges changes = effect.calculate(client);
 		for (StatChange change : changes.getStatChanges())
 		{
-			if (change.getTheoretical() != 0 && change.getStat().getName().equals(stat.getName()))
+			if (change.getTheoretical() != 0 && change.getStat().getName().equals(statName))
 			{
 				return change.getTheoretical();
 			}
@@ -808,11 +873,29 @@ class CustomHpBarOverlay extends Overlay
 		return config.showPrayerBar() && (!config.hidePrayerBarWhenInactive() || plugin.isPrayerActive());
 	}
 
-	/** Whether the special attack bar is part of your stack right now - hideSpecialAttackBarWhenFull gates it on spent energy. */
+	/** Whether the special attack bar is part of your stack right now. */
 	private boolean specialBarAttached()
 	{
-		return config.showSpecialAttackBar()
-			&& (!config.hideSpecialAttackBarWhenFull() || plugin.specialAttackEnergy() < FULL_SPECIAL_ENERGY);
+		return config.showSpecialAttackBar();
+	}
+
+	/**
+	 * Whether the run energy bar is part of your stack right now.
+	 *
+	 * Priority system requested by the user: while tracked (in combat, or within the HP bar's own
+	 * playerPersistDuration grace window - tracked already means exactly that, nothing extra to
+	 * compute), Run just follows the HP bar's own lifecycle, full stop - no independent fade timer,
+	 * so it can't blink out mid-fight while HP/Prayer/Special are still showing right next to it.
+	 * Only once untracked does its own drain-based runEnergyBarTimeout take over, same as before.
+	 * See CLAUDE.md, "Run Energy bar visibility: HP lifecycle in combat, drain timeout out of combat".
+	 */
+	private boolean runBarAttached(boolean tracked)
+	{
+		if (!config.showRunEnergyBar())
+		{
+			return false;
+		}
+		return tracked || !plugin.isRunEnergyBarTimedOut();
 	}
 
 	/**
@@ -820,16 +903,39 @@ class CustomHpBarOverlay extends Overlay
 	 * order with the ones that are off left out. Only the local player ever stacks - NPCs and other
 	 * players get a lone HP bar.
 	 *
-	 * Outside combat (tracked == false) only the Prayer bar can show, and only while a prayer is
-	 * actually on - its pre-existing standalone rule, unchanged. The special attack bar is combat
-	 * only, like HP: energy regenerates at 10% per 30s, so a standalone one would linger for up to
-	 * five minutes after a spec rather than the moment or two the Prayer bar does.
+	 * Order comes from four independent per-position dropdowns (config.barPosition1()..
+	 * barPosition4()), not a validated permutation - see CLAUDE.md ("Four independent
+	 * bar-position dropdowns"). Two things this method resolves rather than the config layer:
+	 * - A bar picked in more than one of the four slots only shows at its topmost pick; later
+	 *   duplicates are skipped, not drawn twice.
+	 * - drawBar() always draws the HP fill for a tracked player regardless of these dropdowns, so
+	 *   HP is force-included (defaulting to the top) if the user's four picks somehow left it out
+	 *   entirely - otherwise stack.indexOf(HP) downstream would come back -1.
+	 *
+	 * Outside combat (tracked == false) only Prayer and Run Energy can show. Prayer's pre-existing
+	 * standalone rule is unchanged - only while a prayer is actually on. Run Energy is visible
+	 * whenever runBarAttached(tracked) says so: while tracked, it just follows the HP bar's own
+	 * lifecycle (no independent timer, so it can't blink out mid-fight - see CLAUDE.md, "Run Energy
+	 * bar visibility: HP lifecycle in combat, drain timeout out of combat"); once untracked, its own
+	 * drain-based runEnergyBarTimeout takes over. The special attack bar stays combat only, like HP:
+	 * energy regenerates at 10% per 30s, so a standalone one would linger for up to five minutes
+	 * after a spec rather than the moment or two the Prayer bar does.
 	 */
 	private List<CustomHpBarConfig.BarKind> playerBarStack(boolean tracked)
 	{
-		List<CustomHpBarConfig.BarKind> stack = new ArrayList<>(3);
-		for (CustomHpBarConfig.BarKind kind : config.barOrder().getKinds())
+		List<CustomHpBarConfig.BarKind> stack = new ArrayList<>(4);
+		// Built here, not a config default method - RuneLite's config proxy only special-cases
+		// @ConfigItem-annotated methods; any other method (even a default one with a real body)
+		// just logs a warning and returns null. See CLAUDE.md ("config.barOrder() NPE").
+		List<CustomHpBarConfig.BarKind> positions = Arrays.asList(
+			config.barPosition1(), config.barPosition2(), config.barPosition3(), config.barPosition4());
+		for (CustomHpBarConfig.BarKind kind : positions)
 		{
+			if (stack.contains(kind))
+			{
+				continue;
+			}
+
 			boolean visible;
 			switch (kind)
 			{
@@ -838,6 +944,9 @@ class CustomHpBarOverlay extends Overlay
 					break;
 				case SPECIAL:
 					visible = tracked && specialBarAttached();
+					break;
+				case RUN:
+					visible = runBarAttached(tracked);
 					break;
 				case HP:
 				default:
@@ -849,14 +958,19 @@ class CustomHpBarOverlay extends Overlay
 				stack.add(kind);
 			}
 		}
+
+		if (tracked && !stack.contains(CustomHpBarConfig.BarKind.HP))
+		{
+			stack.add(0, CustomHpBarConfig.BarKind.HP);
+		}
 		return stack;
 	}
 
-	/** Draws the Prayer/special bars at the HP bar's would-be position - reached only when the local player isn't tracked. */
+	/** Draws the Prayer/special/run bars at the HP bar's would-be position - reached only when the local player isn't tracked. */
 	private void drawStandaloneBarStack(Graphics2D g, Point anchor, BarStyle style, List<CustomHpBarConfig.BarKind> stack)
 	{
 		double zoom = zoomFactor();
-		int[] rect = barRect(anchor, style, zoom);
+		int[] rect = barRect(anchor, style, zoom, stack.size() <= 1);
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 		drawStackedBars(g, style, stack, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
@@ -880,6 +994,9 @@ class CustomHpBarOverlay extends Overlay
 					break;
 				case SPECIAL:
 					drawSpecialAttackBar(g, style, x, y, w, h, border, arc, zoom);
+					break;
+				case RUN:
+					drawRunEnergyBar(g, style, x, y, w, h, border, arc, zoom);
 					break;
 				default:
 					break;
@@ -912,7 +1029,8 @@ class CustomHpBarOverlay extends Overlay
 		// Drawn at the sprite's own natural size (matching how the native client draws it), with
 		// zoom scaling layered on top when Scale With Zoom is on.
 		double zoom = zoomFactor();
-		int[] rect = barRect(anchor, style, zoom);
+		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
+		int[] rect = barRect(anchor, style, zoom, playerBarStack(tracked).size() <= 1);
 		int w = scaled(image.getWidth(), zoom);
 		int h = scaled(image.getHeight(), zoom);
 		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
@@ -1051,7 +1169,7 @@ class CustomHpBarOverlay extends Overlay
 		if (!stack.isEmpty())
 		{
 			// Tucked beneath whatever the stack currently is, however many bars that turns out to be.
-			int[] rect = barRect(anchor, style, zoom);
+			int[] rect = barRect(anchor, style, zoom, stack.size() <= 1);
 			int stackBottom = rect[1] + rect[3] * stack.size();
 			y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
 		}
@@ -1100,7 +1218,34 @@ class CustomHpBarOverlay extends Overlay
 	{
 		int current = plugin.specialAttackEnergy();
 		Color specialColor = config.specialAttackBarColor();
-		drawBarShape(g, style, x, y, w, h, border, arc, current / (double) FULL_SPECIAL_ENERGY, specialColor);
+		drawBarShape(g, style, x, y, w, h, border, arc, current / (double) FULL_PERCENT_ENERGY, specialColor);
+		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
+	}
+
+	/**
+	 * Run energy, also a 0-100 percentage with no separate max - but unlike special attack,
+	 * ItemStatChangesService does have a "Run Energy" Stat (EnergyStat, e.g. Stamina potion), so
+	 * the restore preview the other two bars get is available here too. See hoveredRestoreValue().
+	 *
+	 * Fill color swaps to runEnergyStaminaColor while a Stamina potion's drain-reduction effect is
+	 * active - mirrors core's own run orb, which does the same swap for the same reason (see
+	 * CustomHpBarPlugin.isStaminaActive()). This is separate from the restore preview above: a
+	 * Stamina potion also has an ordinary "Run Energy" heal on drink, so hovering one still shows
+	 * a preview segment same as any other energy-restoring item - this swap is purely about the
+	 * bar's resting color while the buff from having already drunk one is up.
+	 */
+	private void drawRunEnergyBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)
+	{
+		int current = plugin.runEnergy();
+		Color runColor = plugin.isStaminaActive() ? config.runEnergyStaminaColor() : config.runEnergyBarColor();
+		drawBarShape(g, style, x, y, w, h, border, arc, current / (double) FULL_PERCENT_ENERGY, runColor);
+
+		if (config.showRunEnergyRestorePreview())
+		{
+			drawHealPreview(g, x, y, w, h, border, current, FULL_PERCENT_ENERGY, hoveredRestoreValue("Run Energy"),
+				translucent(runColor));
+		}
+
 		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
 	}
 
@@ -1148,7 +1293,11 @@ class CustomHpBarOverlay extends Overlay
 		return new Color(color.getRed(), color.getGreen(), color.getBlue(), PREVIEW_ALPHA);
 	}
 
-	/** Draws one bar's background/fill/border - shared by the HP bar and the prayer bar. */
+	/**
+	 * Draws one bar's background/fill/border - shared by the HP bar and the prayer bar. style.opacity
+	 * scopes to just this shape (not the label drawn separately by the caller), so a faded bar keeps
+	 * readable text.
+	 */
 	private void drawBarShape(Graphics2D g, BarStyle style, int x, int y, int w, int h,
 			int border, int arc, double fraction, Color fillColor)
 	{
@@ -1158,6 +1307,12 @@ class CustomHpBarOverlay extends Overlay
 		fillWidth = Math.max(0, Math.min(fillWidth, innerW));
 
 		RoundRectangle2D outline = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
+
+		Composite previousComposite = g.getComposite();
+		if (style.opacity < 100)
+		{
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, style.opacity / 100f));
+		}
 
 		g.setColor(style.background);
 		g.fill(outline);
@@ -1186,6 +1341,8 @@ class CustomHpBarOverlay extends Overlay
 			g.draw(borderPath);
 			g.setStroke(previousStroke);
 		}
+
+		g.setComposite(previousComposite);
 	}
 
 	/** Vertical gradient from a lightened highlight at the top to the base color at the bottom. */
@@ -1386,6 +1543,8 @@ class CustomHpBarOverlay extends Overlay
 		final Color colorLow;
 		final int midpoint;
 		final Color background;
+		/** 0-100 - the whole bar shape's transparency (background/fill/border), not the label text. See drawBarShape(). */
+		final int opacity;
 		final int verticalOffset;
 		final CustomHpBarConfig.FontFamily fontFamily;
 		final CustomHpBarConfig.FontStyle fontStyle;

@@ -8,9 +8,6 @@ import net.runelite.client.config.Range;
 
 import java.awt.Color;
 import java.awt.Font;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 @ConfigGroup("customhpbar")
 public interface CustomHpBarConfig extends Config
@@ -300,6 +297,20 @@ public interface CustomHpBarConfig extends Config
 	default int targetHpTextSpacing()
 	{
 		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "targetBarOpacity",
+		name = "Bar Opacity",
+		description = "Overall transparency of the bar's background, fill, and border. 100 = fully opaque; " +
+			"the HP text itself is unaffected.",
+		section = TARGET_SECTION,
+		position = 20
+	)
+	@Range(min = 0, max = 100)
+	default int targetBarOpacity()
+	{
+		return 100;
 	}
 
 	// ==================== Target bar NPC info ====================
@@ -819,6 +830,20 @@ public interface CustomHpBarConfig extends Config
 		return 0;
 	}
 
+	@ConfigItem(
+		keyName = "playerBarOpacity",
+		name = "Bar Opacity",
+		description = "Overall transparency of the bar's background, fill, and border, plus the Prayer " +
+			"and special attack bars. 100 = fully opaque.",
+		section = PLAYER_SECTION,
+		position = 23
+	)
+	@Range(min = 0, max = 100)
+	default int playerBarOpacity()
+	{
+		return 100;
+	}
+
 	// ==================== Player bar player info ====================
 
 	@ConfigItem(
@@ -873,24 +898,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "hideSpecialAttackBarWhenFull",
-		name = "Hide Special Attack Bar While Full",
-		description = "Only draws the special attack bar once some energy has been spent. Requires 'Show " +
-			"Special Attack Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 4
-	)
-	default boolean hideSpecialAttackBarWhenFull()
-	{
-		return false;
-	}
-
-	@ConfigItem(
 		keyName = "specialAttackBarColor",
 		name = "Special Attack Bar Color",
 		description = "Fill color of the special attack bar. Requires 'Show Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 5
+		position = 4
 	)
 	default Color specialAttackBarColor()
 	{
@@ -898,16 +910,104 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "barOrder",
-		name = "Bar Order",
-		description = "Order of your HP, Prayer, and special attack bars, top to bottom. Bars that are off " +
-			"are skipped.",
+		keyName = "showRunEnergyBar",
+		name = "Show Run Energy Bar",
+		description = "Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows " +
+			"regardless of combat state. Requires 'Show for Self'.",
+		section = PLAYER_INFO_SECTION,
+		position = 5
+	)
+	default boolean showRunEnergyBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "runEnergyBarTimeout",
+		name = "Run Energy Bar Timeout (seconds)",
+		description = "Hides the run energy bar this many seconds after you last actively ran (regen and " +
+			"item restores don't count). 0 = never time out. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
 		position = 6
 	)
-	default BarOrder barOrder()
+	@Range(min = 0, max = 300)
+	default int runEnergyBarTimeout()
 	{
-		return BarOrder.HP_PRAYER_SPECIAL;
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "runEnergyBarColor",
+		name = "Run Energy Bar Color",
+		description = "Fill color of the run energy bar. Requires 'Show Run Energy Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 7
+	)
+	default Color runEnergyBarColor()
+	{
+		return new Color(199, 174, 0);
+	}
+
+	@ConfigItem(
+		keyName = "runEnergyStaminaColor",
+		name = "Run Energy Bar Color (Stamina Active)",
+		description = "Fill color of the run energy bar while a Stamina potion's drain-reduction effect " +
+			"is active. Requires 'Show Run Energy Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 8
+	)
+	default Color runEnergyStaminaColor()
+	{
+		return new Color(160, 124, 72);
+	}
+
+	@ConfigItem(
+		keyName = "barPosition1",
+		name = "Bar 1 (Top)",
+		description = "Which bar is drawn first (topmost) in your stack. If a bar is picked in more than " +
+			"one position, only its topmost pick is shown.",
+		section = PLAYER_INFO_SECTION,
+		position = 9
+	)
+	default BarKind barPosition1()
+	{
+		return BarKind.HP;
+	}
+
+	@ConfigItem(
+		keyName = "barPosition2",
+		name = "Bar 2",
+		description = "Which bar is drawn second in your stack. See 'Bar 1 (Top)'.",
+		section = PLAYER_INFO_SECTION,
+		position = 10
+	)
+	default BarKind barPosition2()
+	{
+		return BarKind.PRAYER;
+	}
+
+	@ConfigItem(
+		keyName = "barPosition3",
+		name = "Bar 3",
+		description = "Which bar is drawn third in your stack. See 'Bar 1 (Top)'.",
+		section = PLAYER_INFO_SECTION,
+		position = 11
+	)
+	default BarKind barPosition3()
+	{
+		return BarKind.SPECIAL;
+	}
+
+	@ConfigItem(
+		keyName = "barPosition4",
+		name = "Bar 4 (Bottom)",
+		description = "Which bar is drawn fourth (bottommost) in your stack. See 'Bar 1 (Top)'.",
+		section = PLAYER_INFO_SECTION,
+		position = 12
+	)
+	default BarKind barPosition4()
+	{
+		return BarKind.RUN;
 	}
 
 	@ConfigItem(
@@ -915,7 +1015,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color By Status Effect",
 		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 7
+		position = 13
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -928,7 +1028,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
 			"bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 8
+		position = 14
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -941,7 +1041,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 9
+		position = 15
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -955,7 +1055,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 10
+		position = 16
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -968,9 +1068,22 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 11
+		position = 17
 	)
 	default boolean showPrayerRestorePreview()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showRunEnergyRestorePreview",
+		name = "Show Run Energy Restore Preview",
+		description = "Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra " +
+			"bar segment. Requires 'Show Run Energy Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 18
+	)
+	default boolean showRunEnergyRestorePreview()
 	{
 		return true;
 	}
@@ -981,7 +1094,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 12
+		position = 19
 	)
 	default boolean replaceOverheadIcon()
 	{
@@ -1101,12 +1214,17 @@ public interface CustomHpBarConfig extends Config
 		}
 	}
 
-	/** One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP. */
+	/**
+	 * One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP.
+	 * Picked per position by the four barPositionN dropdowns above; see CustomHpBarOverlay's
+	 * playerBarStack() for how duplicate/missing picks are resolved.
+	 */
 	enum BarKind
 	{
 		HP("HP"),
 		PRAYER("Prayer"),
-		SPECIAL("Special");
+		SPECIAL("Special"),
+		RUN("Run Energy");
 
 		private final String label;
 
@@ -1122,35 +1240,4 @@ public interface CustomHpBarConfig extends Config
 		}
 	}
 
-	/**
-	 * Every permutation of the three bars, top to bottom. Enumerated rather than offered as three
-	 * independent "which bar goes here" dropdowns so a duplicate or missing bar can't be selected.
-	 */
-	enum BarOrder
-	{
-		HP_PRAYER_SPECIAL(BarKind.HP, BarKind.PRAYER, BarKind.SPECIAL),
-		HP_SPECIAL_PRAYER(BarKind.HP, BarKind.SPECIAL, BarKind.PRAYER),
-		PRAYER_HP_SPECIAL(BarKind.PRAYER, BarKind.HP, BarKind.SPECIAL),
-		PRAYER_SPECIAL_HP(BarKind.PRAYER, BarKind.SPECIAL, BarKind.HP),
-		SPECIAL_HP_PRAYER(BarKind.SPECIAL, BarKind.HP, BarKind.PRAYER),
-		SPECIAL_PRAYER_HP(BarKind.SPECIAL, BarKind.PRAYER, BarKind.HP);
-
-		private final List<BarKind> kinds;
-
-		BarOrder(BarKind... kinds)
-		{
-			this.kinds = Collections.unmodifiableList(Arrays.asList(kinds));
-		}
-
-		List<BarKind> getKinds()
-		{
-			return kinds;
-		}
-
-		@Override
-		public String toString()
-		{
-			return kinds.get(0) + ", " + kinds.get(1) + ", " + kinds.get(2);
-		}
-	}
 }

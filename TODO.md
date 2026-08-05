@@ -11,28 +11,10 @@ core's `npcunaggroarea` plugin.
 region-to-path mapping are in `CLAUDE.md` ("ToA minion HP") - ready to implement whenever an exact
 number (not percent) is wanted, but not a bug on its own.
 
-**3. FIXED (needs in-game re-test): no-attack-option destructible NPCs never got a bar with
-"hide native health bar" enabled** - reported on ToB Verzik's Supporting Pillars, confirmed the
-same mechanism also affects The Whisperer's Floating Columns. Root cause and fix are in
-`CLAUDE.md` ("no-attack-option NPCs never get tracked").
-
-**4. TABLED - Duke Sucellus's Fermentation Vat "bar" disappears with `hideNativeBar` on, but
-this is a different bug from 3, not the same one.** The vat (wiki: `Fermentation_Vat`) is
-**scenery, not an NPC** - object IDs `47536`/`47537` (empty/brewing) plus per-poison-combo states
-`47538`-`47543`, no NPC ID, no Attack option, no hitpoints anywhere on the wiki. So this can't be
-a tracking-discovery bug (fix 3 doesn't apply - there's no Actor to track). User confirmed in-game
-it's a fill/progress indicator, not real HP, and confirmed toggling `hideNativeBar` off makes it
-reappear. Leading theory: it reuses one of the generic `Standard*` sprite IDs already in
-`NativeHealthBarSprites.ALL` (a small reused texture set, not unique per-boss), so the client-wide
-sprite-transparent override catches it as collateral damage - `Client.getSpriteOverrides()` has no
-per-actor/per-object scoping, so there may be no way to hide combat bars but keep this one without
-knowing whether that exact ID is safe to exclude (unshared with any real boss bar) or not (shared,
-so excluding it would also un-hide a real native bar somewhere). Checked `SpriteID.java` and
-`ObjectID.java` from the cached `runelite-api-1.12.32-sources.jar` for anything vat/ferment/duke-
-named - nothing; the object IDs aren't even mapped to friendly names in this runelite-api version,
-so this is a dead end for static analysis. **Needs a live sprite-ID capture at the vat** (RuneLite
-Developer Tools' widget inspector, or a one-off debug build that tints `NativeHealthBarSprites.ALL`
-instead of hiding it) before any fix can be attempted - tabled until that's done.
+**3. TABLED - Duke Sucellus's Fermentation Vat "bar" disappears with `hideNativeBar` on.** It's
+scenery, not an NPC - no Actor to track, so the no-attack-option NPC fix above doesn't apply.
+Needs a live sprite-ID capture at the vat before any fix can be attempted. Full investigation in
+`CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat...").
 
 ## Ideas
 
@@ -49,13 +31,3 @@ ideas, but needs a per-NPC threshold table with the same maintenance problem as 
 **4. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
 are the obvious case) because the anchor point moves with the model each frame. Look at smoothing
 or snapping the canvas position rather than following the raw per-frame value.
-
-**5. Opacity slider for health bars** - a transparency config option, likely per-profile (target/
-player) like the rest of the appearance settings.
-
-**6. Vertical run energy bar**, left or right side of the screen, sized/positioned relative to
-however many bars are currently stacked (or just user-adjustable) - similar in spirit to the
-existing Prayer/Special bars but standalone rather than part of the player's stack.
-
-**7. Force the player's own health bar to always render above any NPC bars** - a z-order/priority
-fix so it doesn't get visually buried when standing near/inside other actors' bars.
