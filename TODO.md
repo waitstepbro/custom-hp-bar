@@ -6,9 +6,28 @@
 vicinity. Compare `updateAggressionArea()`/`isNpcAggressive()` (`CustomHpBarPlugin.java`) against
 core's `npcunaggroarea` plugin.
 
-**2. ToA minions show percent, not a number.** `resolveNpcMaxHp()` returns `-1` because HP scales by
-raid level, path level *and* party size. Verified formula and region-to-path mapping are in
-`CLAUDE.md` ("ToA minion HP") - just needs implementing.
+**2. FIXED, confirmed in-game: ToA minions (baboons, scarabs, Akkha's Shadows) showed a real
+number instead of percent.** Not the raid-level/path-level/party-size formula below - that's still
+unimplemented and intentionally so. The `nativeHudHp()`/`TOA_BOSS_NPC_IDS` code that was supposed
+to fix this was already correct, but sat dead the whole time behind the `isInsideToa()` bug fixed
+in 2c below - once that was fixed, this started working with no further changes. Full reasoning in
+`CLAUDE.md` ("FIXED: some ToA minions still showed a number").
+
+**2b. Exact ToA minion HP (raid level x path level x party size) is not implemented.**
+`resolveNpcMaxHp()` returns `-1` for every non-boss ToA NPC on purpose. Verified formula and
+region-to-path mapping are in `CLAUDE.md` ("ToA minion HP") - ready to implement whenever an exact
+number (not percent) is wanted, but not a bug on its own.
+
+**2c. FIXED, confirmed in-game: grey bars appearing on ToA minions (reported: volatile baboon
+explosions in the Path of Apmeken challenge room; also reported at Wardens P3 skulls).** Root cause
+was **not** loot-taint logic malfunctioning - it was `isInsideToa()`/`isCommunalLootEncounter()`
+reading the player's region via `Actor.getWorldLocation().getRegionID()` directly, which inside any
+instanced content returns a raw instance-chunk number (observed: `43521`, `53505`, `54273` in the
+same raid) instead of the real static region ID (`14160`, `15186`, etc.) - so it never matched
+`TOA_REGION_IDS`/`TOB_REGION_IDS` and the entire "you're in a communal-loot raid, never grey this
+out" exemption was silently dead code in every real raid, ToA and ToB alike. Also explains 2 above
+for the same reason. Fix, full debugging trail, and why CoX was never affected (it checks a varbit,
+not a region) are in `CLAUDE.md` ("FIXED: grey bars on ToA/ToB bosses").
 
 **3. FIXED (needs in-game re-test): no-attack-option destructible NPCs never got a bar with
 "hide native health bar" enabled** - reported on ToB Verzik's Supporting Pillars, confirmed the
