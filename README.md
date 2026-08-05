@@ -48,11 +48,8 @@ tracking, and status-effect debuffs.
   configurable period of not running.
 - **Bar order** — four independent pickers choose which bar (HP, Prayer, Special Attack, or Run
   Energy) goes in each of the four stack positions.
-- **Food heal preview** — hovering food or a potion extends your bar with a preview of where HP
-  would land.
-- **Prayer restore preview** — the same for your Prayer bar, when hovering a Prayer-restoring item.
-- **Run energy restore preview** — the same for your run energy bar, when hovering a Stamina potion
-  or other run-restoring item.
+- **Restore previews** — hovering a food/potion, Prayer-restoring item, or Stamina potion extends
+  the matching HP, Prayer, or Run Energy bar with a preview of where it'll land.
 - **Replaced overhead icon** — optionally redraws your overhead prayer icon, hitsplats, and chat
   text above your HP bar.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
