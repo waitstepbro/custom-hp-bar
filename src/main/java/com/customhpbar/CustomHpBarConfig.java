@@ -1214,11 +1214,7 @@ public interface CustomHpBarConfig extends Config
 		}
 	}
 
-	/**
-	 * One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP.
-	 * Picked per position by the four barPositionN dropdowns above; see CustomHpBarOverlay's
-	 * playerBarStack() for how duplicate/missing picks are resolved.
-	 */
+	/** One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP. See CustomHpBarOverlay.playerBarStack(). */
 	enum BarKind
 	{
 		HP("HP"),

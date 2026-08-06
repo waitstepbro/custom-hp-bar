@@ -2,10 +2,6 @@
 
 ## Bugs
 
-**1. Aggression timer colors all hostile NPCs yellow on expiry**, not just ones in the current
-vicinity. Compare `updateAggressionArea()`/`isNpcAggressive()` (`CustomHpBarPlugin.java`) against
-core's `npcunaggroarea` plugin.
-
 **2. Exact ToA minion HP (raid level x path level x party size) is not implemented.**
 `resolveNpcMaxHp()` returns `-1` for every non-boss ToA NPC on purpose. Verified formula and
 region-to-path mapping are in `CLAUDE.md` ("ToA minion HP") - ready to implement whenever an exact
