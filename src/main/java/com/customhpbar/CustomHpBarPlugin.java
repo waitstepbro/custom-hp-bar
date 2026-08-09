@@ -456,6 +456,13 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			otherPlayerDamaged.add((NPC) actor);
 		}
+
+		// Hide the bar the instant the killing blow lands, rather than waiting out
+		// persistTicks()/the death animation - see isConfirmedDeadNpc().
+		if (isConfirmedDeadNpc(actor))
+		{
+			evict(actor);
+		}
 	}
 
 	/**
@@ -603,6 +610,14 @@ public class CustomHpBarPlugin extends Plugin
 				return;
 			}
 
+			// Safety net for onHitsplatApplied's same check - covers ratio reaching 0 without a
+			// hitsplat landing that tick (e.g. a DOT tick already folded into the ratio read).
+			if (isConfirmedDeadNpc(actor))
+			{
+				evict(actor);
+				return;
+			}
+
 			if (isInCombat(actor))
 			{
 				track(actor, currentTick);
@@ -650,6 +665,18 @@ public class CustomHpBarPlugin extends Plugin
 	private boolean isInCombat(Actor actor)
 	{
 		return actor.getHealthRatio() != -1;
+	}
+
+	/**
+	 * True once an NPC is confirmed dead (0 HP) - its bar should vanish immediately, not after
+	 * persistTicks(), and not after the death animation. Ratio 0 unambiguously means dead in
+	 * OSRS's ratio/scale scheme, but the animation keeps reporting it for several more ticks
+	 * before the NPC actually despawns - persist duration is for actors that are still alive
+	 * but out of combat, not for this. NPC-only: see CLAUDE.md.
+	 */
+	static boolean isConfirmedDeadNpc(Actor actor)
+	{
+		return actor instanceof NPC && actor.getHealthRatio() == 0;
 	}
 
 	@Subscribe
@@ -1271,8 +1298,12 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			// Tracking exists to drive bars, so it takes the stricter attackable test - talking to a
 			// guard makes it interact with you, which would otherwise track it via onGameTick.
+			// isConfirmedDeadNpc excluded here too - a corpse mid-death-animation still has an Attack
+			// option (hasAttackOption doesn't know it just died), so without this the onGameTick
+			// discovery loops below re-track it the moment isConfirmedDeadNpc's evict() removes it,
+			// since getInteracting() == localPlayer is still true for several more ticks. See CLAUDE.md.
 			NPC npc = (NPC) actor;
-			return isTrackedNpc(npc) && isAttackableNpc(npc);
+			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isConfirmedDeadNpc(npc);
 		}
 		if (!(actor instanceof Player))
 		{
