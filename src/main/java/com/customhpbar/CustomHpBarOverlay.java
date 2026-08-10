@@ -93,6 +93,9 @@ class CustomHpBarOverlay extends Overlay
 	/** Full value for a 0-100 percentage bar with no separate max - special attack and run energy both work this way. */
 	private static final int FULL_PERCENT_ENERGY = 100;
 
+	/** Width in pixels of the Prayer bar's sweeping tick-timer indicator, before zoom scaling. */
+	private static final int PRAYER_TICK_TIMER_WIDTH = 2;
+
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
 
@@ -873,14 +876,19 @@ class CustomHpBarOverlay extends Overlay
 		return config.showSpecialAttackBar();
 	}
 
-	/** Whether the run energy bar is part of your stack - follows the HP bar's lifecycle while tracked, its own drain timeout (or alwaysShowRunBar) once untracked. */
-	private boolean runBarAttached(boolean tracked)
+	/**
+	 * Whether the run energy bar is part of your stack right now - its own drain timeout (or
+	 * alwaysShowRunBar), never combat tracked state. Deliberately independent of `tracked`,
+	 * unlike Prayer/Special/HP - see showRunEnergyBar()'s own description ("shows regardless of
+	 * combat state") and CLAUDE.md, "Run bar tied to the combat timer".
+	 */
+	private boolean runBarAttached()
 	{
 		if (!config.showRunEnergyBar())
 		{
 			return false;
 		}
-		return tracked || config.alwaysShowRunBar() || !plugin.isRunEnergyBarTimedOut();
+		return config.alwaysShowRunBar() || !plugin.isRunEnergyBarTimedOut();
 	}
 
 	/**
@@ -919,7 +927,7 @@ class CustomHpBarOverlay extends Overlay
 					visible = specialBarAttached() && (tracked || config.alwaysShowSpecialBar());
 					break;
 				case RUN:
-					visible = runBarAttached(tracked);
+					visible = runBarAttached();
 					break;
 				case HP:
 				default:
@@ -1164,6 +1172,42 @@ class CustomHpBarOverlay extends Overlay
 		Color prayerColor = config.prayerBarColor();
 		int restoreValue = config.showPrayerRestorePreview() ? hoveredRestoreValue(Skill.PRAYER) : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor, restoreValue);
+
+		if (config.showPrayerTickTimer() && (!config.hidePrayerTickTimerWhenInactive() || plugin.isPrayerActive()))
+		{
+			drawPrayerTickTimer(g, x, y, w, h, border, zoom);
+		}
+	}
+
+	/**
+	 * Thin indicator that sweeps left-to-right across the Prayer bar's fill area once per game
+	 * tick, snapping back to the left edge at the start of the next tick - a visual reference
+	 * for timing prayer flicks against the real tick boundary. Drawn last, on top of the fill/
+	 * preview/label - the sweep itself is the point, so it should never be occluded.
+	 */
+	private void drawPrayerTickTimer(Graphics2D g, int x, int y, int w, int h, int border, double zoom)
+	{
+		int innerW = Math.max(0, w - border * 2);
+		int innerH = Math.max(0, h - border * 2);
+		if (innerW <= 0 || innerH <= 0)
+		{
+			return;
+		}
+
+		// -cos(t)*travel/2 + travel/2, t in [0, PI): matches core's own PrayerBarOverlay/
+		// PrayerFlickOverlay flick-indicator formula exactly (see CustomHpBarPlugin.tickProgress()'s
+		// doc) - an eased sweep, slower at each edge and faster through the middle, not constant
+		// velocity. `travel` (innerW minus our line's own width) stands in for their raw
+		// halfBarWidth/orbInnerWidth, the same adaptation their own HD-bar variant makes to keep
+		// the line inside its padding - so ours stays inside the border the same way.
+		int lineWidth = Math.min(innerW, Math.max(1, scaled(PRAYER_TICK_TIMER_WIDTH, zoom)));
+		int travel = innerW - lineWidth;
+		double t = plugin.tickProgress();
+		int xOffset = (int) (-Math.cos(t) * travel / 2.0) + travel / 2;
+		int lineX = x + border + xOffset;
+
+		g.setColor(config.prayerTickTimerColor());
+		g.fillRect(lineX, y + border, lineWidth, innerH);
 	}
 
 	/** Fills+labels a simple current/max bar (Prayer/Special/Run) - the shape/[preview]/label sequence all three share. restoreValue < 0 skips the preview. */
