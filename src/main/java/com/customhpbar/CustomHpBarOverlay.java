@@ -617,23 +617,20 @@ class CustomHpBarOverlay extends Overlay
 			config.targetTextAlignment());
 	}
 
-	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
-	private int[] barRect(Point anchor, BarStyle style, double zoom)
-	{
-		return barRect(anchor, style, zoom, false);
-	}
-
 	/**
-	 * As above, but ignoreOffset skips the configured vertical offset. Used only by
-	 * drawPlayerNameOnly() when that player's bar isn't actually showing (see its own doc) - not
-	 * the same "solo bar" case CLAUDE.md's "Solo player bar offset" section describes and reverted;
-	 * this is scoped to name-without-a-bar specifically, not bar count.
+	 * The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly()/
+	 * drawPlayerNameOnly() (and the overhead icon/chat-text positioning that keys off them) so
+	 * labels don't jump between them. verticalOffset always applies, bar showing or not - a
+	 * former `ignoreOffset` overload used to skip it for a nameless other player, but that made
+	 * otherPlayerVerticalOffset silently do nothing to a lone name; removed in favor of applying
+	 * it unconditionally, matching how targetVerticalOffset already worked for NPC names. See
+	 * CLAUDE.md, "Other player vertical offset needs to affect the name as well".
 	 */
-	private int[] barRect(Point anchor, BarStyle style, double zoom, boolean ignoreOffset)
+	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
 		int w = scaled(style.width, zoom);
 		int h = scaled(style.height, zoom);
-		int vOffset = ignoreOffset ? 0 : scaled(style.verticalOffset, zoom);
+		int vOffset = scaled(style.verticalOffset, zoom);
 		int x = anchor.getX() - w / 2;
 		int y = anchor.getY() - h / 2 - vOffset;
 		return new int[]{x, y, w, h};
@@ -907,14 +904,12 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		// verticalOffset positions the bar; skip it when this player has no bar actually showing
-		// (the "Always Show Player Name" pass covers players with no bar too) so a lone name sits
-		// at its natural anchor position instead of inheriting a shift meant for a bar that isn't
-		// there. Applied normally once a bar is genuinely showing (tracked, or untracked via
-		// alwaysShowPlayerBar) - drawBar()'s own call site only ever reaches here for such a
-		// player, so this is never wrong for that path either.
-		boolean barShowing = otherPlayerBarShowing(player);
-		int[] rect = barRect(anchor, style, zoom, !barShowing);
+		// otherPlayerVerticalOffset always applies, bar showing or not - matches drawNpcNameOnly()
+		// (NPC names always get targetVerticalOffset the same way). A lone name (no bar, e.g.
+		// "Always Show Player Name" with the bar off) still moves with the offset, so it's not
+		// stuck at a fixed position independent of the setting - see CLAUDE.md, "Other player
+		// vertical offset needs to affect the name as well".
+		int[] rect = barRect(anchor, style, zoom);
 		int x = rect[0];
 		int y = rect[1];
 		int w = rect[2];
@@ -925,10 +920,10 @@ class CustomHpBarOverlay extends Overlay
 
 	/**
 	 * Whether other player has an HP bar actually showing right now - either combat-tracked, or
-	 * unconditionally via alwaysShowPlayerBar. Feeds every place that needs to tell an untracked
-	 * player with a real bar apart from a bare anchor with nothing drawn (name offset, overhead
-	 * icon offset, chat text position). Self is never a caller - the local player's own bar/stack
-	 * decision is playerBarStack(), keyed off real tracked state, not this.
+	 * unconditionally via alwaysShowPlayerBar. Only remaining caller is drawOverheadChatText()'s
+	 * stack-height lookup (whether to leave room for the HP row above the chat text) - verticalOffset
+	 * itself no longer depends on this, see barRect()'s own doc. Self is never a caller - the local
+	 * player's own bar/stack decision is playerBarStack(), keyed off real tracked state, not this.
 	 */
 	private boolean otherPlayerBarShowing(Player player)
 	{
@@ -975,13 +970,15 @@ class CustomHpBarOverlay extends Overlay
 	{
 		double zoom = zoomFactor();
 
-		// Only the local player stacks; every other actor is a lone HP bar at the anchor. Real
-		// tracked state, not assumed true - this now also gets called for an untracked player via
-		// alwaysShowHpBar (see render()), where a hardcoded true would wrongly let e.g. Special
-		// into the stack even though it requires tracked itself.
+		// Real tracked state, not assumed true - this also gets called for an untracked actor via
+		// alwaysShowNpcBar/alwaysShowPlayerBar/alwaysShowHpBar (see render()'s "Always Show" passes),
+		// where a hardcoded true would wrongly let e.g. Special into self's stack even though it
+		// requires tracked itself, and would wrongly let the name branch below draw a name for an
+		// NPC/player that's only being shown via its "always show bar" toggle, not "always show
+		// name" - see that branch's own comment.
 		boolean self = actor == client.getLocalPlayer();
-		boolean tracked = self && plugin.getTrackedActors().containsKey(actor);
-		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(tracked) : null;
+		boolean trackedNow = plugin.getTrackedActors().containsKey(actor);
+		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(trackedNow) : null;
 
 		int[] rect = barRect(anchor, style, zoom);
 		int x = rect[0];
@@ -1050,13 +1047,19 @@ class CustomHpBarOverlay extends Overlay
 			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
 		}
 
-		// When "Always Show" is on, the dedicated pass in render() is the sole name source -
-		// drawing it here too would just be redundant work, not wrong.
-		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName())
+		// When "Always Show Name" is on, the dedicated pass in render() is the sole name source -
+		// drawing it here too would just be redundant work, not wrong. trackedNow is the other half:
+		// without it, an actor reached here only because its "always show bar" toggle is on (not its
+		// name one) - e.g. alwaysShowNpcBar/alwaysShowPlayerBar with the matching name toggle off -
+		// would still get its name drawn inline below, since showNpcName()/showPlayerName() and
+		// !alwaysShowNpcName()/!alwaysShowPlayerName() are both satisfied regardless of tracked
+		// state. That made "Always Show NPC/Player Name" appear to do nothing whenever the bar's own
+		// always-show toggle was on - the name showed unconditionally either way. See CLAUDE.md.
+		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName() && trackedNow)
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
 		}
-		else if (actor instanceof Player && !self && config.showPlayerName() && !config.alwaysShowPlayerName())
+		else if (actor instanceof Player && !self && config.showPlayerName() && !config.alwaysShowPlayerName() && trackedNow)
 		{
 			drawPlayerNameOnly(g, (Player) actor, anchor, style, zoom);
 		}
@@ -1414,13 +1417,10 @@ class CustomHpBarOverlay extends Overlay
 		// Drawn at the sprite's own natural size (matching how the native client draws it), with
 		// zoom scaling layered on top when Scale With Zoom is on.
 		double zoom = zoomFactor();
-		// Matches drawPlayerNameOnly()'s own ignoreOffset resolution - another player with no bar
-		// actually showing (untracked, and not covered by alwaysShowPlayerBar) shouldn't apply
-		// verticalOffset (meant to nudge a real bar), or the icon would drift away from the name
-		// it's meant to sit above. Self is unaffected (always false, same as before this method
-		// took other players).
-		boolean ignoreOffset = player != client.getLocalPlayer() && !otherPlayerBarShowing(player);
-		int[] rect = barRect(anchor, style, zoom, ignoreOffset);
+		// verticalOffset always applies now, same as drawPlayerNameOnly() - see its own comment.
+		// Keeps the icon anchored to the name/bar row above it (via nameClearance below) whether or
+		// not that row itself moved with the offset.
+		int[] rect = barRect(anchor, style, zoom);
 		int w = scaled(image.getWidth(), zoom);
 		int h = scaled(image.getHeight(), zoom);
 		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
@@ -1576,8 +1576,9 @@ class CustomHpBarOverlay extends Overlay
 		List<CustomHpBarConfig.BarKind> stack = self
 			? playerBarStack(tracked)
 			: (otherBarShowing ? Collections.singletonList(CustomHpBarConfig.BarKind.HP) : Collections.emptyList());
-		// Same ignoreOffset resolution as drawOverheadIcon() - see its own comment.
-		int[] rect = barRect(anchor, style, zoom, !self && !otherBarShowing);
+		// verticalOffset always applies now, same as drawPlayerNameOnly()/drawOverheadIcon() - see
+		// drawPlayerNameOnly()'s own comment.
+		int[] rect = barRect(anchor, style, zoom);
 		int stackBottom = rect[1] + rect[3] * stack.size();
 		int y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
 

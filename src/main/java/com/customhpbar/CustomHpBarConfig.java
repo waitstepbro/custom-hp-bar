@@ -15,14 +15,16 @@ public interface CustomHpBarConfig extends Config
 	@ConfigSection(
 		name = "Target Bar — Style",
 		description = "Size, shape, color, and text settings for the bar drawn over NPCs",
-		position = 0
+		position = 0,
+		closedByDefault = true
 	)
 	String TARGET_SECTION = "target";
 
 	@ConfigSection(
 		name = "Target Bar — NPC Info",
 		description = "NPC names, aggression, status effects, and which NPCs get a bar",
-		position = 1
+		position = 1,
+		closedByDefault = true
 	)
 	String TARGET_NPC_SECTION = "targetNpc";
 
@@ -31,14 +33,16 @@ public interface CustomHpBarConfig extends Config
 		description = "Whether to show your own bar; its size/shape/border/text settings, shared with " +
 			"other players; and its own fill/gradient/background color, opacity, and vertical offset - " +
 			"other players use independent versions of those in Other Player Bar — Style",
-		position = 2
+		position = 2,
+		closedByDefault = true
 	)
 	String PLAYER_SECTION = "player";
 
 	@ConfigSection(
 		name = "Player Bar — Player Info",
 		description = "Prayer bar, status effects, restore previews, and the overhead icon",
-		position = 3
+		position = 3,
+		closedByDefault = true
 	)
 	String PLAYER_INFO_SECTION = "playerInfo";
 
@@ -46,21 +50,24 @@ public interface CustomHpBarConfig extends Config
 		name = "Other Player Bar — Style",
 		description = "Whether to show other players' bars, and the fill/gradient/background color, " +
 			"opacity, and vertical offset settings independent of your own",
-		position = 4
+		position = 4,
+		closedByDefault = true
 	)
 	String OTHER_PLAYER_SECTION = "otherPlayer";
 
 	@ConfigSection(
 		name = "Other Player Bar — Info",
 		description = "Names and same-tile stacking behavior specific to other players' bars",
-		position = 5
+		position = 5,
+		closedByDefault = true
 	)
 	String OTHER_PLAYER_INFO_SECTION = "otherPlayerInfo";
 
 	@ConfigSection(
 		name = "Behavior",
 		description = "Settings shared by both bar types",
-		position = 6
+		position = 6,
+		closedByDefault = true
 	)
 	String BEHAVIOR_SECTION = "behavior";
 
