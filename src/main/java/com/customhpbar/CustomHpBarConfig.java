@@ -605,11 +605,48 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showPlayerName",
+		name = "Show Player Name",
+		description = "Draws a name label above other players' bars. Requires 'Show for Other Players'.",
+		section = PLAYER_SECTION,
+		position = 4
+	)
+	default boolean showPlayerName()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowPlayerName",
+		name = "Always Show Player Name",
+		description = "Shows the name at all times, not just when the bar is tracked. Requires 'Show Player " +
+			"Name'.",
+		section = PLAYER_SECTION,
+		position = 5
+	)
+	default boolean alwaysShowPlayerName()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "playerNameColor",
+		name = "Player Name Color",
+		description = "Color of the player name text, separate from the HP number's color.",
+		section = PLAYER_SECTION,
+		position = 6
+	)
+	default Color playerNameColor()
+	{
+		return Color.WHITE;
+	}
+
+	@ConfigItem(
 		keyName = "playerBarWidth",
 		name = "Bar Width",
 		description = "Width of the bar in pixels",
 		section = PLAYER_SECTION,
-		position = 4
+		position = 7
 	)
 	@Range(min = 20, max = 200)
 	default int playerBarWidth()
@@ -622,7 +659,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar Height",
 		description = "Height of the bar in pixels",
 		section = PLAYER_SECTION,
-		position = 5
+		position = 8
 	)
 	@Range(min = 4, max = 30)
 	default int playerBarHeight()
@@ -635,7 +672,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Corner Radius",
 		description = "Rounds the corners of the bar. 0 = sharp corners.",
 		section = PLAYER_SECTION,
-		position = 6
+		position = 9
 	)
 	@Range(min = 0, max = 12)
 	default int playerCornerRadius()
@@ -648,7 +685,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Border Width",
 		description = "Thickness of the bar's outline in pixels. 0 = no border.",
 		section = PLAYER_SECTION,
-		position = 7
+		position = 10
 	)
 	@Range(min = 0, max = 4)
 	default int playerBorderWidth()
@@ -661,7 +698,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Border Color",
 		description = "Color of the bar's outline",
 		section = PLAYER_SECTION,
-		position = 8
+		position = 11
 	)
 	default Color playerBorderColor()
 	{
@@ -673,7 +710,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar Color",
 		description = "Fill color of the bar, and the full-HP color when HP Color Gradient is on.",
 		section = PLAYER_SECTION,
-		position = 9
+		position = 12
 	)
 	default Color playerBarColor()
 	{
@@ -685,7 +722,7 @@ public interface CustomHpBarConfig extends Config
 		name = "HP Color Gradient",
 		description = "Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels.",
 		section = PLAYER_SECTION,
-		position = 10
+		position = 13
 	)
 	default boolean playerHpColorGradient()
 	{
@@ -697,7 +734,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Mid HP Color",
 		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient.",
 		section = PLAYER_SECTION,
-		position = 11
+		position = 14
 	)
 	default Color playerColorMid()
 	{
@@ -709,7 +746,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Midpoint",
 		description = "HP percentage at which the bar is exactly Mid HP Color.",
 		section = PLAYER_SECTION,
-		position = 12
+		position = 15
 	)
 	@Range(min = 1, max = 99)
 	default int playerMidpoint()
@@ -722,7 +759,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Low HP Color",
 		description = "Color reached at 0% HP. Requires HP Color Gradient.",
 		section = PLAYER_SECTION,
-		position = 13
+		position = 16
 	)
 	default Color playerColorLow()
 	{
@@ -734,7 +771,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Background Color",
 		description = "Color of the empty portion of the bar",
 		section = PLAYER_SECTION,
-		position = 14
+		position = 17
 	)
 	default Color playerBarBackground()
 	{
@@ -746,7 +783,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Vertical Offset",
 		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = PLAYER_SECTION,
-		position = 15
+		position = 18
 	)
 	@Range(min = -50, max = 100)
 	default int playerVerticalOffset()
@@ -759,7 +796,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font",
 		description = "Typeface for the HP text.",
 		section = PLAYER_SECTION,
-		position = 16
+		position = 19
 	)
 	default FontFamily playerFontFamily()
 	{
@@ -771,7 +808,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Style",
 		description = "Applied on top of the chosen font.",
 		section = PLAYER_SECTION,
-		position = 17
+		position = 20
 	)
 	default FontStyle playerFontStyle()
 	{
@@ -783,7 +820,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Size",
 		description = "Size of the HP number text.",
 		section = PLAYER_SECTION,
-		position = 18
+		position = 21
 	)
 	@Range(min = 6, max = 20)
 	default int playerFontSize()
@@ -796,7 +833,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Color",
 		description = "Color of the HP number",
 		section = PLAYER_SECTION,
-		position = 19
+		position = 22
 	)
 	default Color playerTextColor()
 	{
@@ -808,7 +845,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Outline",
 		description = "Full outline around the text for readability at small sizes.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 23
 	)
 	default boolean playerTextOutline()
 	{
@@ -820,7 +857,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Vertical Nudge",
 		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 24
 	)
 	@Range(min = -10, max = 10)
 	default int playerTextVerticalNudge()
@@ -833,7 +870,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Alignment",
 		description = "Where each bar's number sits horizontally within it - HP, Prayer, Special, and Run.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 25
 	)
 	default TextAlignment playerTextAlignment()
 	{
@@ -846,7 +883,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
 			"Display Mode of 'Both'.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 26
 	)
 	@Range(min = 0, max = 200)
 	default int playerHpTextSpacing()
@@ -860,7 +897,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Overall transparency of the bar's background, fill, and border, plus the Prayer " +
 			"and special attack bars. 100 = fully opaque.",
 		section = PLAYER_SECTION,
-		position = 24
+		position = 27
 	)
 	@Range(min = 0, max = 100)
 	default int playerBarOpacity()

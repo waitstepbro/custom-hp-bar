@@ -350,6 +350,40 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
+		// "Always Show Player Name" - same "regardless of tracked state" idea as the NPC pass
+		// above, player-only (there's no equivalent always-show player bar). Separate loop since
+		// Player/NPC share no common iterable and the local player is never a candidate.
+		if (config.showForPlayers() && config.showPlayerName() && config.alwaysShowPlayerName())
+		{
+			double zoom = zoomFactor();
+			for (Player other : client.getTopLevelWorldView().players())
+			{
+				if (other == null || other == localPlayer || !isDisplayableName(other.getName()))
+				{
+					continue;
+				}
+
+				Point anchor = actorAnchor(other);
+				if (anchor == null)
+				{
+					continue;
+				}
+
+				playerStyle = playerStyle != null ? playerStyle : resolveStyle(other);
+
+				// Non-null once the main loop above already drew this player - reuse its shift
+				// rather than claiming a second slot for the same actor.
+				Integer applied = appliedStacks.get(other);
+				int shift = applied != null ? applied : claimNameStackSlot(tileStacks, other, playerStyle, zoom);
+				if (shift > 0)
+				{
+					anchor = new Point(anchor.getX(), anchor.getY() - shift);
+				}
+
+				drawPlayerNameOnly(g, other, anchor, playerStyle, zoom);
+			}
+		}
+
 		// Deferred from above so it paints over every NPC bar/name already drawn this frame.
 		if (playerHp != null)
 		{
@@ -464,9 +498,20 @@ class CustomHpBarOverlay extends Overlay
 	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
 	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
+		return barRect(anchor, style, zoom, false);
+	}
+
+	/**
+	 * As above, but ignoreOffset skips the configured vertical offset. Used only by
+	 * drawPlayerNameOnly() when that player's bar isn't actually showing (see its own doc) - not
+	 * the same "solo bar" case CLAUDE.md's "Solo player bar offset" section describes and reverted;
+	 * this is scoped to name-without-a-bar specifically, not bar count.
+	 */
+	private int[] barRect(Point anchor, BarStyle style, double zoom, boolean ignoreOffset)
+	{
 		int w = scaled(style.width, zoom);
 		int h = scaled(style.height, zoom);
-		int vOffset = scaled(style.verticalOffset, zoom);
+		int vOffset = ignoreOffset ? 0 : scaled(style.verticalOffset, zoom);
 		int x = anchor.getX() - w / 2;
 		int y = anchor.getY() - h / 2 - vOffset;
 		return new int[]{x, y, w, h};
@@ -498,15 +543,22 @@ class CustomHpBarOverlay extends Overlay
 				consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
 			}
 		}
+		else if (actor instanceof Player && config.showPlayerName())
+		{
+			// Same reservation as the NPC branch above, mirrored for other players' names -
+			// without this, another actor sharing this tile would stack directly on top of this
+			// player's bar with no room left for the name drawn above it.
+			consumed += scaled(style.fontSize + NAME_GAP, zoom);
+		}
 
 		tileStacks.put(tile, shift + consumed);
 		return shift;
 	}
 
-	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC Name" pass). */
-	private int claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, NPC npc, BarStyle style, double zoom)
+	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC/Player Name" passes). Actor-generic - reused for both. */
+	private int claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, BarStyle style, double zoom)
 	{
-		WorldPoint tile = npc.getWorldLocation();
+		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
 		{
 			return 0;
@@ -551,6 +603,35 @@ class CustomHpBarOverlay extends Overlay
 			label += " (lvl " + level + ")";
 		}
 		drawLabel(g, style, label, x, y - h - nameGap, w, h, zoom, nameColor);
+	}
+
+	/**
+	 * Draws just another player's name label at its would-be bar position - used both by
+	 * drawBar() (tracked) and the "Always Show Player Name" pass (untracked). No combat-level
+	 * suffix, aggressive/loot-tainted color, or truncation - none of those NPC-only concepts
+	 * apply to players; this is intentionally the minimal version of drawNpcNameOnly().
+	 */
+	private void drawPlayerNameOnly(Graphics2D g, Player player, Point anchor, BarStyle style, double zoom)
+	{
+		String playerName = player.getName();
+		if (!isDisplayableName(playerName))
+		{
+			return;
+		}
+
+		// verticalOffset positions the bar; skip it when this player has no bar actually showing
+		// (the "Always Show Player Name" pass covers untracked players too) so a lone name sits at
+		// its natural anchor position instead of inheriting a shift meant for a bar that isn't
+		// there. Applied normally once genuinely tracked (bar showing) - drawBar()'s own call site
+		// only ever reaches here for a tracked player, so this is never wrong for that path either.
+		boolean barShowing = plugin.getTrackedActors().containsKey(player);
+		int[] rect = barRect(anchor, style, zoom, !barShowing);
+		int x = rect[0];
+		int y = rect[1];
+		int w = rect[2];
+		int h = rect[3];
+		int nameGap = scaled(NAME_GAP, zoom);
+		drawLabel(g, style, Text.removeTags(playerName), x, y - h - nameGap, w, h, zoom, config.playerNameColor());
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
@@ -672,6 +753,10 @@ class CustomHpBarOverlay extends Overlay
 		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName())
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
+		}
+		else if (actor instanceof Player && !self && config.showPlayerName() && !config.alwaysShowPlayerName())
+		{
+			drawPlayerNameOnly(g, (Player) actor, anchor, style, zoom);
 		}
 	}
 
