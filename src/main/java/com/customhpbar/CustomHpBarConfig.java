@@ -286,12 +286,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "targetTextAlignment",
+		name = "Text Alignment",
+		description = "Where the HP text sits horizontally within the bar.",
+		section = TARGET_SECTION,
+		position = 19
+	)
+	default TextAlignment targetTextAlignment()
+	{
+		return TextAlignment.CENTER;
+	}
+
+	@ConfigItem(
 		keyName = "targetHpTextSpacing",
 		name = "HP Text Spacing",
 		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
 			"Display Mode of 'Both'.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 20
 	)
 	@Range(min = 0, max = 200)
 	default int targetHpTextSpacing()
@@ -305,7 +317,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Overall transparency of the bar's background, fill, and border. 100 = fully opaque; " +
 			"the HP text itself is unaffected.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 21
 	)
 	@Range(min = 0, max = 100)
 	default int targetBarOpacity()
@@ -817,12 +829,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "playerTextAlignment",
+		name = "Text Alignment",
+		description = "Where each bar's number sits horizontally within it - HP, Prayer, Special, and Run.",
+		section = PLAYER_SECTION,
+		position = 22
+	)
+	default TextAlignment playerTextAlignment()
+	{
+		return TextAlignment.CENTER;
+	}
+
+	@ConfigItem(
 		keyName = "playerHpTextSpacing",
 		name = "HP Text Spacing",
 		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
 			"Display Mode of 'Both'.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 23
 	)
 	@Range(min = 0, max = 200)
 	default int playerHpTextSpacing()
@@ -836,7 +860,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Overall transparency of the bar's background, fill, and border, plus the Prayer " +
 			"and special attack bars. 100 = fully opaque.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 24
 	)
 	@Range(min = 0, max = 100)
 	default int playerBarOpacity()
@@ -1297,6 +1321,30 @@ public interface CustomHpBarConfig extends Config
 					return "Italic";
 				case BOLD_ITALIC:
 					return "Bold Italic";
+				default:
+					return name();
+			}
+		}
+	}
+
+	/** Horizontal placement of the HP text within the bar - see CustomHpBarOverlay.drawLabel(). */
+	enum TextAlignment
+	{
+		LEFT,
+		CENTER,
+		RIGHT;
+
+		@Override
+		public String toString()
+		{
+			switch (this)
+			{
+				case LEFT:
+					return "Left";
+				case CENTER:
+					return "Center";
+				case RIGHT:
+					return "Right";
 				default:
 					return name();
 			}
