@@ -302,6 +302,9 @@ public class CustomHpBarPlugin extends Plugin
 	/** Latched once per game tick, exactly as core PrayerPlugin latches prayersActive - never sampled mid-tick. */
 	private boolean prayerActive;
 
+	/** Wall-clock ms the last GameTick was observed - powers tickProgress(), the Prayer bar's sweeping tick timer. */
+	private long lastTickTimeMs = System.currentTimeMillis();
+
 	/** Run energy last seen by trackRunEnergyChange(), for detecting the next decrease - see isRunEnergyBarTimedOut(). -1 = never sampled. */
 	private int lastRunEnergyValue = -1;
 
@@ -351,6 +354,7 @@ public class CustomHpBarPlugin extends Plugin
 		doomDelveLevel = 1;
 		nativeHudBossName = null;
 		prayerActive = false;
+		lastTickTimeMs = System.currentTimeMillis();
 		bleedEndVarcCounting = false;
 		bleedEndedTick = Integer.MIN_VALUE;
 		trackedNpcCache.clear();
@@ -545,6 +549,10 @@ public class CustomHpBarPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		int currentTick = client.getTickCount();
+
+		// Latched first, before anything else in this handler - tickProgress() measures elapsed
+		// wall-clock time since this exact moment, so it must be set at the true start of the tick.
+		lastTickTimeMs = System.currentTimeMillis();
 
 		// The only prayer sample there is, exactly as core PrayerPlugin.onGameTick does it.
 		prayerActive = isAnyPrayerActive();
@@ -1142,6 +1150,24 @@ public class CustomHpBarPlugin extends Plugin
 	boolean isPrayerActive()
 	{
 		return prayerActive;
+	}
+
+	/**
+	 * Progress through the current game tick, in radians [0, PI) - powers the Prayer bar's
+	 * sweeping tick timer (see CustomHpBarOverlay.drawPrayerTickTimer()). Deliberately matches
+	 * core's own `PrayerPlugin.getTickProgress()` exactly (verified against the decompiled
+	 * client-1.12.35-sources.jar, package net.runelite.client.plugins.prayer) rather than a
+	 * simpler [0, 1) fraction: elapsed time since the last GameTick is taken modulo the nominal
+	 * 600ms tick length (not clamped - stays a wrapping sawtooth instead of sticking at the
+	 * endpoint if a frame renders late), then scaled to [0, PI) so callers can drive the same
+	 * `-cos(t)` easing curve core's PrayerBarOverlay/PrayerFlickOverlay use for their own flick
+	 * indicators - the sweep should feel identical to theirs, not just exist independently.
+	 */
+	double tickProgress()
+	{
+		double elapsedMs = System.currentTimeMillis() - lastTickTimeMs;
+		double fraction = (elapsedMs % MS_PER_TICK) / MS_PER_TICK;
+		return fraction * Math.PI;
 	}
 
 	/** Special attack energy as a 0-100 percentage - SA_ENERGY counts in tenths of a percent, same read as core's StatusBarsOverlay. */

@@ -847,16 +847,41 @@ public interface CustomHpBarConfig extends Config
 	// ==================== Player bar player info ====================
 
 	@ConfigItem(
+		keyName = "alwaysShowHpBar",
+		name = "Always Show HP Bar",
+		description = "Shows your HP bar even when not tracked in combat. Requires 'Show for Self'.",
+		section = PLAYER_INFO_SECTION,
+		position = 0
+	)
+	default boolean alwaysShowHpBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "showPrayerBar",
 		name = "Show Prayer Bar",
 		description = "Draws a Prayer points bar beneath your HP bar, or on its own outside combat. " +
 			"Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 0
+		position = 1
 	)
 	default boolean showPrayerBar()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowPrayerBar",
+		name = "Always Show Prayer Bar",
+		description = "Shows the Prayer bar even when not tracked in combat. Still requires a prayer to be " +
+			"active if 'Hide Prayer Bar While Not Praying' is on. Requires 'Show Prayer Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 2
+	)
+	default boolean alwaysShowPrayerBar()
+	{
+		return false;
 	}
 
 	@ConfigItem(
@@ -865,7 +890,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
 			"Requires 'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 1
+		position = 3
 	)
 	default boolean hidePrayerBarWhenInactive()
 	{
@@ -877,11 +902,49 @@ public interface CustomHpBarConfig extends Config
 		name = "Prayer Bar Color",
 		description = "Fill color of the Prayer bar. Requires 'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 2
+		position = 4
 	)
 	default Color prayerBarColor()
 	{
 		return new Color(60, 130, 220);
+	}
+
+	@ConfigItem(
+		keyName = "showPrayerTickTimer",
+		name = "Show Prayer Tick Timer",
+		description = "Draws an indicator that sweeps across the Prayer bar once per game tick, for timing " +
+			"prayer flicks. Requires 'Show Prayer Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 5
+	)
+	default boolean showPrayerTickTimer()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "hidePrayerTickTimerWhenInactive",
+		name = "Hide Tick Timer While Not Praying",
+		description = "Only draws the tick timer while a prayer is active, same as 'Hide Prayer Bar While " +
+			"Not Praying'. Requires 'Show Prayer Tick Timer'.",
+		section = PLAYER_INFO_SECTION,
+		position = 6
+	)
+	default boolean hidePrayerTickTimerWhenInactive()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "prayerTickTimerColor",
+		name = "Prayer Tick Timer Color",
+		description = "Color of the tick timer indicator. Requires 'Show Prayer Tick Timer'.",
+		section = PLAYER_INFO_SECTION,
+		position = 7
+	)
+	default Color prayerTickTimerColor()
+	{
+		return Color.WHITE;
 	}
 
 	@ConfigItem(
@@ -890,9 +953,22 @@ public interface CustomHpBarConfig extends Config
 		description = "Draws a special attack energy bar alongside your HP bar, in combat only. " +
 			"Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 3
+		position = 8
 	)
 	default boolean showSpecialAttackBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowSpecialBar",
+		name = "Always Show Special Attack Bar",
+		description = "Shows the special attack bar even when not tracked in combat. Requires 'Show Special " +
+			"Attack Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 9
+	)
+	default boolean alwaysShowSpecialBar()
 	{
 		return false;
 	}
@@ -902,7 +978,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Special Attack Bar Color",
 		description = "Fill color of the special attack bar. Requires 'Show Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 4
+		position = 10
 	)
 	default Color specialAttackBarColor()
 	{
@@ -915,9 +991,22 @@ public interface CustomHpBarConfig extends Config
 		description = "Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows " +
 			"regardless of combat state. Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 5
+		position = 11
 	)
 	default boolean showRunEnergyBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowRunBar",
+		name = "Always Show Run Energy Bar",
+		description = "Shows the run energy bar even when not tracked in combat, ignoring the timeout below. " +
+			"Requires 'Show Run Energy Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 12
+	)
+	default boolean alwaysShowRunBar()
 	{
 		return false;
 	}
@@ -928,7 +1017,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Hides the run energy bar this many seconds after you last actively ran (regen and " +
 			"item restores don't count). 0 = never time out. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 6
+		position = 13
 	)
 	@Range(min = 0, max = 300)
 	default int runEnergyBarTimeout()
@@ -941,7 +1030,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Run Energy Bar Color",
 		description = "Fill color of the run energy bar. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 7
+		position = 14
 	)
 	default Color runEnergyBarColor()
 	{
@@ -954,7 +1043,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fill color of the run energy bar while a Stamina potion's drain-reduction effect " +
 			"is active. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 8
+		position = 15
 	)
 	default Color runEnergyStaminaColor()
 	{
@@ -967,7 +1056,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Which bar is drawn first (topmost) in your stack. If a bar is picked in more than " +
 			"one position, only its topmost pick is shown.",
 		section = PLAYER_INFO_SECTION,
-		position = 9
+		position = 16
 	)
 	default BarKind barPosition1()
 	{
@@ -979,7 +1068,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 2",
 		description = "Which bar is drawn second in your stack. See 'Bar 1 (Top)'.",
 		section = PLAYER_INFO_SECTION,
-		position = 10
+		position = 17
 	)
 	default BarKind barPosition2()
 	{
@@ -991,7 +1080,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 3",
 		description = "Which bar is drawn third in your stack. See 'Bar 1 (Top)'.",
 		section = PLAYER_INFO_SECTION,
-		position = 11
+		position = 18
 	)
 	default BarKind barPosition3()
 	{
@@ -1003,7 +1092,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 4 (Bottom)",
 		description = "Which bar is drawn fourth (bottommost) in your stack. See 'Bar 1 (Top)'.",
 		section = PLAYER_INFO_SECTION,
-		position = 12
+		position = 19
 	)
 	default BarKind barPosition4()
 	{
@@ -1015,7 +1104,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color By Status Effect",
 		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 13
+		position = 20
 	)
 	default boolean selfColorByStatusEffect()
 	{
@@ -1028,7 +1117,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
 			"bleeding, diseased, or corrupted.",
 		section = PLAYER_INFO_SECTION,
-		position = 14
+		position = 21
 	)
 	default boolean selfShowStatusIcon()
 	{
@@ -1041,7 +1130,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 15
+		position = 22
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -1055,7 +1144,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
 			"'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 16
+		position = 23
 	)
 	default boolean showFoodHealPreview()
 	{
@@ -1068,7 +1157,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
 			"'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 17
+		position = 24
 	)
 	default boolean showPrayerRestorePreview()
 	{
@@ -1081,7 +1170,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra " +
 			"bar segment. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 18
+		position = 25
 	)
 	default boolean showRunEnergyRestorePreview()
 	{
@@ -1094,7 +1183,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
 			"positioned above your HP bar. Requires 'Show for Self'.",
 		section = PLAYER_INFO_SECTION,
-		position = 19
+		position = 26
 	)
 	default boolean replaceOverheadIcon()
 	{

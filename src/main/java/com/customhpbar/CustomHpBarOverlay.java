@@ -93,6 +93,9 @@ class CustomHpBarOverlay extends Overlay
 	/** Full value for a 0-100 percentage bar with no separate max - special attack and run energy both work this way. */
 	private static final int FULL_PERCENT_ENERGY = 100;
 
+	/** Width in pixels of the Prayer bar's sweeping tick-timer indicator, before zoom scaling. */
+	private static final int PRAYER_TICK_TIMER_WIDTH = 2;
+
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
 
@@ -245,9 +248,10 @@ class CustomHpBarOverlay extends Overlay
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
-		// Independent path: shows the Prayer/Run Energy bars outside combat too (e.g. at a bank),
-		// skipped if the main loop above already drew it. Only those two qualify - see
-		// playerBarStack(). Stashed for the same deferred-draw reason as the tracked case above.
+		// Independent path: shows the Prayer/Special/Run/HP bars outside combat too (e.g. at a
+		// bank), per each bar's own "always show" toggle or activity - see playerBarStack().
+		// Skipped if the main loop above already drew the player (i.e. they're actually tracked).
+		// Stashed for the same deferred-draw reason as the tracked case above.
 		if (playerHp == null && localPlayer != null && config.showForSelf() && !plugin.getTrackedActors().containsKey(localPlayer))
 		{
 			List<CustomHpBarConfig.BarKind> stack = playerBarStack(false);
@@ -255,9 +259,26 @@ class CustomHpBarOverlay extends Overlay
 			if (anchor != null)
 			{
 				playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
-				playerAnchor = anchor;
-				playerDrawStyle = playerStyle;
-				playerStandaloneStack = stack;
+
+				// HP present (alwaysShowHpBar) goes through the same deferred drawBar() call as the
+				// tracked case below, which draws every bar kind in the stack, not just HP - see
+				// drawBar()'s own (now tracked-aware) stack lookup. Without HP, drawStandaloneBarStack
+				// draws the rest directly, since drawBar() is otherwise HP's own entry point.
+				int maxHp = resolveMaxHp(localPlayer);
+				int[] hp = stack.contains(CustomHpBarConfig.BarKind.HP) ? resolveHp(localPlayer, maxHp) : null;
+				if (hp != null)
+				{
+					playerAnchor = anchor;
+					playerHp = hp;
+					playerMaxHp = maxHp;
+					playerDrawStyle = playerStyle;
+				}
+				else
+				{
+					playerAnchor = anchor;
+					playerDrawStyle = playerStyle;
+					playerStandaloneStack = stack;
+				}
 			}
 		}
 
@@ -441,15 +462,9 @@ class CustomHpBarOverlay extends Overlay
 	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
 	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
-		return barRect(anchor, style, zoom, false);
-	}
-
-	/** As above, but ignoreOffset skips the configured vertical offset (used for a lone player bar) - see CLAUDE.md, "solo player bar offset". */
-	private int[] barRect(Point anchor, BarStyle style, double zoom, boolean ignoreOffset)
-	{
 		int w = scaled(style.width, zoom);
 		int h = scaled(style.height, zoom);
-		int vOffset = ignoreOffset ? 0 : scaled(style.verticalOffset, zoom);
+		int vOffset = scaled(style.verticalOffset, zoom);
 		int x = anchor.getX() - w / 2;
 		int y = anchor.getY() - h / 2 - vOffset;
 		return new int[]{x, y, w, h};
@@ -575,13 +590,15 @@ class CustomHpBarOverlay extends Overlay
 	{
 		double zoom = zoomFactor();
 
-		// Only the local player stacks; every other actor is a lone HP bar at the anchor. Computed
-		// before barRect() so a lone player bar (stack.size() <= 1) can skip the configured offset -
-		// see barRect()'s ignoreOffset doc.
+		// Only the local player stacks; every other actor is a lone HP bar at the anchor. Real
+		// tracked state, not assumed true - this now also gets called for an untracked player via
+		// alwaysShowHpBar (see render()), where a hardcoded true would wrongly let e.g. Special
+		// into the stack even though it requires tracked itself.
 		boolean self = actor == client.getLocalPlayer();
-		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(true) : null;
+		boolean tracked = self && plugin.getTrackedActors().containsKey(actor);
+		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(tracked) : null;
 
-		int[] rect = barRect(anchor, style, zoom, stack != null && stack.size() <= 1);
+		int[] rect = barRect(anchor, style, zoom);
 		int x = rect[0];
 		int y = rect[1];
 		int w = rect[2];
@@ -859,20 +876,31 @@ class CustomHpBarOverlay extends Overlay
 		return config.showSpecialAttackBar();
 	}
 
-	/** Whether the run energy bar is part of your stack - follows the HP bar's lifecycle while tracked, its own drain timeout once untracked. */
-	private boolean runBarAttached(boolean tracked)
+	/**
+	 * Whether the run energy bar is part of your stack right now - its own drain timeout (or
+	 * alwaysShowRunBar), never combat tracked state. Deliberately independent of `tracked`,
+	 * unlike Prayer/Special/HP - see showRunEnergyBar()'s own description ("shows regardless of
+	 * combat state") and CLAUDE.md, "Run bar tied to the combat timer".
+	 */
+	private boolean runBarAttached()
 	{
 		if (!config.showRunEnergyBar())
 		{
 			return false;
 		}
-		return tracked || !plugin.isRunEnergyBarTimedOut();
+		return config.alwaysShowRunBar() || !plugin.isRunEnergyBarTimedOut();
 	}
 
 	/**
 	 * The bars stacked over the local player right now, topmost first, from the four independent
 	 * barPositionN dropdowns - a duplicate pick only shows at its topmost slot, and HP is
 	 * force-included if the user's four picks somehow omit it. See CLAUDE.md.
+	 *
+	 * Each bar kind has its own "always show" toggle (alwaysShowHpBar/alwaysShowPrayerBar/
+	 * alwaysShowSpecialBar/alwaysShowRunBar) widening exactly one thing: whether that bar can
+	 * appear while untracked. They don't touch each bar's own other visibility rules (Prayer
+	 * still needs hidePrayerBarWhenInactive satisfied, Run still needs showRunEnergyBar on) -
+	 * see CLAUDE.md, "Always show" player bars.
 	 */
 	private List<CustomHpBarConfig.BarKind> playerBarStack(boolean tracked)
 	{
@@ -893,17 +921,17 @@ class CustomHpBarOverlay extends Overlay
 			switch (kind)
 			{
 				case PRAYER:
-					visible = prayerBarAttached() && (tracked || plugin.isPrayerActive());
+					visible = prayerBarAttached() && (tracked || plugin.isPrayerActive() || config.alwaysShowPrayerBar());
 					break;
 				case SPECIAL:
-					visible = tracked && specialBarAttached();
+					visible = specialBarAttached() && (tracked || config.alwaysShowSpecialBar());
 					break;
 				case RUN:
-					visible = runBarAttached(tracked);
+					visible = runBarAttached();
 					break;
 				case HP:
 				default:
-					visible = tracked;
+					visible = tracked || config.alwaysShowHpBar();
 					break;
 			}
 			if (visible)
@@ -912,7 +940,7 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
-		if (tracked && !stack.contains(CustomHpBarConfig.BarKind.HP))
+		if ((tracked || config.alwaysShowHpBar()) && !stack.contains(CustomHpBarConfig.BarKind.HP))
 		{
 			stack.add(0, CustomHpBarConfig.BarKind.HP);
 		}
@@ -923,7 +951,7 @@ class CustomHpBarOverlay extends Overlay
 	private void drawStandaloneBarStack(Graphics2D g, Point anchor, BarStyle style, List<CustomHpBarConfig.BarKind> stack)
 	{
 		double zoom = zoomFactor();
-		int[] rect = barRect(anchor, style, zoom, stack.size() <= 1);
+		int[] rect = barRect(anchor, style, zoom);
 		int border = scaled(style.borderWidth, zoom);
 		int arc = scaled(style.cornerRadius, zoom) * 2;
 		drawStackedBars(g, style, stack, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
@@ -977,8 +1005,7 @@ class CustomHpBarOverlay extends Overlay
 		// Drawn at the sprite's own natural size (matching how the native client draws it), with
 		// zoom scaling layered on top when Scale With Zoom is on.
 		double zoom = zoomFactor();
-		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
-		int[] rect = barRect(anchor, style, zoom, playerBarStack(tracked).size() <= 1);
+		int[] rect = barRect(anchor, style, zoom);
 		int w = scaled(image.getWidth(), zoom);
 		int h = scaled(image.getHeight(), zoom);
 		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
@@ -1123,7 +1150,7 @@ class CustomHpBarOverlay extends Overlay
 		// CLAUDE.md, "Overhead chat text sat too high with no bar showing".
 		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
 		List<CustomHpBarConfig.BarKind> stack = playerBarStack(tracked);
-		int[] rect = barRect(anchor, style, zoom, stack.size() <= 1);
+		int[] rect = barRect(anchor, style, zoom);
 		int stackBottom = rect[1] + rect[3] * stack.size();
 		int y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
 
@@ -1145,6 +1172,42 @@ class CustomHpBarOverlay extends Overlay
 		Color prayerColor = config.prayerBarColor();
 		int restoreValue = config.showPrayerRestorePreview() ? hoveredRestoreValue(Skill.PRAYER) : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor, restoreValue);
+
+		if (config.showPrayerTickTimer() && (!config.hidePrayerTickTimerWhenInactive() || plugin.isPrayerActive()))
+		{
+			drawPrayerTickTimer(g, x, y, w, h, border, zoom);
+		}
+	}
+
+	/**
+	 * Thin indicator that sweeps left-to-right across the Prayer bar's fill area once per game
+	 * tick, snapping back to the left edge at the start of the next tick - a visual reference
+	 * for timing prayer flicks against the real tick boundary. Drawn last, on top of the fill/
+	 * preview/label - the sweep itself is the point, so it should never be occluded.
+	 */
+	private void drawPrayerTickTimer(Graphics2D g, int x, int y, int w, int h, int border, double zoom)
+	{
+		int innerW = Math.max(0, w - border * 2);
+		int innerH = Math.max(0, h - border * 2);
+		if (innerW <= 0 || innerH <= 0)
+		{
+			return;
+		}
+
+		// -cos(t)*travel/2 + travel/2, t in [0, PI): matches core's own PrayerBarOverlay/
+		// PrayerFlickOverlay flick-indicator formula exactly (see CustomHpBarPlugin.tickProgress()'s
+		// doc) - an eased sweep, slower at each edge and faster through the middle, not constant
+		// velocity. `travel` (innerW minus our line's own width) stands in for their raw
+		// halfBarWidth/orbInnerWidth, the same adaptation their own HD-bar variant makes to keep
+		// the line inside its padding - so ours stays inside the border the same way.
+		int lineWidth = Math.min(innerW, Math.max(1, scaled(PRAYER_TICK_TIMER_WIDTH, zoom)));
+		int travel = innerW - lineWidth;
+		double t = plugin.tickProgress();
+		int xOffset = (int) (-Math.cos(t) * travel / 2.0) + travel / 2;
+		int lineX = x + border + xOffset;
+
+		g.setColor(config.prayerTickTimerColor());
+		g.fillRect(lineX, y + border, lineWidth, innerH);
 	}
 
 	/** Fills+labels a simple current/max bar (Prayer/Special/Run) - the shape/[preview]/label sequence all three share. restoreValue < 0 skips the preview. */
