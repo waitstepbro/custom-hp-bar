@@ -447,7 +447,8 @@ class CustomHpBarOverlay extends Overlay
 				config.playerMidpoint(),
 				config.playerBarBackground(), config.playerBarOpacity(), config.playerVerticalOffset(),
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
-				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge());
+				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge(),
+				config.playerTextAlignment());
 		}
 		return new BarStyle(
 			config.targetBarWidth(), config.targetBarHeight(), config.targetCornerRadius(),
@@ -456,7 +457,8 @@ class CustomHpBarOverlay extends Overlay
 			config.targetMidpoint(),
 			config.targetBarBackground(), config.targetBarOpacity(), config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
-			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge());
+			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge(),
+			config.targetTextAlignment());
 	}
 
 	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
@@ -647,7 +649,7 @@ class CustomHpBarOverlay extends Overlay
 		String label = buildLabel(actor, hpFraction, maxHp);
 		if (label != null)
 		{
-			drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor));
+			drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
 		}
 
 		int bottomY = y + h;
@@ -1222,7 +1224,7 @@ class CustomHpBarOverlay extends Overlay
 			drawHealPreview(g, x, y, w, h, border, current, max, restoreValue, translucent(color));
 		}
 
-		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor);
+		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor, 0, style.textAlignment);
 	}
 
 	/** No restore preview, unlike Prayer/Run: itemstats' Stats has no special-attack Stat to match on. See CLAUDE.md. */
@@ -1356,15 +1358,20 @@ class CustomHpBarOverlay extends Overlay
 
 	private void drawLabel(Graphics2D g, BarStyle style, String label, int x, int y, int w, int h, double zoom, Color textColor)
 	{
-		drawLabel(g, style, label, x, y, w, h, zoom, textColor, 0);
+		// The NPC name label (this overload's only remaining caller, drawNpcNameOnly()) always
+		// centers - it's a name, not a bar value, so textAlignment doesn't apply to it. Every bar's
+		// own number (HP/Prayer/Special/Run) goes through the other overload with style.textAlignment
+		// instead - not CENTER here on purpose.
+		drawLabel(g, style, label, x, y, w, h, zoom, textColor, 0, CustomHpBarConfig.TextAlignment.CENTER);
 	}
 
 	/**
 	 * spacing pushes the label's two space-separated halves apart by that many (zoom-scaled) pixels,
-	 * keeping the pair centered as a group; 0 draws it as one undivided string. See hpTextSpacing().
+	 * keeping the pair positioned as a group under alignment; 0 draws it as one undivided string.
+	 * See hpTextSpacing().
 	 */
 	private void drawLabel(Graphics2D g, BarStyle style, String label, int x, int y, int w, int h, double zoom,
-			Color textColor, int spacing)
+			Color textColor, int spacing, CustomHpBarConfig.TextAlignment alignment)
 	{
 		Font font = resolveFont(style.fontFamily, style.fontStyle, scaled(style.fontSize, zoom));
 		g.setFont(font);
@@ -1378,9 +1385,26 @@ class CustomHpBarOverlay extends Overlay
 		// Measured off the undivided label either way, so the split halves keep the exact baseline
 		// and starting pen position they'd have had as one string - at spacing 0 this is identical.
 		int split = spacing > 0 ? label.lastIndexOf(' ') : -1;
-		int gap = split < 0 ? 0
-			: Math.max(0, Math.min(scaled(spacing, zoom), w - (int) Math.round(pixelBounds.getWidth())));
-		int textX = x + (int) Math.round((w - pixelBounds.getWidth() - gap) / 2.0) - pixelBounds.x;
+		int textWidth = (int) Math.round(pixelBounds.getWidth());
+		int gap = split < 0 ? 0 : Math.max(0, Math.min(scaled(spacing, zoom), w - textWidth));
+
+		// LEFT/RIGHT inset by the border thickness so the text clears the border stroke instead of
+		// sitting under it; CENTER is untouched from before textAlignment existed (measured against
+		// the full w, no border inset) so the default look doesn't shift for existing users.
+		int textX;
+		switch (alignment)
+		{
+			case LEFT:
+				textX = x + scaled(style.borderWidth, zoom) - pixelBounds.x;
+				break;
+			case RIGHT:
+				textX = x + w - scaled(style.borderWidth, zoom) - textWidth - gap - pixelBounds.x;
+				break;
+			case CENTER:
+			default:
+				textX = x + (int) Math.round((w - textWidth - gap) / 2.0) - pixelBounds.x;
+				break;
+		}
 		int textY = y + (int) Math.round((h - pixelBounds.getHeight()) / 2.0) - pixelBounds.y + nudge;
 
 		if (gap == 0)
@@ -1536,5 +1560,6 @@ class CustomHpBarOverlay extends Overlay
 		final Color textColor;
 		final boolean textOutline;
 		final int textNudge;
+		final CustomHpBarConfig.TextAlignment textAlignment;
 	}
 }
