@@ -27,3 +27,7 @@ ideas, but needs a per-NPC threshold table with the same maintenance problem as 
 **4. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
 are the obvious case) because the anchor point moves with the model each frame. Look at smoothing
 or snapping the canvas position rather than following the raw per-frame value.
+
+**5. Cap on the number of player names drawn at once.** Mainly for `alwaysShowPlayerName`, which
+scans every player in the world view every frame with no distance/count limit - a crowded area
+(GE, a raid lobby) draws a name over all of them.

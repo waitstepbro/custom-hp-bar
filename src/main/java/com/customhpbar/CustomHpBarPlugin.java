@@ -242,22 +242,40 @@ public class CustomHpBarPlugin extends Plugin
 	@Inject
 	private CustomHpBarConfig config;
 
-	/** Cached "replaceOverheadIcon && showForSelf" - volatile since onConfigChanged isn't guaranteed on the client thread. */
+	/** Cached showForSelf - volatile since onConfigChanged isn't guaranteed on the client thread. */
 	private volatile boolean suppressSelfOverheads;
 
-	/** Suppresses the client's native overhead UI (health bar, prayer icon, hitsplats, chat text) for the local player only. */
+	/**
+	 * Other players currently eligible for the same overhead icon/hitsplat/chat-text replacement
+	 * self gets - tracked (a bar is showing) or "Always Show Player Name" eligible (a name is
+	 * showing) - recomputed once per tick in updateOverheadEligiblePlayers(), not per frame, since
+	 * the render callback needs an answer before the overlay's own per-frame draw decisions run.
+	 * Volatile, swapped as a whole immutable snapshot: the render callback may read this off the
+	 * client thread relative to the tick handler that writes it - see suppressSelfOverheads above.
+	 */
+	private volatile Set<Player> overheadEligiblePlayers = Collections.emptySet();
+
+	/** Suppresses the client's native overhead UI (health bar, prayer icon, hitsplats, chat text) for the local player and overheadEligiblePlayers. */
 	private final RenderCallback renderCallback = new RenderCallback()
 	{
 		@Override
 		public boolean addEntity(Renderable renderable, boolean ui)
 		{
-			return !(ui && suppressSelfOverheads && renderable == client.getLocalPlayer());
+			if (!ui)
+			{
+				return true;
+			}
+			if (renderable == client.getLocalPlayer())
+			{
+				return !suppressSelfOverheads;
+			}
+			return !overheadEligiblePlayers.contains(renderable);
 		}
 	};
 
-	/** Hitsplats on the local player, redrawn since renderCallback suppresses the native ones. */
+	/** Overhead hitsplats per player, redrawn since renderCallback suppresses the native ones - self plus overheadEligiblePlayers. */
 	@Getter
-	private final List<Hitsplat> selfHitsplats = new CopyOnWriteArrayList<>();
+	private final Map<Player, List<Hitsplat>> overheadHitsplats = new ConcurrentHashMap<>();
 
 	/** Actors whose bars are active; value = tick of last valid health-ratio read. */
 	@Getter
@@ -331,7 +349,7 @@ public class CustomHpBarPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		suppressSelfOverheads = config.replaceOverheadIcon() && config.showForSelf();
+		suppressSelfOverheads = config.showForSelf();
 		overlayManager.add(overlay);
 		renderCallbackManager.register(renderCallback);
 		clientThread.invokeLater(this::syncNativeBarOverrides);
@@ -347,7 +365,8 @@ public class CustomHpBarPlugin extends Plugin
 		preciseNpcHp.clear();
 		otherPlayerDamaged.clear();
 		statusEffectTicks.clear();
-		selfHitsplats.clear();
+		overheadHitsplats.clear();
+		overheadEligiblePlayers = Collections.emptySet();
 		pendingClickActor = null;
 		aggressionEndTick = 0;
 		Arrays.fill(aggressionSafeCenters, null);
@@ -378,9 +397,9 @@ public class CustomHpBarPlugin extends Plugin
 			clientThread.invokeLater(this::syncNativeBarOverrides);
 		}
 
-		if ("replaceOverheadIcon".equals(event.getKey()) || "showForSelf".equals(event.getKey()))
+		if ("showForSelf".equals(event.getKey()))
 		{
-			suppressSelfOverheads = config.replaceOverheadIcon() && config.showForSelf();
+			suppressSelfOverheads = config.showForSelf();
 		}
 	}
 
@@ -426,9 +445,12 @@ public class CustomHpBarPlugin extends Plugin
 
 		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat
 		// should show for anything the native client would show one for, e.g. PRAYER_DRAIN.
-		if (actor == client.getLocalPlayer())
+		// overheadEligiblePlayers is tick-granular (see its own doc), so a player who only just
+		// became eligible this exact tick may miss their very first hitsplat - accepted, matches
+		// the same "risk is asymmetric, not worth chasing exactly" tradeoff used elsewhere here.
+		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor)))
 		{
-			selfHitsplats.add(hitsplat);
+			overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>()).add(hitsplat);
 		}
 
 		// A hitsplat existing at all doesn't mean HP changed (e.g. PRAYER_DRAIN), so only
@@ -462,8 +484,8 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		// Hide the bar the instant the killing blow lands, rather than waiting out
-		// persistTicks()/the death animation - see isConfirmedDeadNpc().
-		if (isConfirmedDeadNpc(actor))
+		// persistTicks()/the death animation - see isConfirmedDead().
+		if (isConfirmedDead(actor))
 		{
 			evict(actor);
 		}
@@ -560,9 +582,15 @@ public class CustomHpBarPlugin extends Plugin
 		trackRunEnergyChange();
 
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
-		// controls when a hitsplat stops drawing; this just bounds the list's size between prunes.
+		// controls when a hitsplat stops drawing; this just bounds each list's size between prunes.
 		int currentCycle = client.getGameCycle();
-		selfHitsplats.removeIf(h -> currentCycle >= h.getDisappearsOnGameCycle());
+		for (List<Hitsplat> hitsplats : overheadHitsplats.values())
+		{
+			hitsplats.removeIf(h -> currentCycle >= h.getDisappearsOnGameCycle());
+		}
+		// Bounds the map itself - a player who wanders off (no longer eligible) with no hitsplats
+		// left to redraw doesn't need an entry kept around; computeIfAbsent recreates it on demand.
+		overheadHitsplats.values().removeIf(List::isEmpty);
 
 		updateAggressionArea(currentTick);
 
@@ -620,7 +648,7 @@ public class CustomHpBarPlugin extends Plugin
 
 			// Safety net for onHitsplatApplied's same check - covers ratio reaching 0 without a
 			// hitsplat landing that tick (e.g. a DOT tick already folded into the ratio read).
-			if (isConfirmedDeadNpc(actor))
+			if (isConfirmedDead(actor))
 			{
 				evict(actor);
 				return;
@@ -635,6 +663,44 @@ public class CustomHpBarPlugin extends Plugin
 				stopTracking(actor);
 			}
 		});
+
+		// Last, so this tick's tracking additions/evictions above are reflected immediately rather
+		// than lagging a further tick behind.
+		updateOverheadEligiblePlayers();
+	}
+
+	/**
+	 * Recomputes overheadEligiblePlayers: tracked other players (a bar is showing) union "Always
+	 * Show Player Name" eligible other players (a name is showing) union "Always Show Player HP
+	 * Bar" eligible other players (a bar is showing) - the same conditions CustomHpBarOverlay's
+	 * own render() passes use to decide whether a player gets anything drawn at all. Tick-granular,
+	 * not per-frame - see the field's own doc for why.
+	 */
+	private void updateOverheadEligiblePlayers()
+	{
+		Player localPlayer = client.getLocalPlayer();
+		Set<Player> eligible = new HashSet<>();
+		for (Actor actor : trackedActors.keySet())
+		{
+			if (actor instanceof Player && actor != localPlayer)
+			{
+				eligible.add((Player) actor);
+			}
+		}
+
+		if ((config.showPlayerName() && config.alwaysShowPlayerName())
+			|| (config.showForPlayers() && config.alwaysShowPlayerBar()))
+		{
+			for (Player player : client.getTopLevelWorldView().players())
+			{
+				if (player != null && player != localPlayer && player.getName() != null && !player.getName().isEmpty())
+				{
+					eligible.add(player);
+				}
+			}
+		}
+
+		overheadEligiblePlayers = eligible.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(eligible);
 	}
 
 	/** Ends active tracking on persist-timeout without clearing lastKnownHp/preciseNpcHp - still needed by "Always Show NPC Bar". */
@@ -676,15 +742,16 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * True once an NPC is confirmed dead (0 HP) - its bar should vanish immediately, not after
-	 * persistTicks(), and not after the death animation. Ratio 0 unambiguously means dead in
-	 * OSRS's ratio/scale scheme, but the animation keeps reporting it for several more ticks
-	 * before the NPC actually despawns - persist duration is for actors that are still alive
-	 * but out of combat, not for this. NPC-only: see CLAUDE.md.
+	 * True once an actor (NPC or player, self included) is confirmed dead (0 HP) - its bar should
+	 * vanish immediately, not after persistTicks(), and not after the death animation. Ratio 0
+	 * unambiguously means dead in OSRS's ratio/scale scheme, but the animation keeps reporting it
+	 * for several more ticks before the actor actually despawns - persist duration is for actors
+	 * that are still alive but out of combat, not for this. Originally NPC-only; widened to cover
+	 * players too - see CLAUDE.md.
 	 */
-	static boolean isConfirmedDeadNpc(Actor actor)
+	static boolean isConfirmedDead(Actor actor)
 	{
-		return actor instanceof NPC && actor.getHealthRatio() == 0;
+		return actor.getHealthRatio() == 0;
 	}
 
 	@Subscribe
@@ -1324,18 +1391,22 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			// Tracking exists to drive bars, so it takes the stricter attackable test - talking to a
 			// guard makes it interact with you, which would otherwise track it via onGameTick.
-			// isConfirmedDeadNpc excluded here too - a corpse mid-death-animation still has an Attack
+			// isConfirmedDead excluded here too - a corpse mid-death-animation still has an Attack
 			// option (hasAttackOption doesn't know it just died), so without this the onGameTick
-			// discovery loops below re-track it the moment isConfirmedDeadNpc's evict() removes it,
+			// discovery loops below re-track it the moment isConfirmedDead's evict() removes it,
 			// since getInteracting() == localPlayer is still true for several more ticks. See CLAUDE.md.
 			NPC npc = (NPC) actor;
-			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isConfirmedDeadNpc(npc);
+			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isConfirmedDead(npc);
 		}
 		if (!(actor instanceof Player))
 		{
 			return false;
 		}
-		return actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers();
+		// isConfirmedDead excluded for the same reason as the NPC branch above - a dying player's
+		// getInteracting() reference doesn't clear until despawn either, so without this the
+		// discovery loops below would re-track them the moment evict() removes them.
+		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers())
+			&& !isConfirmedDead(actor);
 	}
 
 	/** Whether npc is eligible for a bar or a name at all - isAttackableNpc() is the stricter bar-only gate on top of this. Cheap checks first. */

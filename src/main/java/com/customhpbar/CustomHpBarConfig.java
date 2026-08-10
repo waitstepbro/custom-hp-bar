@@ -28,7 +28,9 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Player Bar — Style",
-		description = "Whether to show, and size/shape/color/text settings for, the bar drawn over players",
+		description = "Whether to show your own bar; its size/shape/border/text settings, shared with " +
+			"other players; and its own fill/gradient/background color, opacity, and vertical offset - " +
+			"other players use independent versions of those in Other Player Bar — Style",
 		position = 2
 	)
 	String PLAYER_SECTION = "player";
@@ -41,9 +43,24 @@ public interface CustomHpBarConfig extends Config
 	String PLAYER_INFO_SECTION = "playerInfo";
 
 	@ConfigSection(
+		name = "Other Player Bar — Style",
+		description = "Whether to show other players' bars, and the fill/gradient/background color, " +
+			"opacity, and vertical offset settings independent of your own",
+		position = 4
+	)
+	String OTHER_PLAYER_SECTION = "otherPlayer";
+
+	@ConfigSection(
+		name = "Other Player Bar — Info",
+		description = "Names and same-tile stacking behavior specific to other players' bars",
+		position = 5
+	)
+	String OTHER_PLAYER_INFO_SECTION = "otherPlayerInfo";
+
+	@ConfigSection(
 		name = "Behavior",
 		description = "Settings shared by both bar types",
-		position = 4
+		position = 6
 	)
 	String BEHAVIOR_SECTION = "behavior";
 
@@ -554,6 +571,20 @@ public interface CustomHpBarConfig extends Config
 		return "";
 	}
 
+	@ConfigItem(
+		keyName = "npcStackLimit",
+		name = "NPC Stack Limit",
+		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
+			"ones is arbitrary, not distance-based. 0 = unlimited.",
+		section = TARGET_NPC_SECTION,
+		position = 18
+	)
+	@Range(min = 0, max = 30)
+	default int npcStackLimit()
+	{
+		return 0;
+	}
+
 	// ==================== Player bar style (self + other players) ====================
 
 	@ConfigItem(
@@ -578,67 +609,6 @@ public interface CustomHpBarConfig extends Config
 	default DisplayMode selfDisplayMode()
 	{
 		return DisplayMode.NUMBER;
-	}
-
-	@ConfigItem(
-		keyName = "showForPlayers",
-		name = "Show for Other Players",
-		description = "Draw the player bar over other players",
-		section = PLAYER_SECTION,
-		position = 2
-	)
-	default boolean showForPlayers()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "playerDisplayMode",
-		name = "Other Players' Display Mode",
-		description = "Display mode for other players' bars. Requires 'Show for Other Players'.",
-		section = PLAYER_SECTION,
-		position = 3
-	)
-	default DisplayMode playerDisplayMode()
-	{
-		return DisplayMode.NUMBER;
-	}
-
-	@ConfigItem(
-		keyName = "showPlayerName",
-		name = "Show Player Name",
-		description = "Draws a name label above other players' bars. Requires 'Show for Other Players'.",
-		section = PLAYER_SECTION,
-		position = 4
-	)
-	default boolean showPlayerName()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowPlayerName",
-		name = "Always Show Player Name",
-		description = "Shows the name at all times, not just when the bar is tracked. Requires 'Show Player " +
-			"Name'.",
-		section = PLAYER_SECTION,
-		position = 5
-	)
-	default boolean alwaysShowPlayerName()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "playerNameColor",
-		name = "Player Name Color",
-		description = "Color of the player name text, separate from the HP number's color.",
-		section = PLAYER_SECTION,
-		position = 6
-	)
-	default Color playerNameColor()
-	{
-		return Color.WHITE;
 	}
 
 	@ConfigItem(
@@ -708,7 +678,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarColor",
 		name = "Bar Color",
-		description = "Fill color of the bar, and the full-HP color when HP Color Gradient is on.",
+		description = "Fill color of your own bar, and the full-HP color when HP Color Gradient is on - " +
+			"other players use their own separate color in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 12
 	)
@@ -720,7 +691,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels.",
+		description = "Blends your own bar's fill color as HP drops. Off keeps Bar Color at all HP levels - " +
+			"other players have their own separate toggle in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 13
 	)
@@ -732,7 +704,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerColorMid",
 		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient.",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color " +
+			"Gradient. Other players use their own separate color in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 14
 	)
@@ -744,7 +717,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerMidpoint",
 		name = "Midpoint",
-		description = "HP percentage at which the bar is exactly Mid HP Color.",
+		description = "HP percentage at which your own bar is exactly Mid HP Color - other players use " +
+			"their own separate midpoint in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 15
 	)
@@ -757,7 +731,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerColorLow",
 		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient.",
+		description = "Color reached at 0% HP. Requires HP Color Gradient. Other players use their own " +
+			"separate color in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 16
 	)
@@ -769,7 +744,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarBackground",
 		name = "Background Color",
-		description = "Color of the empty portion of the bar",
+		description = "Color of the empty portion of your own bar - other players use their own separate " +
+			"color in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 17
 	)
@@ -780,8 +756,9 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "playerVerticalOffset",
-		name = "Vertical Offset",
-		description = "Pixels to shift the bar up (positive) or down (negative) from center",
+		name = "Vertical Offset (Self)",
+		description = "Pixels to shift your own bar up (positive) or down (negative) from center. " +
+			"Other players use their own separate offset in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 18
 	)
@@ -894,8 +871,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarOpacity",
 		name = "Bar Opacity",
-		description = "Overall transparency of the bar's background, fill, and border, plus the Prayer " +
-			"and special attack bars. 100 = fully opaque.",
+		description = "Overall transparency of your own bar's background, fill, and border, plus the " +
+			"Prayer and special attack bars. 100 = fully opaque. Other players use their own separate " +
+			"opacity in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 27
 	)
@@ -1238,17 +1216,194 @@ public interface CustomHpBarConfig extends Config
 		return true;
 	}
 
+	// ==================== Other player bar style ====================
+
 	@ConfigItem(
-		keyName = "replaceOverheadIcon",
-		name = "Replace Overhead Icon",
-		description = "Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy " +
-			"positioned above your HP bar. Requires 'Show for Self'.",
-		section = PLAYER_INFO_SECTION,
-		position = 26
+		keyName = "showForPlayers",
+		name = "Show for Other Players",
+		description = "Draw the health bar over other players. With 'Always Show Player Name' on, names " +
+			"stay visible regardless of this setting; without it, a player still needs this on to be " +
+			"tracked - and therefore named - at all.",
+		section = OTHER_PLAYER_SECTION,
+		position = 0
 	)
-	default boolean replaceOverheadIcon()
+	default boolean showForPlayers()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowPlayerBar",
+		name = "Always Show Player HP Bar",
+		description = "Shows other players' HP bar at all times, not just when tracked in combat. " +
+			"Requires 'Show for Other Players'.",
+		section = OTHER_PLAYER_SECTION,
+		position = 1
+	)
+	default boolean alwaysShowPlayerBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerVerticalOffset",
+		name = "Vertical Offset (Other Players)",
+		description = "Pixels to shift other players' bars up (positive) or down (negative) from center - " +
+			"independent of your own 'Vertical Offset (Self)' in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 2
+	)
+	@Range(min = -50, max = 100)
+	default int otherPlayerVerticalOffset()
+	{
+		return 15;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerBarColor",
+		name = "Bar Color",
+		description = "Fill color of other players' bars, and the full-HP color when HP Color Gradient " +
+			"is on - independent of your own Bar Color in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 3
+	)
+	default Color otherPlayerBarColor()
+	{
+		return new Color(0, 180, 0);
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerHpColorGradient",
+		name = "HP Color Gradient",
+		description = "Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP " +
+			"levels - independent of your own toggle in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 4
+	)
+	default boolean otherPlayerHpColorGradient()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerColorMid",
+		name = "Mid HP Color",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color " +
+			"Gradient. Independent of your own color in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 5
+	)
+	default Color otherPlayerColorMid()
+	{
+		return new Color(180, 180, 0);
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerMidpoint",
+		name = "Midpoint",
+		description = "HP percentage at which other players' bars are exactly Mid HP Color - independent " +
+			"of your own midpoint in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 6
+	)
+	@Range(min = 1, max = 99)
+	default int otherPlayerMidpoint()
+	{
+		return 50;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerColorLow",
+		name = "Low HP Color",
+		description = "Color reached at 0% HP. Requires HP Color Gradient. Independent of your own color " +
+			"in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 7
+	)
+	default Color otherPlayerColorLow()
+	{
+		return new Color(180, 0, 0);
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerBarBackground",
+		name = "Background Color",
+		description = "Color of the empty portion of other players' bars - independent of your own " +
+			"background color in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 8
+	)
+	default Color otherPlayerBarBackground()
+	{
+		return new Color(40, 40, 40, 220);
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerBarOpacity",
+		name = "Bar Opacity",
+		description = "Overall transparency of other players' bar background, fill, and border. " +
+			"100 = fully opaque. Independent of your own opacity in Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 9
+	)
+	@Range(min = 0, max = 100)
+	default int otherPlayerBarOpacity()
+	{
+		return 100;
+	}
+
+	// ==================== Other player bar info ====================
+
+	@ConfigItem(
+		keyName = "showPlayerName",
+		name = "Show Player Name",
+		description = "Draws a name label above other players' bars. Without 'Always Show Player Name', " +
+			"still only shows for players tracked via 'Show for Other Players' in Other Player Bar — Style.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 0
+	)
+	default boolean showPlayerName()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowPlayerName",
+		name = "Always Show Player Name",
+		description = "Shows the name at all times, not just when the bar is tracked. Requires 'Show Player " +
+			"Name'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 1
+	)
+	default boolean alwaysShowPlayerName()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "playerNameColor",
+		name = "Player Name Color",
+		description = "Color of the player name text, separate from the HP number's color.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 2
+	)
+	default Color playerNameColor()
+	{
+		return Color.WHITE;
+	}
+
+	@ConfigItem(
+		keyName = "playerNameStackLimit",
+		name = "Player Stack Limit",
+		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
+			"which ones is arbitrary, not distance-based. 0 = unlimited.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 3
+	)
+	@Range(min = 0, max = 30)
+	default int playerNameStackLimit()
+	{
+		return 0;
 	}
 
 	// ==================== Shared behavior ====================

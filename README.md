@@ -19,7 +19,8 @@ tracking, and status-effect debuffs.
 ## Features
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with fully
-  independent size, shape, color, and font settings.
+  independent size, shape, color, and font settings. Your own bar can persist outside combat
+  instead of only showing while tracked.
 - **Precise NPC HP** — tracks exact current HP instead of the native bar's coarse ratio bucket,
   falling back to a percentage where max HP isn't known.
 - **HP color gradient** — optionally blend the bar from full-HP color through a mid color at a
@@ -31,6 +32,10 @@ tracking, and status-effect debuffs.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
   optionally with the NPC's combat level. Long names can be truncated to a character limit.
   Non-attackable NPCs are excluded by default.
+- **Other players' names** — optionally drawn above their bar, at all times or only while it's
+  tracked. Requires Show for Other Players.
+- **Always show other players' HP bars** — optionally show the bar on every visible player, not
+  just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
@@ -40,18 +45,19 @@ tracking, and status-effect debuffs.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar, its name, or both once another
   player damages it. Bosses with shared or personal loot are exempt.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
-  Can be limited to while a prayer is active; flicking keeps it up. Color configurable.
+  Can persist outside combat, be limited to while a prayer is active (flicking keeps it up), and
+  show a per-tick flick-timing indicator that sweeps across it. Color configurable.
 - **Special attack bar** — an optional special attack energy bar, shown in combat alongside your HP
-  bar. Color configurable.
+  bar, or persistently outside combat. Color configurable.
 - **Run energy bar** — an optional run energy bar, shown regardless of combat state. Switches to a
-  distinct color while a Stamina potion's drain-reduction effect is active, and can time out after a
-  configurable period of not running.
+  distinct color while a Stamina potion's drain-reduction effect is active, can time out after a
+  configurable period of not running, or always stay up regardless of that timeout.
 - **Bar order** — four independent pickers choose which bar (HP, Prayer, Special Attack, or Run
   Energy) goes in each of the four stack positions.
 - **Restore previews** — hovering a food/potion, Prayer-restoring item, or Stamina potion extends
   the matching HP, Prayer, or Run Energy bar with a preview of where it'll land.
-- **Replaced overhead icon** — optionally redraws your overhead prayer icon, hitsplats, and chat
-  text above your HP bar.
+- **Replaced overhead icon** — redraws your overhead prayer icon, hitsplats, and chat text above
+  your HP bar.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
   plugin's bar shows.
 - **Zoom scaling** — bars and text grow and shrink with camera zoom.
@@ -96,6 +102,7 @@ can look completely different if you want. Defaults are the same for both unless
 | Text Color | Color of the HP number | White |
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
+| Text Alignment | Where the bar's text sits horizontally within it. On the player bar, applies to all stacked bars (HP, Prayer, Special, Run). | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
 | Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. Player bar also covers the Prayer, Special Attack, and Run Energy bars. | 100 |
 
@@ -135,18 +142,29 @@ can look completely different if you want. Defaults are the same for both unless
 | Show for Self | Draw the player bar over your own character | On |
 | Self Display Mode | Display mode for your own bar. Requires Show for Self. | Number |
 | Show for Other Players | Draw the player bar over other players | Off |
+| Always Show Player HP Bar | Shows other players' HP bar at all times, not just when tracked in combat. Requires Show for Other Players. | Off |
 | Other Players' Display Mode | Display mode for other players' bars. Requires Show for Other Players. | Number |
+| Show Player Name | Draws a name label above other players' bars. Requires Show for Other Players. | On |
+| Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
+| Player Name Color | Color of the player name text, separate from the HP number's color | White |
 
 ### Player Bar — Player Info
 
 | Setting | Description | Default |
 |---|---|---|
+| Always Show HP Bar | Shows your HP bar even when not tracked in combat. Requires Show for Self. | Off |
 | Show Prayer Bar | Draws a Prayer points bar beneath your HP bar, or on its own outside combat. Requires Show for Self. | On |
+| Always Show Prayer Bar | Shows the Prayer bar even when not tracked in combat. Still requires a prayer to be active if Hide Prayer Bar While Not Praying is on. Requires Show Prayer Bar. | Off |
 | Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Prayer Bar Color | Fill color of the Prayer bar. Requires Show Prayer Bar. | Blue |
+| Show Prayer Tick Timer | Draws an indicator that sweeps across the Prayer bar once per game tick, for timing prayer flicks. Requires Show Prayer Bar. | Off |
+| Hide Tick Timer While Not Praying | Only draws the tick timer while a prayer is active, same as Hide Prayer Bar While Not Praying. Requires Show Prayer Tick Timer. | Off |
+| Prayer Tick Timer Color | Color of the tick timer indicator. Requires Show Prayer Tick Timer. | White |
 | Show Special Attack Bar | Draws a special attack energy bar alongside your HP bar, in combat only. Requires Show for Self. | Off |
+| Always Show Special Attack Bar | Shows the special attack bar even when not tracked in combat. Requires Show Special Attack Bar. | Off |
 | Special Attack Bar Color | Fill color of the special attack bar. Requires Show Special Attack Bar. | Green |
 | Show Run Energy Bar | Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows regardless of combat state. Requires Show for Self. | Off |
+| Always Show Run Energy Bar | Shows the run energy bar even when not tracked in combat, ignoring the timeout below. Requires Show Run Energy Bar. | Off |
 | Run Energy Bar Timeout (seconds) | Hides the run energy bar this many seconds after you last actively ran (regen and item restores don't count). 0 = never time out. Requires Show Run Energy Bar. | 0 |
 | Run Energy Bar Color | Fill color of the run energy bar. Requires Show Run Energy Bar. | Gold |
 | Run Energy Bar Color (Stamina Active) | Fill color of the run energy bar while a Stamina potion's drain-reduction effect is active. Requires Show Run Energy Bar. | Brown |
@@ -157,7 +175,6 @@ can look completely different if you want. Defaults are the same for both unless
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Show Run Energy Restore Preview | Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra bar segment. Requires Show Run Energy Bar. | On |
-| Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
 
 ### Behavior
 
