@@ -200,10 +200,12 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle playerDrawStyle = null;
 		List<CustomHpBarConfig.BarKind> playerStandaloneStack = null;
 
-		// Same-tile stacking, rebuilt each frame: tileStacks tracks claimed pixels per tile;
-		// appliedStacks lets the "Always Show NPC Name" pass below reuse an already-drawn shift.
-		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
-		Map<Actor, Integer> appliedStacks = new HashMap<>();
+		// Same-tile stacking, rebuilt each frame: tileStacks tracks each tile's claimed top edge
+		// (Y) and reference X per tile (see claimStackSlot()'s own doc for why X needs tracking
+		// too, not just Y); appliedStacks lets the "Always Show NPC/Player Bar/Name" passes below
+		// reuse an already-resolved anchor rather than re-deriving it.
+		Map<WorldPoint, Point> tileStacks = new HashMap<>();
+		Map<Actor, Point> appliedStacks = new HashMap<>();
 
 		// npcStackCounts/npcStackDecided enforce npcStackLimit() - unlike the player-name cap below,
 		// this gates the whole NPC (bar and name together, whichever combination its config draws),
@@ -276,12 +278,8 @@ class CustomHpBarOverlay extends Overlay
 				style = targetStyle != null ? targetStyle : (targetStyle = resolveStyle(actor));
 			}
 
-			int shift = claimBarStackSlot(tileStacks, actor, anchor, style, zoomFactor());
-			if (shift > 0)
-			{
-				anchor = new Point(anchor.getX(), anchor.getY() - shift);
-			}
-			appliedStacks.put(actor, shift);
+			anchor = claimBarStackSlot(tileStacks, actor, anchor, style, zoomFactor());
+			appliedStacks.put(actor, anchor);
 
 			if (actor == localPlayer)
 			{
@@ -375,16 +373,12 @@ class CustomHpBarOverlay extends Overlay
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
 
-				// Non-null once the main loop above already drew this NPC's bar - reuse its shift
-				// rather than claiming a second slot for the same actor.
-				Integer applied = appliedStacks.get(npc);
-				int shift = applied != null ? applied
+				// Non-null once the main loop above already drew this NPC's bar - reuse its
+				// resolved anchor rather than claiming a second slot for the same actor.
+				Point applied = appliedStacks.get(npc);
+				anchor = applied != null ? applied
 					: (drawBarForThis ? claimBarStackSlot(tileStacks, npc, anchor, targetStyle, zoom)
 						: claimNameStackSlot(tileStacks, npc, anchor, targetStyle, zoom));
-				if (shift > 0)
-				{
-					anchor = new Point(anchor.getX(), anchor.getY() - shift);
-				}
 
 				// No live HP yet (never hit) shows a full bar until real data takes over.
 				if (drawBarForThis && applied == null)
@@ -450,16 +444,12 @@ class CustomHpBarOverlay extends Overlay
 
 				otherPlayerStyle = otherPlayerStyle != null ? otherPlayerStyle : resolveStyle(other);
 
-				// Non-null once the main loop above already drew this player - reuse its shift
-				// rather than claiming a second slot for the same actor.
-				Integer applied = appliedStacks.get(other);
-				int shift = applied != null ? applied
+				// Non-null once the main loop above already drew this player - reuse its resolved
+				// anchor rather than claiming a second slot for the same actor.
+				Point applied = appliedStacks.get(other);
+				anchor = applied != null ? applied
 					: (drawBarForThis ? claimBarStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom)
 						: claimNameStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom));
-				if (shift > 0)
-				{
-					anchor = new Point(anchor.getX(), anchor.getY() - shift);
-				}
 
 				// No live HP yet (never hit, or not visible without a native bar) shows a full bar
 				// until real data takes over - same convention as the NPC always-show pass.
@@ -650,7 +640,7 @@ class CustomHpBarOverlay extends Overlay
 	 * there. Reported as "a new player running under a stack renders far below the others." See
 	 * CLAUDE.md, "Same-tile stack anchored to whichever actor claimed first".
 	 */
-	private void seedTileStackTops(Map<WorldPoint, Integer> tileStacks, Player localPlayer)
+	private void seedTileStackTops(Map<WorldPoint, Point> tileStacks, Player localPlayer)
 	{
 		for (Actor actor : plugin.getTrackedActors().keySet())
 		{
@@ -686,8 +676,13 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** Records actor's raw anchor Y as its tile's baseline if it's higher (smaller Y) than whatever's already recorded there. */
-	private void seedTileStackTop(Map<WorldPoint, Integer> tileStacks, Actor actor)
+	/**
+	 * Records actor's whole raw anchor (X and Y) as its tile's baseline if it's higher (smaller Y)
+	 * than whatever's already recorded there - the X half is what claimStackSlot() later hands to
+	 * every actor sharing this tile, so the group renders as a straight column instead of each
+	 * actor's own sub-tile X leaking through. See claimStackSlot()'s own doc.
+	 */
+	private void seedTileStackTop(Map<WorldPoint, Point> tileStacks, Actor actor)
 	{
 		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
@@ -701,28 +696,30 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Integer existing = tileStacks.get(tile);
-		if (existing == null || anchor.getY() < existing)
+		Point existing = tileStacks.get(tile);
+		if (existing == null || anchor.getY() < existing.getY())
 		{
-			tileStacks.put(tile, anchor.getY());
+			tileStacks.put(tile, anchor);
 		}
 	}
 
 	/**
-	 * Claims a same-tile stack slot for an actor's full bar, returning the upward pixel shift to
-	 * apply to its own anchor (0 for the first actor at a tile). tileStacks holds each tile's
-	 * currently-claimed top edge as an absolute canvas Y, not a cumulative height - two actors on
-	 * the same WorldPoint don't generally share one projected screen point (real sub-tile position
-	 * differs, and how much that shows up on screen changes continuously with camera pitch/zoom),
-	 * so stacking has to react to each actor's own actual anchor every frame rather than adding a
-	 * blind constant on top of it. See CLAUDE.md, "Same-tile name stacking drifted into overlap".
+	 * Claims a same-tile stack slot for an actor's full bar, returning the resolved anchor to draw
+	 * it at (its own anchor, unchanged, for the first actor at a tile). tileStacks holds each
+	 * tile's reference X plus its currently-claimed top edge Y, not a cumulative height - two
+	 * actors on the same WorldPoint don't generally share one projected screen point (real sub-tile
+	 * position differs, and how much that shows up on screen changes continuously with camera
+	 * pitch/yaw/zoom), so stacking has to react to each actor's own actual anchor every frame
+	 * rather than adding a blind constant on top of it. See CLAUDE.md, "Same-tile name stacking
+	 * drifted into overlap" (Y) and "NPC and other player stacking bars and names seem to drift
+	 * left or right" (X, this method's own fix).
 	 */
-	private int claimBarStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
+	private Point claimBarStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
 	{
 		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
 		{
-			return 0;
+			return anchor;
 		}
 
 		int consumed = scaled(style.height + STACK_PADDING, zoom);
@@ -749,12 +746,12 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC/Player Name" passes). Actor-generic - reused for both. */
-	private int claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
+	private Point claimNameStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
 	{
 		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
 		{
-			return 0;
+			return anchor;
 		}
 
 		return claimStackSlot(tileStacks, tile, anchor, scaled(style.fontSize + NAME_GAP + STACK_PADDING, zoom));
@@ -765,13 +762,20 @@ class CustomHpBarOverlay extends Overlay
 	 * higher (numerically smaller Y) of this actor's own raw anchor and whatever this tile has
 	 * already claimed, so a slot never lands below space already spoken for - correct however far
 	 * apart (or close) the two actors' real anchors happen to be this frame, not assumed identical.
+	 * The X half of the returned Point is always the tile's shared reference X (carried forward
+	 * from whichever actor seedTileStackTop() found topmost), never this actor's own raw X - using
+	 * each actor's own X here is exactly what caused the reported horizontal drift: Y was already
+	 * shared/aligned per-tile, but X wasn't, so a straight-down stack of bars/names visually
+	 * staggered left/right by however much the actors' individual sub-tile positions differed.
 	 */
-	private static int claimStackSlot(Map<WorldPoint, Integer> tileStacks, WorldPoint tile, Point anchor, int consumed)
+	private static Point claimStackSlot(Map<WorldPoint, Point> tileStacks, WorldPoint tile, Point anchor, int consumed)
 	{
-		Integer claimedTop = tileStacks.get(tile);
-		int effectiveTop = claimedTop != null ? Math.min(anchor.getY(), claimedTop) : anchor.getY();
-		tileStacks.put(tile, effectiveTop - consumed);
-		return anchor.getY() - effectiveTop;
+		Point claimed = tileStacks.get(tile);
+		int refX = claimed != null ? claimed.getX() : anchor.getX();
+		int claimedTopY = claimed != null ? claimed.getY() : anchor.getY();
+		int effectiveTop = Math.min(anchor.getY(), claimedTopY);
+		tileStacks.put(tile, new Point(refX, effectiveTop - consumed));
+		return new Point(refX, effectiveTop);
 	}
 
 	/**
