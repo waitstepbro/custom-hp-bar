@@ -487,8 +487,8 @@ class CustomHpBarOverlay extends Overlay
 					// convention as the bar/name branches use.
 					if (appliedStacks.get(other) == null)
 					{
-						drawSkullIcon(g, other, otherPlayerStyle, false);
-						drawOverheadIcon(g, other, otherPlayerStyle, false);
+						drawSkullIcon(g, other, anchor, otherPlayerStyle, false);
+						drawOverheadIcon(g, other, anchor, otherPlayerStyle, false);
 						drawHitsplats(g, other);
 						drawOverheadChatText(g, other);
 					}
@@ -536,8 +536,8 @@ class CustomHpBarOverlay extends Overlay
 						// name is config-enabled, not that it actually drew this frame (the hotkey
 						// may have hidden it). See the drawBar()-tail call site's own comment.
 						boolean nameLiveShown = plugin.isNamesVisible();
-						drawSkullIcon(g, other, otherPlayerStyle, nameLiveShown);
-						drawOverheadIcon(g, other, otherPlayerStyle, nameLiveShown);
+						drawSkullIcon(g, other, anchor, otherPlayerStyle, nameLiveShown);
+						drawOverheadIcon(g, other, anchor, otherPlayerStyle, nameLiveShown);
 						drawHitsplats(g, other);
 						drawOverheadChatText(g, other);
 					}
@@ -561,10 +561,14 @@ class CustomHpBarOverlay extends Overlay
 		if (localPlayer != null && config.showForSelf())
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
+			// playerAnchor is null whenever self drew neither a bar nor a standalone stack above
+			// (every bar kind toggled off) - falls back to the raw anchor in that case, same as
+			// every other actor with nothing else to key off of.
+			Point selfIconAnchor = playerAnchor != null ? playerAnchor : actorAnchor(localPlayer);
 			// nameShown false - self never gets a name row above their own bar (drawBar()'s name
 			// branch explicitly excludes self; the "Always Show Player Name" pass skips them too).
-			drawSkullIcon(g, localPlayer, playerStyle, false);
-			drawOverheadIcon(g, localPlayer, playerStyle, false);
+			drawSkullIcon(g, localPlayer, selfIconAnchor, playerStyle, false);
+			drawOverheadIcon(g, localPlayer, selfIconAnchor, playerStyle, false);
 			drawHitsplats(g, localPlayer);
 			drawOverheadChatText(g, localPlayer);
 		}
@@ -1219,8 +1223,8 @@ class CustomHpBarOverlay extends Overlay
 			// now, so it snaps down to the bar's own top the instant names are hotkey-hidden. See
 			// CLAUDE.md.
 			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName()) && plugin.isNamesVisible();
-			drawSkullIcon(g, other, style, nameShown);
-			drawOverheadIcon(g, other, style, nameShown);
+			drawSkullIcon(g, other, anchor, style, nameShown);
+			drawOverheadIcon(g, other, anchor, style, nameShown);
 			drawHitsplats(g, other);
 			drawOverheadChatText(g, other);
 		}
@@ -1541,7 +1545,7 @@ class CustomHpBarOverlay extends Overlay
 	 * icon. The render callback has already suppressed the native one, for self and for every
 	 * other player CustomHpBarPlugin.overheadEligiblePlayers currently covers.
 	 */
-	private void drawOverheadIcon(Graphics2D g, Player player, BarStyle style, boolean nameShown)
+	private void drawOverheadIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
 		HeadIcon headIcon = player.getOverheadIcon();
 		if (headIcon == null)
@@ -1555,7 +1559,6 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(player);
 		if (anchor == null)
 		{
 			return;
@@ -1599,7 +1602,7 @@ class CustomHpBarOverlay extends Overlay
 	 * overhead UI, for self and for every other player CustomHpBarPlugin.overheadEligiblePlayers
 	 * currently covers, so leaving it undrawn here would just make it vanish. See CLAUDE.md.
 	 */
-	private void drawSkullIcon(Graphics2D g, Player player, BarStyle style, boolean nameShown)
+	private void drawSkullIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
 		BufferedImage image = skullImage(player.getSkullIcon());
 		if (image == null)
@@ -1607,7 +1610,6 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(player);
 		if (anchor == null)
 		{
 			return;
