@@ -12,6 +12,7 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
+import net.runelite.api.SkullIcon;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
@@ -502,6 +503,7 @@ class CustomHpBarOverlay extends Overlay
 					// here when neither happened.
 					if (applied == null && !drawBarForThis)
 					{
+						drawSkullIcon(g, other, otherPlayerStyle, true);
 						drawOverheadIcon(g, other, otherPlayerStyle, true);
 						drawHitsplats(g, other);
 						drawOverheadChatText(g, other, otherPlayerStyle);
@@ -520,14 +522,15 @@ class CustomHpBarOverlay extends Overlay
 			drawStandaloneBarStack(g, playerAnchor, playerDrawStyle, playerStandaloneStack);
 		}
 
-		// Replacement for the native overhead prayer icon, which the render callback suppresses.
-		// Drawn last of all - it's anchored above the player's own bar, so it's already clear of
-		// every NPC bar drawn above.
+		// Replacement for the native overhead prayer icon (and skull, if any), which the render
+		// callback suppresses. Drawn last of all - it's anchored above the player's own bar, so
+		// it's already clear of every NPC bar drawn above.
 		if (localPlayer != null && config.showForSelf())
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
 			// nameShown false - self never gets a name row above their own bar (drawBar()'s name
 			// branch explicitly excludes self; the "Always Show Player Name" pass skips them too).
+			drawSkullIcon(g, localPlayer, playerStyle, false);
 			drawOverheadIcon(g, localPlayer, playerStyle, false);
 			drawHitsplats(g, localPlayer);
 			drawOverheadChatText(g, localPlayer, playerStyle);
@@ -1191,6 +1194,7 @@ class CustomHpBarOverlay extends Overlay
 			// Whichever of the two branches above actually drew it (or alwaysShowPlayerName drawing
 			// it in the dedicated pass instead), the outcome's the same row at the same position.
 			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName());
+			drawSkullIcon(g, other, style, nameShown);
 			drawOverheadIcon(g, other, style, nameShown);
 			drawHitsplats(g, other);
 			drawOverheadChatText(g, other, style);
@@ -1506,9 +1510,11 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
-	 * Draws the replacement overhead prayer icon above the bar (and name, if nameShown) - the
-	 * render callback has already suppressed the native one, for self and for every other player
-	 * CustomHpBarPlugin.overheadEligiblePlayers currently covers.
+	 * Draws the replacement overhead prayer icon above the bar (and name, if nameShown), and above
+	 * the replacement skull too when drawSkullIcon() is also drawing one for this player (see
+	 * skullClearance()) - matching native OSRS's own bottom-to-top layout of bar, skull, prayer
+	 * icon. The render callback has already suppressed the native one, for self and for every
+	 * other player CustomHpBarPlugin.overheadEligiblePlayers currently covers.
 	 */
 	private void drawOverheadIcon(Graphics2D g, Player player, BarStyle style, boolean nameShown)
 	{
@@ -1546,7 +1552,7 @@ class CustomHpBarOverlay extends Overlay
 		int nameClearance = nameShown ? rect[3] + scaled(NAME_GAP, zoom) : 0;
 
 		int x = rect[0] + (rect[2] - w) / 2;
-		int y = rect[1] - nameClearance - gap - h;
+		int y = rect[1] - nameClearance - gap - h - skullClearance(player, zoom);
 		g.drawImage(image, x, y, w, h, null);
 	}
 
@@ -1554,6 +1560,72 @@ class CustomHpBarOverlay extends Overlay
 	private BufferedImage headIconImage(HeadIcon headIcon)
 	{
 		return clientSprite(SpriteID.HEADICONS_PRAYER, headIcon.ordinal());
+	}
+
+	/**
+	 * Draws the replacement PK skull (Player.getSkullIcon(), the real PvP/wilderness skull - not
+	 * to be confused with the aggressive-NPC badge, which just happens to reuse the same bundled
+	 * image, see skullImage()) directly above the bar (and name, if nameShown) - the same row
+	 * drawOverheadIcon() used to draw the prayer icon in alone. drawOverheadIcon() now adds this
+	 * icon's own height as extra clearance above its own row whenever one is showing (see
+	 * skullClearance()), so the two stack skull-then-prayer-icon bottom to top, matching native
+	 * OSRS. Same suppress-and-redraw reasoning as drawOverheadIcon()'s own doc - the render
+	 * callback has already suppressed the native skull along with the rest of that player's
+	 * overhead UI, for self and for every other player CustomHpBarPlugin.overheadEligiblePlayers
+	 * currently covers, so leaving it undrawn here would just make it vanish. See CLAUDE.md.
+	 */
+	private void drawSkullIcon(Graphics2D g, Player player, BarStyle style, boolean nameShown)
+	{
+		if (player.getSkullIcon() == SkullIcon.NONE)
+		{
+			return;
+		}
+
+		BufferedImage image = skullImage();
+		if (image == null)
+		{
+			return;
+		}
+
+		Point anchor = actorAnchor(player);
+		if (anchor == null)
+		{
+			return;
+		}
+
+		double zoom = zoomFactor();
+		int[] rect = barRect(anchor, style, zoom);
+		int w = scaled(image.getWidth(), zoom);
+		int h = scaled(image.getHeight(), zoom);
+		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
+		int nameClearance = nameShown ? rect[3] + scaled(NAME_GAP, zoom) : 0;
+
+		int x = rect[0] + (rect[2] - w) / 2;
+		int y = rect[1] - nameClearance - gap - h;
+		g.drawImage(image, x, y, w, h, null);
+	}
+
+	/**
+	 * Extra vertical clearance drawOverheadIcon() must reserve above its own row when player
+	 * currently has a skull that drawSkullIcon() is also drawing for them - 0 if unskulled or the
+	 * bundled image hasn't loaded, in which case the prayer icon just falls back to sitting where
+	 * it always has (right above the bar/name), same as before this existed.
+	 */
+	private int skullClearance(Player player, double zoom)
+	{
+		if (player.getSkullIcon() == SkullIcon.NONE)
+		{
+			return 0;
+		}
+
+		BufferedImage image = skullImage();
+		return image == null ? 0 : scaled(image.getHeight() + OVERHEAD_ICON_GAP, zoom);
+	}
+
+	/** The real PK skull graphic - bundled from the wiki, since no confirmed live SpriteID exists for it. Reuses the same file as aggressiveIcon()'s badge; they just happen to share an image, not a purpose. */
+	private BufferedImage skullImage()
+	{
+		return bundledIcon("pk_skull_icon.png");
 	}
 
 	/** Redraws hitsplats on player (real sprite + amount), replacing the ones the render callback suppresses - self or any other eligible player. */
