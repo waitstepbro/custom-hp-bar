@@ -1576,12 +1576,7 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private void drawSkullIcon(Graphics2D g, Player player, BarStyle style, boolean nameShown)
 	{
-		if (player.getSkullIcon() == SkullIcon.NONE)
-		{
-			return;
-		}
-
-		BufferedImage image = skullImage();
+		BufferedImage image = skullImage(player.getSkullIcon());
 		if (image == null)
 		{
 			return;
@@ -1613,19 +1608,58 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private int skullClearance(Player player, double zoom)
 	{
-		if (player.getSkullIcon() == SkullIcon.NONE)
-		{
-			return 0;
-		}
-
-		BufferedImage image = skullImage();
+		BufferedImage image = skullImage(player.getSkullIcon());
 		return image == null ? 0 : scaled(image.getHeight() + OVERHEAD_ICON_GAP, zoom);
 	}
 
-	/** The real PK skull graphic - bundled from the wiki, since no confirmed live SpriteID exists for it. Reuses the same file as aggressiveIcon()'s badge; they just happen to share an image, not a purpose. */
-	private BufferedImage skullImage()
+	/**
+	 * The real PK skull graphic for a given Player.getSkullIcon() value - bundled from the wiki,
+	 * since no confirmed live SpriteID exists for any of these. Null for SkullIcon.NONE (not
+	 * skulled at all).
+	 *
+	 * A loot-key-carrying skull (SkullIcon.LOOT_KEYS_ONE..FIVE, FORINTHRY_SURGE_KEYS_ONE..FIVE) is
+	 * its own distinct graphic that already bakes the key count into the skull image itself -
+	 * confirmed against the OSRS Wiki's own per-count icons (`Skull (Loot key) icon (N).png`,
+	 * `Skull (Forinthry Surge Loot key) icon (N).png`), not a separate badge drawn alongside the
+	 * plain skull. So it *replaces* the plain skull entirely rather than adding to it - explicit
+	 * user instruction, since an earlier guess (draw the plain skull plus a second "keys" element)
+	 * was wrong. Every other skull variant (high-risk world, Fight Pit, Deadman, plain Forinthry
+	 * Surge with no keys) deliberately falls back to the plain white skull below - the same
+	 * approximation this feature already made before per-variant graphics existed, and the only
+	 * ones asked for so far are the two key-carrying families. See CLAUDE.md.
+	 */
+	private BufferedImage skullImage(int skullIcon)
 	{
-		return bundledIcon("pk_skull_icon.png");
+		switch (skullIcon)
+		{
+			case SkullIcon.NONE:
+				return null;
+			case SkullIcon.LOOT_KEYS_ONE:
+				return bundledIcon("pk_skull_loot_key_1.png");
+			case SkullIcon.LOOT_KEYS_TWO:
+				return bundledIcon("pk_skull_loot_key_2.png");
+			case SkullIcon.LOOT_KEYS_THREE:
+				return bundledIcon("pk_skull_loot_key_3.png");
+			case SkullIcon.LOOT_KEYS_FOUR:
+				return bundledIcon("pk_skull_loot_key_4.png");
+			case SkullIcon.LOOT_KEYS_FIVE:
+				return bundledIcon("pk_skull_loot_key_5.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_ONE:
+				return bundledIcon("pk_skull_surge_key_1.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_TWO:
+				return bundledIcon("pk_skull_surge_key_2.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_THREE:
+				return bundledIcon("pk_skull_surge_key_3.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_FOUR:
+				return bundledIcon("pk_skull_surge_key_4.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_FIVE:
+				return bundledIcon("pk_skull_surge_key_5.png");
+			default:
+				// Unskulled (NONE already returned above) never reaches here with a non-null
+				// result expected; every skulled variant without its own bundled graphic yet
+				// falls back to the plain skull - see this method's own doc.
+				return bundledIcon("pk_skull_icon.png");
+		}
 	}
 
 	/** Redraws hitsplats on player (real sprite + amount), replacing the ones the render callback suppresses - self or any other eligible player. */
