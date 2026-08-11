@@ -4,8 +4,6 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise HP
 tracking, and status-effect debuffs.
 
-> **Note:** PvP remains largely untested for now.
-
 <p align="center">
   <img src="images/burn-example.png" width="49%">
   <img src="images/aggressive-icon-example.png" width="49%">
@@ -71,20 +69,23 @@ tracking, and status-effect debuffs.
 
 ## Configuration
 
-Settings are grouped into five sections. Each bar type gets a **Style** section (size, shape, color,
-text) and an **Info** section (what is shown and when), plus a shared **Behavior** section:
+Settings are grouped into eight sections:
 
 - Target Bar — Style
 - Target Bar — NPC Info
 - Player Bar — Style
 - Player Bar — Player Info
+- Other Player Bar — Style
+- Other Player Bar — Info
 - Behavior
+- Hotkeys
 
-Styling is configured **separately for the target bar (NPCs) and the player bar (you & others)** -
-every setting in the first table below exists twice, once per Style section, so NPCs and players
-can look completely different if you want. Defaults are the same for both unless noted.
+Styling is independent for NPCs, giving them their own full Style section. Your own bar and other
+players' bars share one set of size/shape/border/font/text settings (in Player Bar — Style), but
+each gets its own colors, gradient, background, opacity, and vertical offset - yours in Player Bar
+— Style, other players' in Other Player Bar — Style.
 
-### Style options (present in both Style sections)
+### Style options (present in both Target Bar — Style and Player Bar — Style)
 
 | Setting | Description | Default |
 |---|---|---|
@@ -138,19 +139,19 @@ can look completely different if you want. Defaults are the same for both unless
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 | NPC Filter | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
+| NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 
 ### Player Bar — Style (in addition to the shared options)
+
+The size, shape, border, and font/text options here (from the shared table above) apply to other
+players' bars too - only Show for Self, Self Display Mode, and the color-related settings below
+are self-only. Other players' colors and vertical offset live in their own section, see
+"Other Player Bar — Style" below.
 
 | Setting | Description | Default |
 |---|---|---|
 | Show for Self | Draw the player bar over your own character | On |
 | Self Display Mode | Display mode for your own bar. Requires Show for Self. | Number |
-| Show for Other Players | Draw the player bar over other players | Off |
-| Always Show Player HP Bar | Shows other players' HP bar at all times, not just when tracked in combat. Requires Show for Other Players. | Off |
-| Other Players' Display Mode | Display mode for other players' bars. Requires Show for Other Players. | Number |
-| Show Player Name | Draws a name label above other players' bars. Requires Show for Other Players. | On |
-| Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
-| Player Name Color | Color of the player name text, separate from the HP number's color | White |
 
 ### Player Bar — Player Info
 
@@ -180,6 +181,33 @@ can look completely different if you want. Defaults are the same for both unless
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Show Run Energy Restore Preview | Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra bar segment. Requires Show Run Energy Bar. | On |
 
+### Other Player Bar — Style
+
+Size, shape, border, and font/text come from Player Bar — Style, shared with your own bar. Other
+players' HP is always shown as a percentage - there's no display mode option for it.
+
+| Setting | Description | Default |
+|---|---|---|
+| Show for Other Players | Draw the health bar over other players. With Always Show Player Name on, names stay visible regardless of this setting; without it, a player still needs this on to be tracked - and therefore named - at all. | Off |
+| Always Show Player HP Bar | Shows other players' HP bar at all times, not just when tracked in combat. Requires Show for Other Players. | Off |
+| Vertical Offset (Other Players) | Pixels to shift other players' bars up (positive) or down (negative) from center. Independent of your own Vertical Offset (Self). | 15 |
+| Bar Color | Fill color of other players' bars, and the full-HP color when HP Color Gradient is on. Independent of your own Bar Color. | Green |
+| HP Color Gradient | Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP levels. Independent of your own toggle. | Off |
+| Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient. Independent of your own color. | Yellow |
+| Midpoint | HP percentage at which other players' bars are exactly Mid HP Color. Independent of your own midpoint. | 50 |
+| Low HP Color | Color reached at 0% HP. Requires HP Color Gradient. Independent of your own color. | Red |
+| Background Color | Color of the empty portion of other players' bars. Independent of your own background color. | Dark gray (translucent) |
+| Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque. Independent of your own opacity. | 100 |
+
+### Other Player Bar — Info
+
+| Setting | Description | Default |
+|---|---|---|
+| Show Player Name | Draws a name label above other players' bars. Without Always Show Player Name, still only shows for players tracked via Show for Other Players. | On |
+| Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
+| Player Name Color | Color of the player name text, separate from the HP number's color | White |
+| Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
+
 ### Behavior
 
 | Setting | Description | Default |
@@ -194,3 +222,8 @@ can look completely different if you want. Defaults are the same for both unless
 |---|---|---|
 | Toggle Names | Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
 | Toggle HP Bars | Instantly shows/hides NPC and player HP bars (including your own). Doesn't affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
+
+## Support RuneLite
+
+This plugin is free. If you'd like to support the RuneLite client itself, consider becoming a
+[Patreon supporter](https://www.patreon.com/runelite).
