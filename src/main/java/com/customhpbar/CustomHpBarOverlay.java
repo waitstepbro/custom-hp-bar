@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,9 +99,6 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
-
-	/** Gap between the overhead chat text and the HP bar/icon above which it's moved, before zoom scaling. */
-	private static final int CHAT_TEXT_BAR_GAP = 3;
 
 	/** Real client sprite ID for each hitsplat's background graphic, keyed by HitsplatID's type constant. */
 	private static final Map<Integer, Integer> HITSPLAT_SPRITE_IDS = buildHitsplatSpriteIds();
@@ -506,7 +502,7 @@ class CustomHpBarOverlay extends Overlay
 						drawSkullIcon(g, other, otherPlayerStyle, true);
 						drawOverheadIcon(g, other, otherPlayerStyle, true);
 						drawHitsplats(g, other);
-						drawOverheadChatText(g, other, otherPlayerStyle);
+						drawOverheadChatText(g, other);
 					}
 				}
 			}
@@ -533,7 +529,7 @@ class CustomHpBarOverlay extends Overlay
 			drawSkullIcon(g, localPlayer, playerStyle, false);
 			drawOverheadIcon(g, localPlayer, playerStyle, false);
 			drawHitsplats(g, localPlayer);
-			drawOverheadChatText(g, localPlayer, playerStyle);
+			drawOverheadChatText(g, localPlayer);
 		}
 
 		// Swap this frame's reference-actor data in wholesale - see lastReferenceActors's own field doc.
@@ -1028,19 +1024,6 @@ class CustomHpBarOverlay extends Overlay
 		drawLabel(g, style, Text.removeTags(playerName), x, y - h - nameGap, w, h, zoom, config.playerNameColor());
 	}
 
-	/**
-	 * Whether other player has an HP bar actually showing right now - either combat-tracked, or
-	 * unconditionally via alwaysShowPlayerBar. Only remaining caller is drawOverheadChatText()'s
-	 * stack-height lookup (whether to leave room for the HP row above the chat text) - verticalOffset
-	 * itself no longer depends on this, see barRect()'s own doc. Self is never a caller - the local
-	 * player's own bar/stack decision is playerBarStack(), keyed off real tracked state, not this.
-	 */
-	private boolean otherPlayerBarShowing(Player player)
-	{
-		return plugin.getTrackedActors().containsKey(player)
-			|| (config.showForPlayers() && config.alwaysShowPlayerBar());
-	}
-
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
 	private void drawAggressiveNpcIcon(Graphics2D g, int barX, int barY, int barH, double zoom)
 	{
@@ -1197,7 +1180,7 @@ class CustomHpBarOverlay extends Overlay
 			drawSkullIcon(g, other, style, nameShown);
 			drawOverheadIcon(g, other, style, nameShown);
 			drawHitsplats(g, other);
-			drawOverheadChatText(g, other, style);
+			drawOverheadChatText(g, other);
 		}
 	}
 
@@ -1749,7 +1732,17 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/** Redraws a player's overhead chat text, replacing the native text; tucks under the bar stack when one is shown - self or any other eligible player. */
-	private void drawOverheadChatText(Graphics2D g, Player player, BarStyle style)
+	/**
+	 * Draws the replacement overhead chat text at its own default vanilla position - above the
+	 * head, via Actor.getCanvasTextLocation(), the same projection the native client itself uses -
+	 * never derived from the bar/name/skull/icon stack below it. Explicit instruction, reversing
+	 * this method's own prior design ("tucked beneath whatever the stack currently is" - see
+	 * CLAUDE.md, "Overhead chat text sat too high with no bar showing"): "text chat has a default
+	 * position above the player's head, we need to always respect that and never modify its
+	 * position." The bar/name/skull/overhead-icon stack is what's expected to stay clear of *this*
+	 * now, not the other way around - see CLAUDE.md's follow-up entry.
+	 */
+	private void drawOverheadChatText(Graphics2D g, Player player)
 	{
 		if (player.getOverheadCycle() <= 0)
 		{
@@ -1768,41 +1761,19 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(player);
-		if (anchor == null)
-		{
-			return;
-		}
-
 		double zoom = zoomFactor();
 		// Vanilla overhead chat uses the bold font, not the regular one.
 		Font font = FontManager.getRunescapeBoldFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
-		FontRenderContext frc = g.getFontRenderContext();
-		Rectangle pixelBounds = new TextLayout(text, font, frc).getPixelBounds(frc, 0, 0);
 
-		int x = anchor.getX() - (int) Math.round(pixelBounds.getWidth() / 2.0) - pixelBounds.x;
+		Point location = player.getCanvasTextLocation(g, text, player.getLogicalHeight());
+		if (location == null)
+		{
+			return;
+		}
 
-		// Tucked beneath whatever the stack currently is, including an empty one - barRect() with no
-		// bars still returns a notional zero-height slot right at the head, so this degrades to a
-		// small fixed gap below the head with no bar showing, instead of vanilla's far-clear
-		// getCanvasTextLocation() position - keeps the no-bar case visually consistent with the
-		// bar-showing case rather than jumping to a completely different placement language. See
-		// CLAUDE.md, "Overhead chat text sat too high with no bar showing".
-		boolean self = player == client.getLocalPlayer();
-		boolean tracked = plugin.getTrackedActors().containsKey(player);
-		// Only self ever has the full Prayer/Special/Run stack - another player's "stack" is just
-		// the single HP row when their bar is showing (tracked, or untracked via
-		// alwaysShowPlayerBar), nothing when it isn't.
-		boolean otherBarShowing = !self && otherPlayerBarShowing(player);
-		List<CustomHpBarConfig.BarKind> stack = self
-			? playerBarStack(tracked)
-			: (otherBarShowing ? Collections.singletonList(CustomHpBarConfig.BarKind.HP) : Collections.emptyList());
-		// verticalOffset always applies now, same as drawPlayerNameOnly()/drawOverheadIcon() - see
-		// drawPlayerNameOnly()'s own comment.
-		int[] rect = barRect(anchor, style, zoom);
-		int stackBottom = rect[1] + rect[3] * stack.size();
-		int y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
+		int x = location.getX();
+		int y = location.getY();
 
 		g.setColor(Color.BLACK);
 		g.drawString(text, x + 1, y + 1);
