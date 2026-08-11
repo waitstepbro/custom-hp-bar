@@ -369,12 +369,15 @@ class CustomHpBarOverlay extends Overlay
 				}
 
 				// Bankers and fishing spots have no HP to show; talk-only NPCs have a level but no
-				// fight in them. Either way the name below can still draw. isAttackableNpc alone
-				// isn't enough to exclude a fresh kill - hasAttackOption() reads static composition
-				// data, which doesn't change just because the NPC is mid-death-animation.
-				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc)
-					&& !CustomHpBarPlugin.isConfirmedDead(npc);
-				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName());
+				// fight in them. Either way the name below can still draw for those - but not for a
+				// fresh kill: isAttackableNpc/isDisplayableName alone aren't enough to exclude one,
+				// since hasAttackOption() reads static composition data that doesn't change just
+				// because the NPC is mid-death-animation. isConfirmedDead applies to both the bar and
+				// the name now, so a corpse's name disappears in step with its bar instead of
+				// lingering until the animation finishes and the NPC actually despawns.
+				boolean confirmedDead = CustomHpBarPlugin.isConfirmedDead(npc);
+				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc) && !confirmedDead;
+				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName()) && !confirmedDead;
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
 				// would shift every other bar on its tile upwards for no visible reason.
