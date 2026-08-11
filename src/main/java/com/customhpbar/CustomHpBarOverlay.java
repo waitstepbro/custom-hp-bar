@@ -12,6 +12,7 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
+import net.runelite.api.SkullIcon;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
@@ -99,9 +100,6 @@ class CustomHpBarOverlay extends Overlay
 	/** Approximate overhead icon height reserved in a same-tile stack (avoids depending on whether the real sprite has loaded). */
 	private static final int STACK_ICON_CLEARANCE = 24;
 
-	/** Gap between the overhead chat text and the HP bar/icon above which it's moved, before zoom scaling. */
-	private static final int CHAT_TEXT_BAR_GAP = 3;
-
 	/** Real client sprite ID for each hitsplat's background graphic, keyed by HitsplatID's type constant. */
 	private static final Map<Integer, Integer> HITSPLAT_SPRITE_IDS = buildHitsplatSpriteIds();
 
@@ -160,6 +158,14 @@ class CustomHpBarOverlay extends Overlay
 	/** Icons bundled as plugin resources, keyed by file name - for graphics with no confirmed client SpriteID. */
 	private final Map<String, BufferedImage> bundledIcons = new HashMap<>();
 
+	/**
+	 * Per-tile sticky reference actor - see resolveReferenceActors(). Double-buffered the same way
+	 * the old stability map was: render() builds a fresh map each frame and swaps it in wholesale
+	 * at the end, rather than mutating this one in place, so a tile nobody occupies anymore simply
+	 * isn't carried into the next swap - no despawn-event cleanup needed.
+	 */
+	private Map<WorldPoint, Actor> lastReferenceActors = new HashMap<>();
+
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
 			ItemStatChangesService itemStatService)
@@ -181,10 +187,21 @@ class CustomHpBarOverlay extends Overlay
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
 
 		// Resolved lazily, at most once each per frame no matter how many actors share a profile.
+		// playerStyle is self only and otherPlayerStyle every other player - split because
+		// resolveStyle() now resolves a different verticalOffset for each (see its own comment);
+		// conflating them into one cache would leak whichever actor's offset got resolved first.
 		BarStyle targetStyle = null;
 		BarStyle playerStyle = null;
+		BarStyle otherPlayerStyle = null;
 
 		Player localPlayer = client.getLocalPlayer();
+
+		// "Prioritize Self on Same Tile": non-null means any NPC/other player sharing this exact
+		// tile with self gets no bar or name at all this frame (see suppressedForSelfTile()). Null
+		// - feature off, no local player, or Show for Self off (nothing of self's to prioritize) -
+		// means every actor is considered normally, same as before this existed.
+		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf()
+			? localPlayer.getWorldLocation() : null;
 
 		// The local player's own bar is drawn last of everything below, so it never ends up buried
 		// under an NPC's bar (map/loop order is otherwise arbitrary - see TODO.md idea 7). These
@@ -195,19 +212,70 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle playerDrawStyle = null;
 		List<CustomHpBarConfig.BarKind> playerStandaloneStack = null;
 
-		// Same-tile stacking, rebuilt each frame: tileStacks tracks claimed pixels per tile;
-		// appliedStacks lets the "Always Show NPC Name" pass below reuse an already-drawn shift.
-		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
-		Map<Actor, Integer> appliedStacks = new HashMap<>();
+		// Same-tile stacking, rebuilt each frame: tileStacks tracks each tile's claimed top edge
+		// (Y) and reference X per tile (see claimStackSlot()'s own doc for why X needs tracking
+		// too, not just Y); appliedStacks lets the "Always Show NPC/Player Bar/Name" passes below
+		// reuse an already-resolved anchor rather than re-deriving it.
+		Map<WorldPoint, Point> tileStacks = new HashMap<>();
+		Map<Actor, Point> appliedStacks = new HashMap<>();
+
+		// This frame's half of the lastReferenceActors double-buffer - see its own field doc. Filled
+		// in by resolveReferenceActors() below, swapped into lastReferenceActors at the very end of
+		// render() so next frame's stickiness check compares against this one.
+		Map<WorldPoint, Actor> frameReferenceActors = new HashMap<>();
+
+		// npcStackCounts/npcStackDecided enforce npcStackLimit() - unlike the player-name cap below,
+		// this gates the whole NPC (bar and name together, whichever combination its config draws),
+		// charged once per NPC regardless of how many of its own draw calls follow, and decided
+		// before any stack slot is claimed so a capped-out NPC reserves no height either. See
+		// npcStackAllowed()'s own doc.
+		Map<WorldPoint, Integer> npcStackCounts = new HashMap<>();
+		Map<NPC, Boolean> npcStackDecided = new HashMap<>();
+
+		// playerStackCounts/playerStackDecided enforce playerNameStackLimit() - same shape as
+		// npcStackCounts/npcStackDecided above, gating the whole other-player entry (bar and/or
+		// name together, whichever combination its config draws), charged once per player
+		// regardless of how many of its own draw calls follow, and decided before any stack slot is
+		// claimed so a capped-out player reserves no height either. See playerStackAllowed()'s own
+		// doc.
+		Map<WorldPoint, Integer> playerStackCounts = new HashMap<>();
+		Map<Player, Boolean> playerStackDecided = new HashMap<>();
+
+		// Seeds each contested tile with its sticky reference actor's own live anchor before any of
+		// the three passes below claims a real slot - otherwise whichever actor got claimed first
+		// (an arbitrary property of iteration/pass order) anchors that whole tile's stack to itself.
+		// See resolveReferenceActors()'s own doc and CLAUDE.md.
+		resolveReferenceActors(tileStacks, localPlayer, selfPriorityTile, frameReferenceActors);
 
 		for (Map.Entry<Actor, Integer> entry : plugin.getTrackedActors().entrySet())
 		{
 			Actor actor = entry.getKey();
 
+			// Cheapest check first, before any HP resolution or stack-limit charge - an actor
+			// suppressed for sharing self's tile gets nothing at all this frame, not even counted
+			// toward npcStackLimit/Player Stack Limit. See suppressedForSelfTile()'s own doc.
+			if (suppressedForSelfTile(actor, selfPriorityTile))
+			{
+				continue;
+			}
+
 			// Filtering already happened in CustomHpBarPlugin.isTrackedType() - nothing to re-check.
 			int maxHp = resolveMaxHp(actor);
 			int[] hp = resolveHp(actor, maxHp);
 			if (hp == null)
+			{
+				continue;
+			}
+
+			// Charged once per NPC/other-player regardless of pass - a capped-out one skips entirely
+			// here (no slot claimed, no reservation), not just its name. Self is never subject to
+			// either cap.
+			if (actor instanceof NPC && !npcStackAllowed(npcStackCounts, npcStackDecided, (NPC) actor))
+			{
+				continue;
+			}
+			if (actor instanceof Player && actor != localPlayer
+				&& !playerStackAllowed(playerStackCounts, playerStackDecided, (Player) actor))
 			{
 				continue;
 			}
@@ -221,19 +289,22 @@ class CustomHpBarOverlay extends Overlay
 			BarStyle style;
 			if (actor instanceof Player)
 			{
-				style = playerStyle != null ? playerStyle : (playerStyle = resolveStyle(actor));
+				if (actor == localPlayer)
+				{
+					style = playerStyle != null ? playerStyle : (playerStyle = resolveStyle(actor));
+				}
+				else
+				{
+					style = otherPlayerStyle != null ? otherPlayerStyle : (otherPlayerStyle = resolveStyle(actor));
+				}
 			}
 			else
 			{
 				style = targetStyle != null ? targetStyle : (targetStyle = resolveStyle(actor));
 			}
 
-			int shift = claimBarStackSlot(tileStacks, actor, style, zoomFactor());
-			if (shift > 0)
-			{
-				anchor = new Point(anchor.getX(), anchor.getY() - shift);
-			}
-			appliedStacks.put(actor, shift);
+			anchor = claimBarStackSlot(tileStacks, actor, anchor, style, zoomFactor());
+			appliedStacks.put(actor, anchor);
 
 			if (actor == localPlayer)
 			{
@@ -292,22 +363,32 @@ class CustomHpBarOverlay extends Overlay
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
 				// Cached per game tick, not recomputed every frame - see CustomHpBarPlugin.isTrackedNpcCached().
-				if (npc == null || !plugin.isTrackedNpcCached(npc))
+				if (npc == null || !plugin.isTrackedNpcCached(npc) || suppressedForSelfTile(npc, selfPriorityTile))
 				{
 					continue;
 				}
 
 				// Bankers and fishing spots have no HP to show; talk-only NPCs have a level but no
-				// fight in them. Either way the name below can still draw. isAttackableNpc alone
-				// isn't enough to exclude a fresh kill - hasAttackOption() reads static composition
-				// data, which doesn't change just because the NPC is mid-death-animation.
-				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc)
-					&& !CustomHpBarPlugin.isConfirmedDeadNpc(npc);
-				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName());
+				// fight in them. Either way the name below can still draw for those - but not for a
+				// fresh kill: isAttackableNpc/isDisplayableName alone aren't enough to exclude one,
+				// since hasAttackOption() reads static composition data that doesn't change just
+				// because the NPC is mid-death-animation. isConfirmedDead applies to both the bar and
+				// the name now, so a corpse's name disappears in step with its bar instead of
+				// lingering until the animation finishes and the NPC actually despawns.
+				boolean confirmedDead = CustomHpBarPlugin.isConfirmedDead(npc);
+				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc) && !confirmedDead;
+				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName()) && !confirmedDead;
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
 				// would shift every other bar on its tile upwards for no visible reason.
 				if (!drawBarForThis && !drawNameForThis)
+				{
+					continue;
+				}
+
+				// Same charge/skip as the main loop above - reuses the cached decision if this NPC
+				// was already considered there (tracked case), so it's never charged twice.
+				if (!npcStackAllowed(npcStackCounts, npcStackDecided, npc))
 				{
 					continue;
 				}
@@ -320,16 +401,12 @@ class CustomHpBarOverlay extends Overlay
 
 				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
 
-				// Non-null once the main loop above already drew this NPC's bar - reuse its shift
-				// rather than claiming a second slot for the same actor.
-				Integer applied = appliedStacks.get(npc);
-				int shift = applied != null ? applied
-					: (drawBarForThis ? claimBarStackSlot(tileStacks, npc, targetStyle, zoom)
-						: claimNameStackSlot(tileStacks, npc, targetStyle, zoom));
-				if (shift > 0)
-				{
-					anchor = new Point(anchor.getX(), anchor.getY() - shift);
-				}
+				// Non-null once the main loop above already drew this NPC's bar - reuse its
+				// resolved anchor rather than claiming a second slot for the same actor.
+				Point applied = appliedStacks.get(npc);
+				anchor = applied != null ? applied
+					: (drawBarForThis ? claimBarStackSlot(tileStacks, npc, anchor, targetStyle, zoom)
+						: claimNameStackSlot(tileStacks, npc, anchor, targetStyle, zoom));
 
 				// No live HP yet (never hit) shows a full bar until real data takes over.
 				if (drawBarForThis && applied == null)
@@ -350,6 +427,124 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
+		// "Always Show Player Bar"/"Always Show Player Name" - same "regardless of tracked state"
+		// idea as the NPC pass above, one shared loop so they don't double-claim same-tile stack
+		// slots (mirrors alwaysBar/alwaysName above exactly). Separate loop from the NPC one since
+		// Player/NPC share no common iterable and the local player is never a candidate. Also the
+		// only place a player with neither a bar nor a name showing, but an active skull/overhead
+		// icon, gets drawn at all - see the iconOnly branch below and CLAUDE.md. That's why this
+		// loop now always runs rather than being gated on the two always-show toggles: a skulled
+		// or praying player can appear regardless of either.
+		// alwaysShowPlayerBar requires showForPlayers, same as alwaysShowHpBar requires
+		// showForSelf; alwaysShowPlayerName deliberately doesn't - that toggle is scoped to health
+		// bars only, so names stay visible with showForPlayers off. See CLAUDE.md.
+		boolean alwaysPlayerBar = config.showForPlayers() && config.alwaysShowPlayerBar();
+		boolean alwaysPlayerName = config.showPlayerName() && config.alwaysShowPlayerName();
+		{
+			double zoom = zoomFactor();
+			for (Player other : client.getTopLevelWorldView().players())
+			{
+				if (other == null || other == localPlayer || suppressedForSelfTile(other, selfPriorityTile))
+				{
+					continue;
+				}
+
+				// isConfirmedDead excluded same as the NPC pass above - this loop bypasses
+				// trackedActors entirely, so a dying player's bar would otherwise keep drawing
+				// (attached to the death animation) for as long as they remain in the scene, exactly
+				// the bug that check was originally added to close for NPCs.
+				boolean drawBarForThis = alwaysPlayerBar && !CustomHpBarPlugin.isConfirmedDead(other);
+				boolean drawNameForThis = alwaysPlayerName && isDisplayableName(other.getName());
+
+				// Neither a bar nor a name is drawing for this player this frame - the only
+				// remaining reason to consider them is an active skull or overhead icon with
+				// nowhere else to be drawn (CustomHpBarPlugin.updateOverheadEligiblePlayers()
+				// suppresses the native versions for exactly this population too, so leaving them
+				// undrawn here would make them vanish). Deliberately skips playerStackAllowed and
+				// same-tile stack claiming entirely below - an icon-only player isn't part of the
+				// bar/name stack at all, just its own anchor, snapping to the same "no name" default
+				// position drawSkullIcon()/drawOverheadIcon() already use.
+				boolean iconOnly = !drawBarForThis && !drawNameForThis
+					&& (other.getSkullIcon() != SkullIcon.NONE || other.getOverheadIcon() != null);
+				if (!drawBarForThis && !drawNameForThis && !iconOnly)
+				{
+					continue;
+				}
+
+				Point anchor = actorAnchor(other);
+				if (anchor == null)
+				{
+					continue;
+				}
+
+				otherPlayerStyle = otherPlayerStyle != null ? otherPlayerStyle : resolveStyle(other);
+
+				if (iconOnly)
+				{
+					// Non-null only if some other pass already drew this player this frame -
+					// shouldn't normally happen (iconOnly implies neither of the branches below
+					// ran for them), but appliedStacks is authoritative either way, same
+					// convention as the bar/name branches use.
+					if (appliedStacks.get(other) == null)
+					{
+						drawSkullIcon(g, other, anchor, otherPlayerStyle, false);
+						drawOverheadIcon(g, other, anchor, otherPlayerStyle, false);
+						drawHitsplats(g, other);
+						drawOverheadChatText(g, other);
+					}
+					continue;
+				}
+
+				// Same charge/skip as the main loop above - reuses the cached decision if this
+				// player was already considered there (tracked case), so it's never charged twice.
+				if (!playerStackAllowed(playerStackCounts, playerStackDecided, other))
+				{
+					continue;
+				}
+
+				// Non-null once the main loop above already drew this player - reuse its resolved
+				// anchor rather than claiming a second slot for the same actor.
+				Point applied = appliedStacks.get(other);
+				anchor = applied != null ? applied
+					: (drawBarForThis ? claimBarStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom)
+						: claimNameStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom));
+
+				// No live HP yet (never hit, or not visible without a native bar) shows a full bar
+				// until real data takes over - same convention as the NPC always-show pass.
+				if (drawBarForThis && applied == null)
+				{
+					int maxHp = resolveMaxHp(other);
+					int[] hp = resolveHp(other, maxHp);
+					if (hp == null)
+					{
+						hp = new int[]{1, 1};
+					}
+					drawBar(g, other, anchor, hp[0], hp[1], maxHp, otherPlayerStyle);
+				}
+
+				if (drawNameForThis)
+				{
+					drawPlayerNameOnly(g, other, anchor, otherPlayerStyle, zoom);
+
+					// Icon/hitsplats/chat text already came from whichever drawBar() call touched
+					// this player this frame (the main tracked loop, or the always-bar branch just
+					// above - both draw them unconditionally for other players) - only draw them
+					// here when neither happened.
+					if (applied == null && !drawBarForThis)
+					{
+						// isNamesVisible(), not a hardcoded true - drawNameForThis only means the
+						// name is config-enabled, not that it actually drew this frame (the hotkey
+						// may have hidden it). See the drawBar()-tail call site's own comment.
+						boolean nameLiveShown = plugin.isNamesVisible();
+						drawSkullIcon(g, other, anchor, otherPlayerStyle, nameLiveShown);
+						drawOverheadIcon(g, other, anchor, otherPlayerStyle, nameLiveShown);
+						drawHitsplats(g, other);
+						drawOverheadChatText(g, other);
+					}
+				}
+			}
+		}
+
 		// Deferred from above so it paints over every NPC bar/name already drawn this frame.
 		if (playerHp != null)
 		{
@@ -360,16 +555,26 @@ class CustomHpBarOverlay extends Overlay
 			drawStandaloneBarStack(g, playerAnchor, playerDrawStyle, playerStandaloneStack);
 		}
 
-		// Replacement for the native overhead prayer icon, which the render callback suppresses.
-		// Drawn last of all - it's anchored above the player's own bar, so it's already clear of
-		// every NPC bar drawn above.
-		if (localPlayer != null && config.showForSelf() && config.replaceOverheadIcon())
+		// Replacement for the native overhead prayer icon (and skull, if any), which the render
+		// callback suppresses. Drawn last of all - it's anchored above the player's own bar, so
+		// it's already clear of every NPC bar drawn above.
+		if (localPlayer != null && config.showForSelf())
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
-			drawOverheadIcon(g, localPlayer, playerStyle);
-			drawSelfHitsplats(g, localPlayer);
-			drawOverheadChatText(g, localPlayer, playerStyle);
+			// playerAnchor is null whenever self drew neither a bar nor a standalone stack above
+			// (every bar kind toggled off) - falls back to the raw anchor in that case, same as
+			// every other actor with nothing else to key off of.
+			Point selfIconAnchor = playerAnchor != null ? playerAnchor : actorAnchor(localPlayer);
+			// nameShown false - self never gets a name row above their own bar (drawBar()'s name
+			// branch explicitly excludes self; the "Always Show Player Name" pass skips them too).
+			drawSkullIcon(g, localPlayer, selfIconAnchor, playerStyle, false);
+			drawOverheadIcon(g, localPlayer, selfIconAnchor, playerStyle, false);
+			drawHitsplats(g, localPlayer);
+			drawOverheadChatText(g, localPlayer);
 		}
+
+		// Swap this frame's reference-actor data in wholesale - see lastReferenceActors's own field doc.
+		lastReferenceActors = frameReferenceActors;
 
 		return null;
 	}
@@ -440,12 +645,24 @@ class CustomHpBarOverlay extends Overlay
 	{
 		if (actor instanceof Player)
 		{
+			// Vertical offset plus the color/opacity cluster differ between self and another player -
+			// everything else in the Player style is shared. See render()'s playerStyle/otherPlayerStyle
+			// split, which caches this per-frame and must not conflate the two now that they diverge.
+			boolean self = actor == client.getLocalPlayer();
+			int verticalOffset = self ? config.playerVerticalOffset() : config.otherPlayerVerticalOffset();
+			Color barColor = self ? config.playerBarColor() : config.otherPlayerBarColor();
+			boolean hpColorGradient = self ? config.playerHpColorGradient() : config.otherPlayerHpColorGradient();
+			Color colorMid = self ? config.playerColorMid() : config.otherPlayerColorMid();
+			Color colorLow = self ? config.playerColorLow() : config.otherPlayerColorLow();
+			int midpoint = self ? config.playerMidpoint() : config.otherPlayerMidpoint();
+			Color barBackground = self ? config.playerBarBackground() : config.otherPlayerBarBackground();
+			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
 			return new BarStyle(
 				config.playerBarWidth(), config.playerBarHeight(), config.playerCornerRadius(),
-				config.playerBorderWidth(), config.playerBorderColor(), config.playerBarColor(),
-				config.playerHpColorGradient(), config.playerColorMid(), config.playerColorLow(),
-				config.playerMidpoint(),
-				config.playerBarBackground(), config.playerBarOpacity(), config.playerVerticalOffset(),
+				config.playerBorderWidth(), config.playerBorderColor(), barColor,
+				hpColorGradient, colorMid, colorLow,
+				midpoint,
+				barBackground, barOpacity, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
 				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge(),
 				config.playerTextAlignment());
@@ -461,7 +678,15 @@ class CustomHpBarOverlay extends Overlay
 			config.targetTextAlignment());
 	}
 
-	/** The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly() so labels don't jump between them. */
+	/**
+	 * The bar's on-screen rectangle, centered on anchor. Shared by drawBar()/drawNpcNameOnly()/
+	 * drawPlayerNameOnly() (and the overhead icon/chat-text positioning that keys off them) so
+	 * labels don't jump between them. verticalOffset always applies, bar showing or not - a
+	 * former `ignoreOffset` overload used to skip it for a nameless other player, but that made
+	 * otherPlayerVerticalOffset silently do nothing to a lone name; removed in favor of applying
+	 * it unconditionally, matching how targetVerticalOffset already worked for NPC names. See
+	 * CLAUDE.md, "Other player vertical offset needs to affect the name as well".
+	 */
 	private int[] barRect(Point anchor, BarStyle style, double zoom)
 	{
 		int w = scaled(style.width, zoom);
@@ -472,16 +697,153 @@ class CustomHpBarOverlay extends Overlay
 		return new int[]{x, y, w, h};
 	}
 
-	/** Claims a same-tile stack slot for an actor's full bar, returning the upward pixel shift to apply (0 for the first actor). */
-	private int claimBarStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, BarStyle style, double zoom)
+	/**
+	 * Whether actor should get no bar or name at all this frame under "Prioritize Self on Same
+	 * Tile" - true only for an NPC or other player sharing selfPriorityTile exactly (self itself is
+	 * never suppressed by its own priority). selfPriorityTile is null whenever the feature is off,
+	 * there's no local player, or Show for Self is off - in all those cases this always returns
+	 * false, so every actor is considered normally, same as before the feature existed. Checked
+	 * before any stack-limit charge or seeding, not just at draw time, so a suppressed actor is
+	 * fully invisible to the same-tile system rather than still reserving space for a bar that
+	 * never appears. See CLAUDE.md.
+	 */
+	private boolean suppressedForSelfTile(Actor actor, WorldPoint selfPriorityTile)
+	{
+		return selfPriorityTile != null && actor != client.getLocalPlayer()
+			&& selfPriorityTile.equals(actor.getWorldLocation());
+	}
+
+	/**
+	 * Picks and persists, per contested tile, ONE actor whose live screen anchor alone defines
+	 * that tile's whole same-tile stack this frame - seeded into tileStacks before any of the
+	 * three claiming passes below runs, so whichever of them happens to reach the tile first
+	 * always finds this actor's anchor already there (see claimStackSlot()'s own doc).
+	 *
+	 * Replaces three earlier attempts at the same underlying bug, all built around some notion of
+	 * per-actor "settled"/"stable" gating tied to timing (a tile-identity/tick heuristic, then a
+	 * frame-to-frame *screen*-anchor comparison, then a tick-boundary screen-anchor comparison -
+	 * see CLAUDE.md, "Player health bars snapping when a new player walks into a stack too early"
+	 * and its two follow-ups). The last of those fixed the original walking-newcomer bug per its
+	 * own diagnostic logging, but introduced a new one: gating on the *projected screen* anchor
+	 * means ordinary camera movement (pan/rotate/zoom) - which shifts every actor's anchor by a
+	 * different amount depending on its own sub-tile position - could flip which actor was
+	 * "trusted" to set the baseline from tick to tick, reading as a standing-still stack's
+	 * names/bars snapping randomly. No amount of threshold or window tuning fixes that, because
+	 * the flaw isn't the timing - it's using a camera-dependent signal to answer a question
+	 * ("has this actor actually moved") that only the actor's own world position can answer.
+	 *
+	 * This drops timing/thresholds entirely: exactly one actor per tile - chosen once and kept
+	 * sticky (persisted in lastReferenceActors) for as long as it remains on that tile, regardless
+	 * of who else joins, leaves, or how the camera moves - is trusted to define the group's
+	 * baseline, using its own live anchor fresh every single frame. That anchor tracks the camera
+	 * exactly as smoothly as the model itself does, with nothing gating it. Every other actor on
+	 * the tile only ever stacks relative to that one anchor (see claimStackSlot()), so their own
+	 * screen positions - noisy with camera movement, transient while walking in - never factor in
+	 * at all. Reassigned only when the current reference actor itself leaves the tile - a rare,
+	 * one-time repositioning, not a per-frame jitter.
+	 */
+	private void resolveReferenceActors(Map<WorldPoint, Point> tileStacks, Player localPlayer, WorldPoint selfPriorityTile,
+			Map<WorldPoint, Actor> frameReferenceActors)
+	{
+		Map<WorldPoint, List<Actor>> tileGroups = new HashMap<>();
+		collectStackCandidates(tileGroups, localPlayer, selfPriorityTile);
+
+		for (Map.Entry<WorldPoint, List<Actor>> entry : tileGroups.entrySet())
+		{
+			WorldPoint tile = entry.getKey();
+			List<Actor> group = entry.getValue();
+
+			Actor sticky = lastReferenceActors.get(tile);
+			Actor reference = (sticky != null && group.contains(sticky)) ? sticky : group.get(0);
+
+			Point anchor = actorAnchor(reference);
+			if (anchor == null)
+			{
+				continue;
+			}
+
+			frameReferenceActors.put(tile, reference);
+			tileStacks.put(tile, anchor);
+		}
+	}
+
+	/**
+	 * Groups every actor that could claim a same-tile stack slot this frame by WorldPoint -
+	 * mirroring the three claiming passes' own candidate sets, deliberately a bit broader rather
+	 * than replicating every last filter (a tile counted here that turns out not to actually claim
+	 * a slot just makes resolveReferenceActors() marginally more conservative, never wrong).
+	 */
+	private void collectStackCandidates(Map<WorldPoint, List<Actor>> tileGroups, Player localPlayer, WorldPoint selfPriorityTile)
+	{
+		for (Actor actor : plugin.getTrackedActors().keySet())
+		{
+			addStackCandidate(tileGroups, actor, selfPriorityTile);
+		}
+
+		if (config.alwaysShowNpcBar() || (config.showNpcName() && config.alwaysShowNpcName()))
+		{
+			for (NPC npc : client.getTopLevelWorldView().npcs())
+			{
+				if (npc != null && plugin.isTrackedNpcCached(npc))
+				{
+					addStackCandidate(tileGroups, npc, selfPriorityTile);
+				}
+			}
+		}
+
+		// Mirrors the real "Always Show Player Bar/Name" pass below exactly: a player only counts
+		// here iff that pass would draw something (bar and/or name) for them. showForPlayers gates
+		// the bar half (alwaysShowPlayerBar requires it), same as it always has for the tracked path.
+		boolean seedAlwaysPlayerBar = config.showForPlayers() && config.alwaysShowPlayerBar();
+		boolean seedAlwaysPlayerName = config.showPlayerName() && config.alwaysShowPlayerName();
+		if (seedAlwaysPlayerBar || seedAlwaysPlayerName)
+		{
+			for (Player other : client.getTopLevelWorldView().players())
+			{
+				if (other != null && other != localPlayer
+					&& (seedAlwaysPlayerBar || isDisplayableName(other.getName())))
+				{
+					addStackCandidate(tileGroups, other, selfPriorityTile);
+				}
+			}
+		}
+	}
+
+	/** Adds actor to its own tile's candidate group, unless suppressedForSelfTile() - a suppressed actor never draws, so it shouldn't influence the tile's baseline or be eligible as its reference. */
+	private void addStackCandidate(Map<WorldPoint, List<Actor>> tileGroups, Actor actor, WorldPoint selfPriorityTile)
+	{
+		if (suppressedForSelfTile(actor, selfPriorityTile))
+		{
+			return;
+		}
+
+		WorldPoint tile = actor.getWorldLocation();
+		if (tile == null)
+		{
+			return;
+		}
+
+		tileGroups.computeIfAbsent(tile, t -> new ArrayList<>()).add(actor);
+	}
+
+	/**
+	 * Claims a same-tile stack slot for an actor's full bar, returning the resolved anchor to draw
+	 * it at (its own anchor, unchanged, for the first actor at a tile). tileStacks holds each
+	 * tile's reference X plus its currently-claimed top edge Y, not a cumulative height - two
+	 * actors on the same WorldPoint don't generally share one projected screen point (real sub-tile
+	 * position differs, and how much that shows up on screen changes continuously with camera
+	 * pitch/yaw/zoom), so stacking has to react to each actor's own actual anchor every frame
+	 * rather than adding a blind constant on top of it. See CLAUDE.md, "Same-tile name stacking
+	 * drifted into overlap" (Y) and "NPC and other player stacking bars and names seem to drift
+	 * left or right" (X, this method's own fix).
+	 */
+	private Point claimBarStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
 	{
 		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
 		{
-			return 0;
+			return anchor;
 		}
-
-		int shift = tileStacks.getOrDefault(tile, 0);
 
 		int consumed = scaled(style.height + STACK_PADDING, zoom);
 		if (actor instanceof NPC && config.showNpcName())
@@ -493,33 +855,145 @@ class CustomHpBarOverlay extends Overlay
 			// Your stack can be up to four bars tall and the height above only covers one of them.
 			// This used to under-reserve for the Prayer bar too - see CLAUDE.md.
 			consumed += scaled(style.height * (playerBarStack(true).size() - 1), zoom);
-			if (config.replaceOverheadIcon())
+			consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
+		}
+		else if (actor instanceof Player && config.showPlayerName())
+		{
+			// Same reservation as the NPC branch above, mirrored for other players' names -
+			// without this, another actor sharing this tile would stack directly on top of this
+			// player's bar with no room left for the name drawn above it.
+			consumed += scaled(style.fontSize + NAME_GAP, zoom);
+		}
+
+		return claimStackSlot(tileStacks, tile, anchor, consumed);
+	}
+
+	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC/Player Name" passes). Actor-generic - reused for both. */
+	private Point claimNameStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
+	{
+		WorldPoint tile = actor.getWorldLocation();
+		if (tile == null)
+		{
+			return anchor;
+		}
+
+		return claimStackSlot(tileStacks, tile, anchor, scaled(style.fontSize + NAME_GAP + STACK_PADDING, zoom));
+	}
+
+	/**
+	 * Shared bookkeeping for both claim*StackSlot() methods: reserves consumed pixels above
+	 * whatever this tile has already claimed. The X half of the returned Point, and the Y half's
+	 * starting value for a tile's very first claim, always trace back to resolveReferenceActors()'s
+	 * seed (that tile's sticky reference actor's own live anchor) - never this actor's own raw
+	 * anchor, unless resolveReferenceActors() genuinely found nothing to seed this tile with
+	 * (claimed == null; shouldn't normally happen, since its candidate set is deliberately broader
+	 * than these callers', but falls back safely to this actor's own anchor rather than crashing).
+	 * This is the whole fix: only ONE actor's position - the sticky reference, resolved once
+	 * up front - ever defines a tile's baseline, so neither a still-arriving newcomer nor ordinary
+	 * camera-driven jitter in any other member's screen position can move the group. See
+	 * resolveReferenceActors()'s own doc and CLAUDE.md.
+	 *
+	 * X was already immune to any of this by construction - refX only ever comes from an existing
+	 * claimed entry (or, on first claim, the seeded reference's own X), never from a later actor's
+	 * own raw X - so a same-tile group renders as a straight column instead of each actor's own
+	 * sub-tile X leaking through and staggering it left/right.
+	 */
+	private static Point claimStackSlot(Map<WorldPoint, Point> tileStacks, WorldPoint tile, Point anchor, int consumed)
+	{
+		Point claimed = tileStacks.get(tile);
+		int refX = claimed != null ? claimed.getX() : anchor.getX();
+		int claimedTopY = claimed != null ? claimed.getY() : anchor.getY();
+		tileStacks.put(tile, new Point(refX, claimedTopY - consumed));
+		return new Point(refX, claimedTopY);
+	}
+
+	/**
+	 * Whether npc may render anything (bar and/or name) this frame under npcStackLimit() - checked
+	 * by both render() passes before either claims a stack slot for an NPC, so a capped-out one
+	 * reserves no height rather than leaving a gap. Charges exactly one budget unit per NPC per
+	 * tile no matter how many of its own draw calls follow (an NPC shown via both a bar and a name
+	 * still only costs the group one slot): the decision is made once and cached in
+	 * npcStackDecided, so whichever pass reaches a given NPC first this frame decides for both.
+	 * limit <= 0 (unlimited) or a null WorldPoint always allows. See playerStackAllowed() for the
+	 * player-side equivalent.
+	 */
+	private boolean npcStackAllowed(Map<WorldPoint, Integer> npcStackCounts, Map<NPC, Boolean> npcStackDecided, NPC npc)
+	{
+		Boolean cached = npcStackDecided.get(npc);
+		if (cached != null)
+		{
+			return cached;
+		}
+
+		int limit = config.npcStackLimit();
+		boolean allowed = true;
+		if (limit > 0)
+		{
+			WorldPoint tile = npc.getWorldLocation();
+			if (tile != null)
 			{
-				consumed += scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom);
+				int count = npcStackCounts.getOrDefault(tile, 0);
+				allowed = count < limit;
+				if (allowed)
+				{
+					npcStackCounts.put(tile, count + 1);
+				}
 			}
 		}
 
-		tileStacks.put(tile, shift + consumed);
-		return shift;
+		npcStackDecided.put(npc, allowed);
+		return allowed;
 	}
 
-	/** Same as claimBarStackSlot, but for a name-only entry (the "Always Show NPC Name" pass). */
-	private int claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, NPC npc, BarStyle style, double zoom)
+	/**
+	 * Whether other player may render anything (bar and/or name) this frame under
+	 * playerNameStackLimit() - same shape as npcStackAllowed(), see its own doc. Self is never a
+	 * caller - only "Other Players" are subject to this cap, same as always.
+	 */
+	private boolean playerStackAllowed(Map<WorldPoint, Integer> playerStackCounts, Map<Player, Boolean> playerStackDecided, Player player)
 	{
-		WorldPoint tile = npc.getWorldLocation();
-		if (tile == null)
+		Boolean cached = playerStackDecided.get(player);
+		if (cached != null)
 		{
-			return 0;
+			return cached;
 		}
 
-		int shift = tileStacks.getOrDefault(tile, 0);
-		tileStacks.put(tile, shift + scaled(style.fontSize + NAME_GAP + STACK_PADDING, zoom));
-		return shift;
+		int limit = config.playerNameStackLimit();
+		boolean allowed = true;
+		if (limit > 0)
+		{
+			WorldPoint tile = player.getWorldLocation();
+			if (tile != null)
+			{
+				int count = playerStackCounts.getOrDefault(tile, 0);
+				allowed = count < limit;
+				if (allowed)
+				{
+					playerStackCounts.put(tile, count + 1);
+				}
+			}
+		}
+
+		playerStackDecided.put(player, allowed);
+		return allowed;
 	}
 
-	/** Draws just the NPC name label at its would-be bar position - used for "Always Show NPC Name" on untracked NPCs. */
+	/**
+	 * Draws just the NPC name label at its would-be bar position - used both by drawBar() (tracked)
+	 * and the "Always Show NPC Name" pass (untracked). npcStackLimit() is enforced by both call
+	 * sites' npcStackAllowed() check before they ever get here, not by this method itself - it
+	 * gates the NPC's whole entry (bar and name together), not the name alone. The single choke
+	 * point for "Toggle Names" - purely visual (space is still reserved by claimBarStackSlot()'s
+	 * own showNpcName()-only reservation, so a same-tile neighbor doesn't reflow every time the
+	 * hotkey is pressed) - see CLAUDE.md.
+	 */
 	private void drawNpcNameOnly(Graphics2D g, NPC npc, Point anchor, BarStyle style, double zoom)
 	{
+		if (!plugin.isNamesVisible())
+		{
+			return;
+		}
+
 		String npcName = npc.getName();
 		if (!isDisplayableName(npcName))
 		{
@@ -551,6 +1025,44 @@ class CustomHpBarOverlay extends Overlay
 			label += " (lvl " + level + ")";
 		}
 		drawLabel(g, style, label, x, y - h - nameGap, w, h, zoom, nameColor);
+	}
+
+	/**
+	 * Draws just another player's name label at its would-be bar position - used both by
+	 * drawBar() (tracked, or untracked-but-bar-shown via alwaysShowPlayerBar) and the "Always Show
+	 * Player Name" pass (name only, no bar). No combat-level suffix, aggressive/loot-tainted color,
+	 * or truncation - none of those NPC-only concepts apply to players; this is intentionally the
+	 * minimal version of drawNpcNameOnly(). playerNameStackLimit() is enforced by both call sites'
+	 * playerStackAllowed() check before they ever get here, not by this method itself - it gates
+	 * the player's whole entry (bar and name together), not the name alone. Same shape as
+	 * drawNpcNameOnly()/npcStackAllowed(). Also the choke point for "Toggle Names" - see
+	 * drawNpcNameOnly()'s own comment.
+	 */
+	private void drawPlayerNameOnly(Graphics2D g, Player player, Point anchor, BarStyle style, double zoom)
+	{
+		if (!plugin.isNamesVisible())
+		{
+			return;
+		}
+
+		String playerName = player.getName();
+		if (!isDisplayableName(playerName))
+		{
+			return;
+		}
+
+		// otherPlayerVerticalOffset always applies, bar showing or not - matches drawNpcNameOnly()
+		// (NPC names always get targetVerticalOffset the same way). A lone name (no bar, e.g.
+		// "Always Show Player Name" with the bar off) still moves with the offset, so it's not
+		// stuck at a fixed position independent of the setting - see CLAUDE.md, "Other player
+		// vertical offset needs to affect the name as well".
+		int[] rect = barRect(anchor, style, zoom);
+		int x = rect[0];
+		int y = rect[1];
+		int w = rect[2];
+		int h = rect[3];
+		int nameGap = scaled(NAME_GAP, zoom);
+		drawLabel(g, style, Text.removeTags(playerName), x, y - h - nameGap, w, h, zoom, config.playerNameColor());
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
@@ -592,13 +1104,15 @@ class CustomHpBarOverlay extends Overlay
 	{
 		double zoom = zoomFactor();
 
-		// Only the local player stacks; every other actor is a lone HP bar at the anchor. Real
-		// tracked state, not assumed true - this now also gets called for an untracked player via
-		// alwaysShowHpBar (see render()), where a hardcoded true would wrongly let e.g. Special
-		// into the stack even though it requires tracked itself.
+		// Real tracked state, not assumed true - this also gets called for an untracked actor via
+		// alwaysShowNpcBar/alwaysShowPlayerBar/alwaysShowHpBar (see render()'s "Always Show" passes),
+		// where a hardcoded true would wrongly let e.g. Special into self's stack even though it
+		// requires tracked itself, and would wrongly let the name branch below draw a name for an
+		// NPC/player that's only being shown via its "always show bar" toggle, not "always show
+		// name" - see that branch's own comment.
 		boolean self = actor == client.getLocalPlayer();
-		boolean tracked = self && plugin.getTrackedActors().containsKey(actor);
-		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(tracked) : null;
+		boolean trackedNow = plugin.getTrackedActors().containsKey(actor);
+		List<CustomHpBarConfig.BarKind> stack = self ? playerBarStack(trackedNow) : null;
 
 		int[] rect = barRect(anchor, style, zoom);
 		int x = rect[0];
@@ -632,24 +1146,33 @@ class CustomHpBarOverlay extends Overlay
 		{
 			fillColor = hpFillColor(style, hpFraction);
 		}
-		drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
+		// "Toggle HP Bars" choke point - purely visual, same trade-off as "Toggle Names": the row's
+		// height/position is still reserved (hpY, bottomY, and every stack-slot/status-icon
+		// placement below are computed the same either way) so nothing else reflows when the
+		// hotkey is pressed. Heal preview folded in here too since it's a visual extension of the
+		// bar itself, meaningless without it; the aggressive icon deliberately isn't - it stays
+		// visible per the user's own answer when this was designed. See CLAUDE.md.
+		if (plugin.isHpBarsVisible())
+		{
+			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
+
+			if (self && config.showFoodHealPreview())
+			{
+				// ratio/scale are the local player's real current/max HP already, not a bucket.
+				drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
+					translucent(fillColor));
+			}
+
+			String label = buildLabel(actor, hpFraction, maxHp);
+			if (label != null)
+			{
+				drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
+			}
+		}
 
 		if (aggressive && config.showAggressiveNpcIcon())
 		{
 			drawAggressiveNpcIcon(g, x, hpY, h, zoom);
-		}
-
-		if (self && config.showFoodHealPreview())
-		{
-			// ratio/scale are the local player's real current/max HP already, not a bucket.
-			drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
-				translucent(fillColor));
-		}
-
-		String label = buildLabel(actor, hpFraction, maxHp);
-		if (label != null)
-		{
-			drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
 		}
 
 		int bottomY = y + h;
@@ -667,11 +1190,43 @@ class CustomHpBarOverlay extends Overlay
 			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
 		}
 
-		// When "Always Show" is on, the dedicated pass in render() is the sole name source -
-		// drawing it here too would just be redundant work, not wrong.
-		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName())
+		// When "Always Show Name" is on, the dedicated pass in render() is the sole name source -
+		// drawing it here too would just be redundant work, not wrong. trackedNow is the other half:
+		// without it, an actor reached here only because its "always show bar" toggle is on (not its
+		// name one) - e.g. alwaysShowNpcBar/alwaysShowPlayerBar with the matching name toggle off -
+		// would still get its name drawn inline below, since showNpcName()/showPlayerName() and
+		// !alwaysShowNpcName()/!alwaysShowPlayerName() are both satisfied regardless of tracked
+		// state. That made "Always Show NPC/Player Name" appear to do nothing whenever the bar's own
+		// always-show toggle was on - the name showed unconditionally either way. See CLAUDE.md.
+		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName() && trackedNow)
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
+		}
+		else if (actor instanceof Player && !self && config.showPlayerName() && !config.alwaysShowPlayerName() && trackedNow)
+		{
+			drawPlayerNameOnly(g, (Player) actor, anchor, style, zoom);
+		}
+
+		// Other player with a bar showing (tracked, or untracked via alwaysShowPlayerBar) -
+		// CustomHpBarPlugin.overheadEligiblePlayers already covers them, so their native overhead
+		// icon/hitsplats/chat text are suppressed; redraw here, the canonical place for any player
+		// this method draws a bar for, so the "Always Show Player Bar/Name" pass below doesn't also
+		// do it (see its own applied == null / drawBarForThis guards).
+		if (actor instanceof Player && !self)
+		{
+			Player other = (Player) actor;
+			// Whichever of the two branches above actually drew it (or alwaysShowPlayerName drawing
+			// it in the dedicated pass instead), the outcome's the same row at the same position.
+			// isNamesVisible() included deliberately - unlike the name row itself (a "purely
+			// visual" hotkey choke point that doesn't reflow anything else, see drawBar()'s own
+			// comment), the skull/overhead icon is meant to track what's actually on screen right
+			// now, so it snaps down to the bar's own top the instant names are hotkey-hidden. See
+			// CLAUDE.md.
+			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName()) && plugin.isNamesVisible();
+			drawSkullIcon(g, other, anchor, style, nameShown);
+			drawOverheadIcon(g, other, anchor, style, nameShown);
+			drawHitsplats(g, other);
+			drawOverheadChatText(g, other);
 		}
 	}
 
@@ -983,10 +1538,16 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** Draws the replacement overhead prayer icon above the HP bar - the render callback has already suppressed the native one. */
-	private void drawOverheadIcon(Graphics2D g, Player localPlayer, BarStyle style)
+	/**
+	 * Draws the replacement overhead prayer icon above the bar (and name, if nameShown), and above
+	 * the replacement skull too when drawSkullIcon() is also drawing one for this player (see
+	 * skullClearance()) - matching native OSRS's own bottom-to-top layout of bar, skull, prayer
+	 * icon. The render callback has already suppressed the native one, for self and for every
+	 * other player CustomHpBarPlugin.overheadEligiblePlayers currently covers.
+	 */
+	private void drawOverheadIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
-		HeadIcon headIcon = localPlayer.getOverheadIcon();
+		HeadIcon headIcon = player.getOverheadIcon();
 		if (headIcon == null)
 		{
 			return;
@@ -998,7 +1559,6 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(localPlayer);
 		if (anchor == null)
 		{
 			return;
@@ -1007,13 +1567,20 @@ class CustomHpBarOverlay extends Overlay
 		// Drawn at the sprite's own natural size (matching how the native client draws it), with
 		// zoom scaling layered on top when Scale With Zoom is on.
 		double zoom = zoomFactor();
+		// verticalOffset always applies now, same as drawPlayerNameOnly() - see its own comment.
+		// Keeps the icon anchored to the name/bar row above it (via nameClearance below) whether or
+		// not that row itself moved with the offset.
 		int[] rect = barRect(anchor, style, zoom);
 		int w = scaled(image.getWidth(), zoom);
 		int h = scaled(image.getHeight(), zoom);
 		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
 
+		// A name row (when shown) sits directly above the bar, occupying the bar's own height plus
+		// NAME_GAP - see drawPlayerNameOnly()/drawNpcNameOnly(). Self never has one (see call site).
+		int nameClearance = nameShown ? rect[3] + scaled(NAME_GAP, zoom) : 0;
+
 		int x = rect[0] + (rect[2] - w) / 2;
-		int y = rect[1] - gap - h;
+		int y = rect[1] - nameClearance - gap - h - skullClearance(player, zoom);
 		g.drawImage(image, x, y, w, h, null);
 	}
 
@@ -1023,17 +1590,116 @@ class CustomHpBarOverlay extends Overlay
 		return clientSprite(SpriteID.HEADICONS_PRAYER, headIcon.ordinal());
 	}
 
-	/** Redraws hitsplats on the local player (real sprite + amount), replacing the ones the render callback suppresses. */
-	private void drawSelfHitsplats(Graphics2D g, Player localPlayer)
+	/**
+	 * Draws the replacement PK skull (Player.getSkullIcon(), the real PvP/wilderness skull - not
+	 * to be confused with the aggressive-NPC badge, which just happens to reuse the same bundled
+	 * image, see skullImage()) directly above the bar (and name, if nameShown) - the same row
+	 * drawOverheadIcon() used to draw the prayer icon in alone. drawOverheadIcon() now adds this
+	 * icon's own height as extra clearance above its own row whenever one is showing (see
+	 * skullClearance()), so the two stack skull-then-prayer-icon bottom to top, matching native
+	 * OSRS. Same suppress-and-redraw reasoning as drawOverheadIcon()'s own doc - the render
+	 * callback has already suppressed the native skull along with the rest of that player's
+	 * overhead UI, for self and for every other player CustomHpBarPlugin.overheadEligiblePlayers
+	 * currently covers, so leaving it undrawn here would just make it vanish. See CLAUDE.md.
+	 */
+	private void drawSkullIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
-		List<Hitsplat> hitsplats = plugin.getSelfHitsplats();
-		if (hitsplats.isEmpty())
+		BufferedImage image = skullImage(player.getSkullIcon());
+		if (image == null)
+		{
+			return;
+		}
+
+		if (anchor == null)
+		{
+			return;
+		}
+
+		double zoom = zoomFactor();
+		int[] rect = barRect(anchor, style, zoom);
+		int w = scaled(image.getWidth(), zoom);
+		int h = scaled(image.getHeight(), zoom);
+		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
+		int nameClearance = nameShown ? rect[3] + scaled(NAME_GAP, zoom) : 0;
+
+		int x = rect[0] + (rect[2] - w) / 2;
+		int y = rect[1] - nameClearance - gap - h;
+		g.drawImage(image, x, y, w, h, null);
+	}
+
+	/**
+	 * Extra vertical clearance drawOverheadIcon() must reserve above its own row when player
+	 * currently has a skull that drawSkullIcon() is also drawing for them - 0 if unskulled or the
+	 * bundled image hasn't loaded, in which case the prayer icon just falls back to sitting where
+	 * it always has (right above the bar/name), same as before this existed.
+	 */
+	private int skullClearance(Player player, double zoom)
+	{
+		BufferedImage image = skullImage(player.getSkullIcon());
+		return image == null ? 0 : scaled(image.getHeight() + OVERHEAD_ICON_GAP, zoom);
+	}
+
+	/**
+	 * The real PK skull graphic for a given Player.getSkullIcon() value - bundled from the wiki,
+	 * since no confirmed live SpriteID exists for any of these. Null for SkullIcon.NONE (not
+	 * skulled at all).
+	 *
+	 * A loot-key-carrying skull (SkullIcon.LOOT_KEYS_ONE..FIVE, FORINTHRY_SURGE_KEYS_ONE..FIVE) is
+	 * its own distinct graphic that already bakes the key count into the skull image itself -
+	 * confirmed against the OSRS Wiki's own per-count icons (`Skull (Loot key) icon (N).png`,
+	 * `Skull (Forinthry Surge Loot key) icon (N).png`), not a separate badge drawn alongside the
+	 * plain skull. So it *replaces* the plain skull entirely rather than adding to it - explicit
+	 * user instruction, since an earlier guess (draw the plain skull plus a second "keys" element)
+	 * was wrong. Every other skull variant (high-risk world, Fight Pit, Deadman, plain Forinthry
+	 * Surge with no keys) deliberately falls back to the plain white skull below - the same
+	 * approximation this feature already made before per-variant graphics existed, and the only
+	 * ones asked for so far are the two key-carrying families. See CLAUDE.md.
+	 */
+	private BufferedImage skullImage(int skullIcon)
+	{
+		switch (skullIcon)
+		{
+			case SkullIcon.NONE:
+				return null;
+			case SkullIcon.LOOT_KEYS_ONE:
+				return bundledIcon("pk_skull_loot_key_1.png");
+			case SkullIcon.LOOT_KEYS_TWO:
+				return bundledIcon("pk_skull_loot_key_2.png");
+			case SkullIcon.LOOT_KEYS_THREE:
+				return bundledIcon("pk_skull_loot_key_3.png");
+			case SkullIcon.LOOT_KEYS_FOUR:
+				return bundledIcon("pk_skull_loot_key_4.png");
+			case SkullIcon.LOOT_KEYS_FIVE:
+				return bundledIcon("pk_skull_loot_key_5.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_ONE:
+				return bundledIcon("pk_skull_surge_key_1.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_TWO:
+				return bundledIcon("pk_skull_surge_key_2.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_THREE:
+				return bundledIcon("pk_skull_surge_key_3.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_FOUR:
+				return bundledIcon("pk_skull_surge_key_4.png");
+			case SkullIcon.FORINTHRY_SURGE_KEYS_FIVE:
+				return bundledIcon("pk_skull_surge_key_5.png");
+			default:
+				// Unskulled (NONE already returned above) never reaches here with a non-null
+				// result expected; every skulled variant without its own bundled graphic yet
+				// falls back to the plain skull - see this method's own doc.
+				return bundledIcon("pk_skull_icon.png");
+		}
+	}
+
+	/** Redraws hitsplats on player (real sprite + amount), replacing the ones the render callback suppresses - self or any other eligible player. */
+	private void drawHitsplats(Graphics2D g, Player player)
+	{
+		List<Hitsplat> hitsplats = plugin.getOverheadHitsplats().get(player);
+		if (hitsplats == null || hitsplats.isEmpty())
 		{
 			return;
 		}
 
 		// Native hitsplats render at roughly chest height, not above the head like the bar/text.
-		Point anchor = actorAnchor(localPlayer, localPlayer.getLogicalHeight() / 2);
+		Point anchor = actorAnchor(player, player.getLogicalHeight() / 2);
 		if (anchor == null)
 		{
 			return;
@@ -1061,7 +1727,7 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		// Vanilla shows only the 4 most recent hits - selfHitsplats is append-ordered, so take the tail.
+		// Vanilla shows only the 4 most recent hits - each player's list is append-ordered, so take the tail.
 		if (visible.size() > MAX_HITSPLATS)
 		{
 			visible = visible.subList(visible.size() - MAX_HITSPLATS, visible.size());
@@ -1109,15 +1775,25 @@ class CustomHpBarOverlay extends Overlay
 		return spriteId != null ? clientSprite(spriteId, 0) : null;
 	}
 
-	/** Redraws the local player's overhead chat text, replacing the native text; tucks under the bar stack when one is shown. */
-	private void drawOverheadChatText(Graphics2D g, Player localPlayer, BarStyle style)
+	/** Redraws a player's overhead chat text, replacing the native text; tucks under the bar stack when one is shown - self or any other eligible player. */
+	/**
+	 * Draws the replacement overhead chat text at its own default vanilla position - above the
+	 * head, via Actor.getCanvasTextLocation(), the same projection the native client itself uses -
+	 * never derived from the bar/name/skull/icon stack below it. Explicit instruction, reversing
+	 * this method's own prior design ("tucked beneath whatever the stack currently is" - see
+	 * CLAUDE.md, "Overhead chat text sat too high with no bar showing"): "text chat has a default
+	 * position above the player's head, we need to always respect that and never modify its
+	 * position." The bar/name/skull/overhead-icon stack is what's expected to stay clear of *this*
+	 * now, not the other way around - see CLAUDE.md's follow-up entry.
+	 */
+	private void drawOverheadChatText(Graphics2D g, Player player)
 	{
-		if (localPlayer.getOverheadCycle() <= 0)
+		if (player.getOverheadCycle() <= 0)
 		{
 			return;
 		}
 
-		String rawText = localPlayer.getOverheadText();
+		String rawText = player.getOverheadText();
 		if (rawText == null)
 		{
 			return;
@@ -1129,32 +1805,19 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(localPlayer);
-		if (anchor == null)
-		{
-			return;
-		}
-
 		double zoom = zoomFactor();
 		// Vanilla overhead chat uses the bold font, not the regular one.
 		Font font = FontManager.getRunescapeBoldFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
-		FontRenderContext frc = g.getFontRenderContext();
-		Rectangle pixelBounds = new TextLayout(text, font, frc).getPixelBounds(frc, 0, 0);
 
-		int x = anchor.getX() - (int) Math.round(pixelBounds.getWidth() / 2.0) - pixelBounds.x;
+		Point location = player.getCanvasTextLocation(g, text, player.getLogicalHeight());
+		if (location == null)
+		{
+			return;
+		}
 
-		// Tucked beneath whatever the stack currently is, including an empty one - barRect() with no
-		// bars still returns a notional zero-height slot right at the head, so this degrades to a
-		// small fixed gap below the head with no bar showing, instead of vanilla's far-clear
-		// getCanvasTextLocation() position - keeps the no-bar case visually consistent with the
-		// bar-showing case rather than jumping to a completely different placement language. See
-		// CLAUDE.md, "Overhead chat text sat too high with no bar showing".
-		boolean tracked = plugin.getTrackedActors().containsKey(localPlayer);
-		List<CustomHpBarConfig.BarKind> stack = playerBarStack(tracked);
-		int[] rect = barRect(anchor, style, zoom);
-		int stackBottom = rect[1] + rect[3] * stack.size();
-		int y = stackBottom + scaled(CHAT_TEXT_BAR_GAP, zoom) - pixelBounds.y;
+		int x = location.getX();
+		int y = location.getY();
 
 		g.setColor(Color.BLACK);
 		g.drawString(text, x + 1, y + 1);
@@ -1498,14 +2161,19 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** The Display Mode governing this actor: self, other players, and NPCs each have their own. */
+	/**
+	 * The Display Mode governing this actor: self and NPCs each have their own configurable mode.
+	 * Other players are always PERCENT, not configurable - resolveMaxHp() has no way to learn another
+	 * player's max HP (no API exposes it, no Party-plugin integration exists here), so NUMBER/BOTH
+	 * would just silently fall back to percent in buildLabel() anyway; no real option to offer.
+	 */
 	private CustomHpBarConfig.DisplayMode displayMode(Actor actor)
 	{
 		if (actor == client.getLocalPlayer())
 		{
 			return config.selfDisplayMode();
 		}
-		return actor instanceof Player ? config.playerDisplayMode() : config.targetDisplayMode();
+		return actor instanceof Player ? CustomHpBarConfig.DisplayMode.PERCENT : config.targetDisplayMode();
 	}
 
 	/** Pixels to push a bar's HP number and percentage apart, or 0 for one undivided label - BOTH mode only. Clamped in drawLabel, not here. */

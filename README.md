@@ -4,8 +4,6 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise HP
 tracking, and status-effect debuffs.
 
-> **Note:** PvP remains largely untested for now.
-
 <p align="center">
   <img src="images/burn-example.png" width="49%">
   <img src="images/aggressive-icon-example.png" width="49%">
@@ -16,10 +14,16 @@ tracking, and status-effect debuffs.
   <img src="images/stacking-example.png" width="32%">
 </p>
 
+## Support RuneLite
+
+If you would like to support in some way, please consider joining the
+[RuneLite Patreon](https://www.patreon.com/runelite).
+
 ## Features
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with fully
-  independent size, shape, color, and font settings.
+  independent size, shape, color, and font settings. Your own bar can persist outside combat
+  instead of only showing while tracked.
 - **Precise NPC HP** — tracks exact current HP instead of the native bar's coarse ratio bucket,
   falling back to a percentage where max HP isn't known.
 - **HP color gradient** — optionally blend the bar from full-HP color through a mid color at a
@@ -31,8 +35,14 @@ tracking, and status-effect debuffs.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
   optionally with the NPC's combat level. Long names can be truncated to a character limit.
   Non-attackable NPCs are excluded by default.
+- **Other players' names** — optionally drawn above their bar, at all times or only while it's
+  tracked. Requires Show for Other Players.
+- **Always show other players' HP bars** — optionally show the bar on every visible player, not
+  just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
+- **Prioritize self on same tile** — optionally hide an NPC's or other player's bar/name entirely
+  when they're standing on your own tile, instead of stacking with yours.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
   engage it.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
@@ -40,41 +50,46 @@ tracking, and status-effect debuffs.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar, its name, or both once another
   player damages it. Bosses with shared or personal loot are exempt.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
-  Can be limited to while a prayer is active; flicking keeps it up. Color configurable.
+  Can persist outside combat, be limited to while a prayer is active (flicking keeps it up), and
+  show a per-tick flick-timing indicator that sweeps across it. Color configurable.
 - **Special attack bar** — an optional special attack energy bar, shown in combat alongside your HP
-  bar. Color configurable.
+  bar, or persistently outside combat. Color configurable.
 - **Run energy bar** — an optional run energy bar, shown regardless of combat state. Switches to a
-  distinct color while a Stamina potion's drain-reduction effect is active, and can time out after a
-  configurable period of not running.
+  distinct color while a Stamina potion's drain-reduction effect is active, can time out after a
+  configurable period of not running, or always stay up regardless of that timeout.
 - **Bar order** — four independent pickers choose which bar (HP, Prayer, Special Attack, or Run
   Energy) goes in each of the four stack positions.
 - **Restore previews** — hovering a food/potion, Prayer-restoring item, or Stamina potion extends
   the matching HP, Prayer, or Run Energy bar with a preview of where it'll land.
-- **Replaced overhead icon** — optionally redraws your overhead prayer icon, hitsplats, and chat
-  text above your HP bar.
+- **Replaced overhead icon** — redraws your overhead prayer icon, hitsplats, and chat text above
+  your HP bar.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
   plugin's bar shows.
 - **Zoom scaling** — bars and text grow and shrink with camera zoom.
+- **Hotkeys** — optional keybinds to instantly show/hide names or HP bars (independent of each
+  other), for a quick declutter without changing any setting.
 - **Independent persist duration** — NPCs and players each keep showing their last known HP for
   their own configurable duration after combat.
 - **NPC filter** — hide specific NPCs by name, wildcards supported.
 
 ## Configuration
 
-Settings are grouped into five sections. Each bar type gets a **Style** section (size, shape, color,
-text) and an **Info** section (what is shown and when), plus a shared **Behavior** section:
+Settings are grouped into eight sections:
 
 - Target Bar — Style
 - Target Bar — NPC Info
 - Player Bar — Style
 - Player Bar — Player Info
+- Other Player Bar — Style
+- Other Player Bar — Info
 - Behavior
+- Hotkeys
 
-Styling is configured **separately for the target bar (NPCs) and the player bar (you & others)** -
-every setting in the first table below exists twice, once per Style section, so NPCs and players
-can look completely different if you want. Defaults are the same for both unless noted.
+NPCs get their own full Style section. Your own bar and other players' bars share one set of
+size/shape/border/font/text settings (Player Bar — Style), but each gets its own colors, gradient,
+background, opacity, and vertical offset - yours there, other players' in Other Player Bar — Style.
 
-### Style options (present in both Style sections)
+### Style options (present in both Target Bar — Style and Player Bar — Style)
 
 | Setting | Description | Default |
 |---|---|---|
@@ -96,6 +111,7 @@ can look completely different if you want. Defaults are the same for both unless
 | Text Color | Color of the HP number | White |
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
+| Text Alignment | Where the bar's text sits horizontally within it. On the player bar, applies to all stacked bars (HP, Prayer, Special, Run). | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
 | Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. Player bar also covers the Prayer, Special Attack, and Run Energy bars. | 100 |
 
@@ -127,26 +143,36 @@ can look completely different if you want. Defaults are the same for both unless
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 | NPC Filter | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
+| NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 
 ### Player Bar — Style (in addition to the shared options)
+
+The shared size/shape/border/font/text options above apply to other players too. Everything else
+in this section, including the color settings in the shared table, is self-only - see
+"Other Player Bar — Style" below for other players' own colors and vertical offset.
 
 | Setting | Description | Default |
 |---|---|---|
 | Show for Self | Draw the player bar over your own character | On |
 | Self Display Mode | Display mode for your own bar. Requires Show for Self. | Number |
-| Show for Other Players | Draw the player bar over other players | Off |
-| Other Players' Display Mode | Display mode for other players' bars. Requires Show for Other Players. | Number |
 
 ### Player Bar — Player Info
 
 | Setting | Description | Default |
 |---|---|---|
+| Always Show HP Bar | Shows your HP bar even when not tracked in combat. Requires Show for Self. | Off |
 | Show Prayer Bar | Draws a Prayer points bar beneath your HP bar, or on its own outside combat. Requires Show for Self. | On |
+| Always Show Prayer Bar | Shows the Prayer bar even when not tracked in combat. Still requires a prayer to be active if Hide Prayer Bar While Not Praying is on. Requires Show Prayer Bar. | Off |
 | Hide Prayer Bar While Not Praying | Only draws the Prayer bar while a prayer is active. Flicking keeps it up. Requires Show Prayer Bar. | Off |
 | Prayer Bar Color | Fill color of the Prayer bar. Requires Show Prayer Bar. | Blue |
+| Show Prayer Tick Timer | Draws an indicator that sweeps across the Prayer bar once per game tick, for timing prayer flicks. Requires Show Prayer Bar. | Off |
+| Hide Tick Timer While Not Praying | Only draws the tick timer while a prayer is active, same as Hide Prayer Bar While Not Praying. Requires Show Prayer Tick Timer. | Off |
+| Prayer Tick Timer Color | Color of the tick timer indicator. Requires Show Prayer Tick Timer. | White |
 | Show Special Attack Bar | Draws a special attack energy bar alongside your HP bar, in combat only. Requires Show for Self. | Off |
+| Always Show Special Attack Bar | Shows the special attack bar even when not tracked in combat. Requires Show Special Attack Bar. | Off |
 | Special Attack Bar Color | Fill color of the special attack bar. Requires Show Special Attack Bar. | Green |
 | Show Run Energy Bar | Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows regardless of combat state. Requires Show for Self. | Off |
+| Always Show Run Energy Bar | Shows the run energy bar even when not tracked in combat, ignoring the timeout below. Requires Show Run Energy Bar. | Off |
 | Run Energy Bar Timeout (seconds) | Hides the run energy bar this many seconds after you last actively ran (regen and item restores don't count). 0 = never time out. Requires Show Run Energy Bar. | 0 |
 | Run Energy Bar Color | Fill color of the run energy bar. Requires Show Run Energy Bar. | Gold |
 | Run Energy Bar Color (Stamina Active) | Fill color of the run energy bar while a Stamina potion's drain-reduction effect is active. Requires Show Run Energy Bar. | Brown |
@@ -157,7 +183,34 @@ can look completely different if you want. Defaults are the same for both unless
 | Show Food Heal Preview | Previews HP restored by a hovered food/potion as an extra bar segment. Requires Show for Self. | On |
 | Show Prayer Restore Preview | Previews Prayer points restored by a hovered item as an extra bar segment. Requires Show Prayer Bar. | On |
 | Show Run Energy Restore Preview | Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra bar segment. Requires Show Run Energy Bar. | On |
-| Replace Overhead Icon | Replaces your native overhead icon, hitsplats, and chat text with a redrawn copy positioned above your HP bar. Requires Show for Self. | On |
+
+### Other Player Bar — Style
+
+Size, shape, border, and font/text come from Player Bar — Style, shared with your own bar. Colors,
+gradient, background, opacity, and vertical offset below are independent of your own. Other
+players' HP is always shown as a percentage - there's no display mode option for it.
+
+| Setting | Description | Default |
+|---|---|---|
+| Show for Other Players | Draw the health bar over other players. Without this, a player needs Always Show Player Name on to be tracked and named at all. | Off |
+| Always Show Player HP Bar | Shows other players' HP bar at all times, not just when tracked in combat. Requires Show for Other Players. | Off |
+| Vertical Offset (Other Players) | Pixels to shift other players' bars up (positive) or down (negative) from center | 15 |
+| Bar Color | Fill color of other players' bars, and the full-HP color when HP Color Gradient is on | Green |
+| HP Color Gradient | Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP levels | Off |
+| Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient | Yellow |
+| Midpoint | HP percentage at which other players' bars are exactly Mid HP Color | 50 |
+| Low HP Color | Color reached at 0% HP. Requires HP Color Gradient | Red |
+| Background Color | Color of the empty portion of other players' bars | Dark gray (translucent) |
+| Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque | 100 |
+
+### Other Player Bar — Info
+
+| Setting | Description | Default |
+|---|---|---|
+| Show Player Name | Draws a name label above other players' bars. Without Always Show Player Name, still only shows for players tracked via Show for Other Players. | On |
+| Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
+| Player Name Color | Color of the player name text, separate from the HP number's color | White |
+| Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 
 ### Behavior
 
@@ -165,3 +218,11 @@ can look completely different if you want. Defaults are the same for both unless
 |---|---|---|
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just filtered NPCs | On |
+| Prioritize Self on Same Tile | When you're on the same tile as an NPC or another player, hides their bar and name entirely instead of stacking it with your own - only your bar/name shows there. | On |
+
+### Hotkeys
+
+| Setting | Description | Default |
+|---|---|---|
+| Toggle Names | Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
+| Toggle HP Bars | Instantly shows/hides NPC and player HP bars (including your own). Doesn't affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
