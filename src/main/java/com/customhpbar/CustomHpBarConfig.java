@@ -4,6 +4,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Keybind;
 import net.runelite.client.config.Range;
 
 import java.awt.Color;
@@ -70,6 +71,14 @@ public interface CustomHpBarConfig extends Config
 		closedByDefault = true
 	)
 	String BEHAVIOR_SECTION = "behavior";
+
+	@ConfigSection(
+		name = "Hotkeys",
+		description = "Keybinds to instantly show/hide HP bars or names, independent of every other setting",
+		position = 7,
+		closedByDefault = true
+	)
+	String HOTKEY_SECTION = "hotkeys";
 
 	// ==================== Target bar style ====================
 
@@ -1450,6 +1459,32 @@ public interface CustomHpBarConfig extends Config
 	default boolean prioritizeSelfOnSameTile()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "toggleNamesHotkey",
+		name = "Toggle Names",
+		description = "Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/" +
+			"Special/Run bars, hitsplats, chat text, or icons.",
+		section = HOTKEY_SECTION,
+		position = 0
+	)
+	default Keybind toggleNamesHotkey()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "toggleHpBarsHotkey",
+		name = "Toggle HP Bars",
+		description = "Instantly shows/hides NPC and player HP bars (including your own). Doesn't " +
+			"affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons.",
+		section = HOTKEY_SECTION,
+		position = 1
+	)
+	default Keybind toggleHpBarsHotkey()
+	{
+		return Keybind.NOT_SET;
 	}
 
 	enum DisplayMode

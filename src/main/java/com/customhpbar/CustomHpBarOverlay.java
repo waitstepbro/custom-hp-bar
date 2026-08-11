@@ -891,10 +891,18 @@ class CustomHpBarOverlay extends Overlay
 	 * Draws just the NPC name label at its would-be bar position - used both by drawBar() (tracked)
 	 * and the "Always Show NPC Name" pass (untracked). npcStackLimit() is enforced by both call
 	 * sites' npcStackAllowed() check before they ever get here, not by this method itself - it
-	 * gates the NPC's whole entry (bar and name together), not the name alone.
+	 * gates the NPC's whole entry (bar and name together), not the name alone. The single choke
+	 * point for "Toggle Names" - purely visual (space is still reserved by claimBarStackSlot()'s
+	 * own showNpcName()-only reservation, so a same-tile neighbor doesn't reflow every time the
+	 * hotkey is pressed) - see CLAUDE.md.
 	 */
 	private void drawNpcNameOnly(Graphics2D g, NPC npc, Point anchor, BarStyle style, double zoom)
 	{
+		if (!plugin.isNamesVisible())
+		{
+			return;
+		}
+
 		String npcName = npc.getName();
 		if (!isDisplayableName(npcName))
 		{
@@ -936,10 +944,16 @@ class CustomHpBarOverlay extends Overlay
 	 * minimal version of drawNpcNameOnly(). playerNameStackLimit() is enforced by both call sites'
 	 * playerStackAllowed() check before they ever get here, not by this method itself - it gates
 	 * the player's whole entry (bar and name together), not the name alone. Same shape as
-	 * drawNpcNameOnly()/npcStackAllowed().
+	 * drawNpcNameOnly()/npcStackAllowed(). Also the choke point for "Toggle Names" - see
+	 * drawNpcNameOnly()'s own comment.
 	 */
 	private void drawPlayerNameOnly(Graphics2D g, Player player, Point anchor, BarStyle style, double zoom)
 	{
+		if (!plugin.isNamesVisible())
+		{
+			return;
+		}
+
 		String playerName = player.getName();
 		if (!isDisplayableName(playerName))
 		{
@@ -1054,24 +1068,33 @@ class CustomHpBarOverlay extends Overlay
 		{
 			fillColor = hpFillColor(style, hpFraction);
 		}
-		drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
+		// "Toggle HP Bars" choke point - purely visual, same trade-off as "Toggle Names": the row's
+		// height/position is still reserved (hpY, bottomY, and every stack-slot/status-icon
+		// placement below are computed the same either way) so nothing else reflows when the
+		// hotkey is pressed. Heal preview folded in here too since it's a visual extension of the
+		// bar itself, meaningless without it; the aggressive icon deliberately isn't - it stays
+		// visible per the user's own answer when this was designed. See CLAUDE.md.
+		if (plugin.isHpBarsVisible())
+		{
+			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
+
+			if (self && config.showFoodHealPreview())
+			{
+				// ratio/scale are the local player's real current/max HP already, not a bucket.
+				drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
+					translucent(fillColor));
+			}
+
+			String label = buildLabel(actor, hpFraction, maxHp);
+			if (label != null)
+			{
+				drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
+			}
+		}
 
 		if (aggressive && config.showAggressiveNpcIcon())
 		{
 			drawAggressiveNpcIcon(g, x, hpY, h, zoom);
-		}
-
-		if (self && config.showFoodHealPreview())
-		{
-			// ratio/scale are the local player's real current/max HP already, not a bucket.
-			drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
-				translucent(fillColor));
-		}
-
-		String label = buildLabel(actor, hpFraction, maxHp);
-		if (label != null)
-		{
-			drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
 		}
 
 		int bottomY = y + h;

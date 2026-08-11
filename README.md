@@ -63,6 +63,8 @@ tracking, and status-effect debuffs.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
   plugin's bar shows.
 - **Zoom scaling** — bars and text grow and shrink with camera zoom.
+- **Hotkeys** — optional keybinds to instantly show/hide names or HP bars (independent of each
+  other), for a quick declutter without changing any setting.
 - **Independent persist duration** — NPCs and players each keep showing their last known HP for
   their own configurable duration after combat.
 - **NPC filter** — hide specific NPCs by name, wildcards supported.
@@ -185,3 +187,10 @@ can look completely different if you want. Defaults are the same for both unless
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just filtered NPCs | On |
 | Prioritize Self on Same Tile | When you're on the same tile as an NPC or another player, hides their bar and name entirely instead of stacking it with your own - only your bar/name shows there. | On |
+
+### Hotkeys
+
+| Setting | Description | Default |
+|---|---|---|
+| Toggle Names | Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
+| Toggle HP Bars | Instantly shows/hides NPC and player HP bars (including your own). Doesn't affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |

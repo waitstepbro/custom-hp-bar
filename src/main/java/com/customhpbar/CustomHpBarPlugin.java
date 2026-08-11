@@ -38,11 +38,13 @@ import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.itemstats.ItemStatPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
@@ -242,6 +244,41 @@ public class CustomHpBarPlugin extends Plugin
 	@Inject
 	private CustomHpBarConfig config;
 
+	@Inject
+	private KeyManager keyManager;
+
+	/**
+	 * Runtime-only show/hide state for "Toggle Names"/"Toggle HP Bars" - flipped by the hotkey
+	 * listeners below, read by CustomHpBarOverlay's draw calls. Not config-backed (a hotkey is
+	 * meant to be an instant, temporary override, not a persisted setting) and deliberately not
+	 * reset in startUp()/shutDown() - default true (visible) matches every other bar/name toggle's
+	 * "on by default" convention, and there'd be nothing to reset to anyway since nothing persists
+	 * this across a client restart. Volatile since AWT's key-event thread writes these, not the
+	 * client thread that reads them in CustomHpBarOverlay.render().
+	 */
+	@Getter
+	private volatile boolean namesVisible = true;
+	@Getter
+	private volatile boolean hpBarsVisible = true;
+
+	private final HotkeyListener toggleNamesHotkeyListener = new HotkeyListener(() -> config.toggleNamesHotkey())
+	{
+		@Override
+		public void hotkeyPressed()
+		{
+			namesVisible = !namesVisible;
+		}
+	};
+
+	private final HotkeyListener toggleHpBarsHotkeyListener = new HotkeyListener(() -> config.toggleHpBarsHotkey())
+	{
+		@Override
+		public void hotkeyPressed()
+		{
+			hpBarsVisible = !hpBarsVisible;
+		}
+	};
+
 	/** Cached showForSelf - volatile since onConfigChanged isn't guaranteed on the client thread. */
 	private volatile boolean suppressSelfOverheads;
 
@@ -352,6 +389,8 @@ public class CustomHpBarPlugin extends Plugin
 		suppressSelfOverheads = config.showForSelf();
 		overlayManager.add(overlay);
 		renderCallbackManager.register(renderCallback);
+		keyManager.registerKeyListener(toggleNamesHotkeyListener);
+		keyManager.registerKeyListener(toggleHpBarsHotkeyListener);
 		clientThread.invokeLater(this::syncNativeBarOverrides);
 	}
 
@@ -360,6 +399,8 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		renderCallbackManager.unregister(renderCallback);
 		overlayManager.remove(overlay);
+		keyManager.unregisterKeyListener(toggleNamesHotkeyListener);
+		keyManager.unregisterKeyListener(toggleHpBarsHotkeyListener);
 		trackedActors.clear();
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
