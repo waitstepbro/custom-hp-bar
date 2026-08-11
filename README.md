@@ -16,8 +16,8 @@ tracking, and status-effect debuffs.
 
 ## Support RuneLite
 
-This plugin is free. If you'd like to support the RuneLite client itself, consider becoming a
-[Patreon supporter](https://www.patreon.com/runelite).
+This plugin is free. If you would like to support in some way, please consider joining the
+[RuneLite Patreon](https://www.patreon.com/runelite).
 
 ## Features
 
