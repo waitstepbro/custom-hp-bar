@@ -16,7 +16,7 @@ tracking, and status-effect debuffs.
 
 ## Support RuneLite
 
-This plugin is free. If you would like to support in some way, please consider joining the
+If you would like to support in some way, please consider joining the
 [RuneLite Patreon](https://www.patreon.com/runelite).
 
 ## Features
@@ -85,10 +85,9 @@ Settings are grouped into eight sections:
 - Behavior
 - Hotkeys
 
-Styling is independent for NPCs, giving them their own full Style section. Your own bar and other
-players' bars share one set of size/shape/border/font/text settings (in Player Bar — Style), but
-each gets its own colors, gradient, background, opacity, and vertical offset - yours in Player Bar
-— Style, other players' in Other Player Bar — Style.
+NPCs get their own full Style section. Your own bar and other players' bars share one set of
+size/shape/border/font/text settings (Player Bar — Style), but each gets its own colors, gradient,
+background, opacity, and vertical offset - yours there, other players' in Other Player Bar — Style.
 
 ### Style options (present in both Target Bar — Style and Player Bar — Style)
 
@@ -148,10 +147,9 @@ each gets its own colors, gradient, background, opacity, and vertical offset - y
 
 ### Player Bar — Style (in addition to the shared options)
 
-The size, shape, border, and font/text options here (from the shared table above) apply to other
-players' bars too - only Show for Self, Self Display Mode, and the color-related settings below
-are self-only. Other players' colors and vertical offset live in their own section, see
-"Other Player Bar — Style" below.
+The shared size/shape/border/font/text options above apply to other players too. Everything else
+in this section, including the color settings in the shared table, is self-only - see
+"Other Player Bar — Style" below for other players' own colors and vertical offset.
 
 | Setting | Description | Default |
 |---|---|---|
@@ -188,21 +186,22 @@ are self-only. Other players' colors and vertical offset live in their own secti
 
 ### Other Player Bar — Style
 
-Size, shape, border, and font/text come from Player Bar — Style, shared with your own bar. Other
+Size, shape, border, and font/text come from Player Bar — Style, shared with your own bar. Colors,
+gradient, background, opacity, and vertical offset below are independent of your own. Other
 players' HP is always shown as a percentage - there's no display mode option for it.
 
 | Setting | Description | Default |
 |---|---|---|
-| Show for Other Players | Draw the health bar over other players. With Always Show Player Name on, names stay visible regardless of this setting; without it, a player still needs this on to be tracked - and therefore named - at all. | Off |
+| Show for Other Players | Draw the health bar over other players. Without this, a player needs Always Show Player Name on to be tracked and named at all. | Off |
 | Always Show Player HP Bar | Shows other players' HP bar at all times, not just when tracked in combat. Requires Show for Other Players. | Off |
-| Vertical Offset (Other Players) | Pixels to shift other players' bars up (positive) or down (negative) from center. Independent of your own Vertical Offset (Self). | 15 |
-| Bar Color | Fill color of other players' bars, and the full-HP color when HP Color Gradient is on. Independent of your own Bar Color. | Green |
-| HP Color Gradient | Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP levels. Independent of your own toggle. | Off |
-| Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient. Independent of your own color. | Yellow |
-| Midpoint | HP percentage at which other players' bars are exactly Mid HP Color. Independent of your own midpoint. | 50 |
-| Low HP Color | Color reached at 0% HP. Requires HP Color Gradient. Independent of your own color. | Red |
-| Background Color | Color of the empty portion of other players' bars. Independent of your own background color. | Dark gray (translucent) |
-| Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque. Independent of your own opacity. | 100 |
+| Vertical Offset (Other Players) | Pixels to shift other players' bars up (positive) or down (negative) from center | 15 |
+| Bar Color | Fill color of other players' bars, and the full-HP color when HP Color Gradient is on | Green |
+| HP Color Gradient | Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP levels | Off |
+| Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient | Yellow |
+| Midpoint | HP percentage at which other players' bars are exactly Mid HP Color | 50 |
+| Low HP Color | Color reached at 0% HP. Requires HP Color Gradient | Red |
+| Background Color | Color of the empty portion of other players' bars | Dark gray (translucent) |
+| Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque | 100 |
 
 ### Other Player Bar — Info
 
