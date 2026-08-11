@@ -14,6 +14,11 @@ tracking, and status-effect debuffs.
   <img src="images/stacking-example.png" width="32%">
 </p>
 
+## Support RuneLite
+
+This plugin is free. If you'd like to support the RuneLite client itself, consider becoming a
+[Patreon supporter](https://www.patreon.com/runelite).
+
 ## Features
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with fully
@@ -222,8 +227,3 @@ players' HP is always shown as a percentage - there's no display mode option for
 |---|---|---|
 | Toggle Names | Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
 | Toggle HP Bars | Instantly shows/hides NPC and player HP bars (including your own). Doesn't affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
-
-## Support RuneLite
-
-This plugin is free. If you'd like to support the RuneLite client itself, consider becoming a
-[Patreon supporter](https://www.patreon.com/runelite).
