@@ -38,6 +38,8 @@ tracking, and status-effect debuffs.
   just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
+- **Prioritize self on same tile** — optionally hide an NPC's or other player's bar/name entirely
+  when they're standing on your own tile, instead of stacking with yours.
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
   engage it.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
@@ -182,3 +184,4 @@ can look completely different if you want. Defaults are the same for both unless
 |---|---|---|
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just filtered NPCs | On |
+| Prioritize Self on Same Tile | When you're on the same tile as an NPC or another player, hides their bar and name entirely instead of stacking it with your own - only your bar/name shows there. | On |

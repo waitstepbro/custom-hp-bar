@@ -1439,6 +1439,19 @@ public interface CustomHpBarConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "prioritizeSelfOnSameTile",
+		name = "Prioritize Self on Same Tile",
+		description = "When you're on the same tile as an NPC or another player, hides their bar and " +
+			"name entirely instead of stacking it with your own - only your bar/name shows there.",
+		section = BEHAVIOR_SECTION,
+		position = 2
+	)
+	default boolean prioritizeSelfOnSameTile()
+	{
+		return true;
+	}
+
 	enum DisplayMode
 	{
 		NUMBER,

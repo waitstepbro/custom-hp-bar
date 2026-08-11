@@ -191,6 +191,13 @@ class CustomHpBarOverlay extends Overlay
 
 		Player localPlayer = client.getLocalPlayer();
 
+		// "Prioritize Self on Same Tile": non-null means any NPC/other player sharing this exact
+		// tile with self gets no bar or name at all this frame (see suppressedForSelfTile()). Null
+		// - feature off, no local player, or Show for Self off (nothing of self's to prioritize) -
+		// means every actor is considered normally, same as before this existed.
+		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf()
+			? localPlayer.getWorldLocation() : null;
+
 		// The local player's own bar is drawn last of everything below, so it never ends up buried
 		// under an NPC's bar (map/loop order is otherwise arbitrary - see TODO.md idea 7). These
 		// hold whichever path (tracked HP bar vs. untracked standalone Prayer/Run bar) applies this frame.
@@ -228,11 +235,19 @@ class CustomHpBarOverlay extends Overlay
 		// below claims a real slot - otherwise whichever actor got claimed first (an arbitrary
 		// property of iteration/pass order) anchors that whole tile's stack to itself. See
 		// seedTileStackTops()'s own doc and CLAUDE.md.
-		seedTileStackTops(tileStacks, localPlayer);
+		seedTileStackTops(tileStacks, localPlayer, selfPriorityTile);
 
 		for (Map.Entry<Actor, Integer> entry : plugin.getTrackedActors().entrySet())
 		{
 			Actor actor = entry.getKey();
+
+			// Cheapest check first, before any HP resolution or stack-limit charge - an actor
+			// suppressed for sharing self's tile gets nothing at all this frame, not even counted
+			// toward npcStackLimit/Player Stack Limit. See suppressedForSelfTile()'s own doc.
+			if (suppressedForSelfTile(actor, selfPriorityTile))
+			{
+				continue;
+			}
 
 			// Filtering already happened in CustomHpBarPlugin.isTrackedType() - nothing to re-check.
 			int maxHp = resolveMaxHp(actor);
@@ -338,7 +353,7 @@ class CustomHpBarOverlay extends Overlay
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
 				// Cached per game tick, not recomputed every frame - see CustomHpBarPlugin.isTrackedNpcCached().
-				if (npc == null || !plugin.isTrackedNpcCached(npc))
+				if (npc == null || !plugin.isTrackedNpcCached(npc) || suppressedForSelfTile(npc, selfPriorityTile))
 				{
 					continue;
 				}
@@ -413,7 +428,7 @@ class CustomHpBarOverlay extends Overlay
 			double zoom = zoomFactor();
 			for (Player other : client.getTopLevelWorldView().players())
 			{
-				if (other == null || other == localPlayer)
+				if (other == null || other == localPlayer || suppressedForSelfTile(other, selfPriorityTile))
 				{
 					continue;
 				}
@@ -627,6 +642,22 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
+	 * Whether actor should get no bar or name at all this frame under "Prioritize Self on Same
+	 * Tile" - true only for an NPC or other player sharing selfPriorityTile exactly (self itself is
+	 * never suppressed by its own priority). selfPriorityTile is null whenever the feature is off,
+	 * there's no local player, or Show for Self is off - in all those cases this always returns
+	 * false, so every actor is considered normally, same as before the feature existed. Checked
+	 * before any stack-limit charge or seeding, not just at draw time, so a suppressed actor is
+	 * fully invisible to the same-tile system rather than still reserving space for a bar that
+	 * never appears. See CLAUDE.md.
+	 */
+	private boolean suppressedForSelfTile(Actor actor, WorldPoint selfPriorityTile)
+	{
+		return selfPriorityTile != null && actor != client.getLocalPlayer()
+			&& selfPriorityTile.equals(actor.getWorldLocation());
+	}
+
+	/**
 	 * Scans every actor that could claim a same-tile stack slot this frame - mirroring the three
 	 * claiming passes' own candidate sets, deliberately a bit broader rather than replicating
 	 * every last filter (an actor counted here that turns out not to actually claim a slot just
@@ -640,11 +671,11 @@ class CustomHpBarOverlay extends Overlay
 	 * there. Reported as "a new player running under a stack renders far below the others." See
 	 * CLAUDE.md, "Same-tile stack anchored to whichever actor claimed first".
 	 */
-	private void seedTileStackTops(Map<WorldPoint, Point> tileStacks, Player localPlayer)
+	private void seedTileStackTops(Map<WorldPoint, Point> tileStacks, Player localPlayer, WorldPoint selfPriorityTile)
 	{
 		for (Actor actor : plugin.getTrackedActors().keySet())
 		{
-			seedTileStackTop(tileStacks, actor);
+			seedTileStackTop(tileStacks, actor, selfPriorityTile);
 		}
 
 		if (config.alwaysShowNpcBar() || (config.showNpcName() && config.alwaysShowNpcName()))
@@ -653,7 +684,7 @@ class CustomHpBarOverlay extends Overlay
 			{
 				if (npc != null && plugin.isTrackedNpcCached(npc))
 				{
-					seedTileStackTop(tileStacks, npc);
+					seedTileStackTop(tileStacks, npc, selfPriorityTile);
 				}
 			}
 		}
@@ -670,7 +701,7 @@ class CustomHpBarOverlay extends Overlay
 				if (other != null && other != localPlayer
 					&& (seedAlwaysPlayerBar || isDisplayableName(other.getName())))
 				{
-					seedTileStackTop(tileStacks, other);
+					seedTileStackTop(tileStacks, other, selfPriorityTile);
 				}
 			}
 		}
@@ -680,10 +711,17 @@ class CustomHpBarOverlay extends Overlay
 	 * Records actor's whole raw anchor (X and Y) as its tile's baseline if it's higher (smaller Y)
 	 * than whatever's already recorded there - the X half is what claimStackSlot() later hands to
 	 * every actor sharing this tile, so the group renders as a straight column instead of each
-	 * actor's own sub-tile X leaking through. See claimStackSlot()'s own doc.
+	 * actor's own sub-tile X leaking through. See claimStackSlot()'s own doc. Skips an actor
+	 * suppressedForSelfTile() the same as every real claiming pass does - a suppressed actor
+	 * shouldn't even influence the tile's baseline, since it never actually draws.
 	 */
-	private void seedTileStackTop(Map<WorldPoint, Point> tileStacks, Actor actor)
+	private void seedTileStackTop(Map<WorldPoint, Point> tileStacks, Actor actor, WorldPoint selfPriorityTile)
 	{
+		if (suppressedForSelfTile(actor, selfPriorityTile))
+		{
+			return;
+		}
+
 		WorldPoint tile = actor.getWorldLocation();
 		if (tile == null)
 		{
