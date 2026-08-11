@@ -161,6 +161,14 @@ class CustomHpBarOverlay extends Overlay
 	/** Icons bundled as plugin resources, keyed by file name - for graphics with no confirmed client SpriteID. */
 	private final Map<String, BufferedImage> bundledIcons = new HashMap<>();
 
+	/**
+	 * Per-tile sticky reference actor - see resolveReferenceActors(). Double-buffered the same way
+	 * the old stability map was: render() builds a fresh map each frame and swaps it in wholesale
+	 * at the end, rather than mutating this one in place, so a tile nobody occupies anymore simply
+	 * isn't carried into the next swap - no despawn-event cleanup needed.
+	 */
+	private Map<WorldPoint, Actor> lastReferenceActors = new HashMap<>();
+
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
 			ItemStatChangesService itemStatService)
@@ -214,6 +222,11 @@ class CustomHpBarOverlay extends Overlay
 		Map<WorldPoint, Point> tileStacks = new HashMap<>();
 		Map<Actor, Point> appliedStacks = new HashMap<>();
 
+		// This frame's half of the lastReferenceActors double-buffer - see its own field doc. Filled
+		// in by resolveReferenceActors() below, swapped into lastReferenceActors at the very end of
+		// render() so next frame's stickiness check compares against this one.
+		Map<WorldPoint, Actor> frameReferenceActors = new HashMap<>();
+
 		// npcStackCounts/npcStackDecided enforce npcStackLimit() - unlike the player-name cap below,
 		// this gates the whole NPC (bar and name together, whichever combination its config draws),
 		// charged once per NPC regardless of how many of its own draw calls follow, and decided
@@ -231,11 +244,11 @@ class CustomHpBarOverlay extends Overlay
 		Map<WorldPoint, Integer> playerStackCounts = new HashMap<>();
 		Map<Player, Boolean> playerStackDecided = new HashMap<>();
 
-		// Seeds each contested tile with its true topmost anchor before any of the three passes
-		// below claims a real slot - otherwise whichever actor got claimed first (an arbitrary
-		// property of iteration/pass order) anchors that whole tile's stack to itself. See
-		// seedTileStackTops()'s own doc and CLAUDE.md.
-		seedTileStackTops(tileStacks, localPlayer, selfPriorityTile);
+		// Seeds each contested tile with its sticky reference actor's own live anchor before any of
+		// the three passes below claims a real slot - otherwise whichever actor got claimed first
+		// (an arbitrary property of iteration/pass order) anchors that whole tile's stack to itself.
+		// See resolveReferenceActors()'s own doc and CLAUDE.md.
+		resolveReferenceActors(tileStacks, localPlayer, selfPriorityTile, frameReferenceActors);
 
 		for (Map.Entry<Actor, Integer> entry : plugin.getTrackedActors().entrySet())
 		{
@@ -520,6 +533,9 @@ class CustomHpBarOverlay extends Overlay
 			drawOverheadChatText(g, localPlayer, playerStyle);
 		}
 
+		// Swap this frame's reference-actor data in wholesale - see lastReferenceActors's own field doc.
+		lastReferenceActors = frameReferenceActors;
+
 		return null;
 	}
 
@@ -658,24 +674,70 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
-	 * Scans every actor that could claim a same-tile stack slot this frame - mirroring the three
-	 * claiming passes' own candidate sets, deliberately a bit broader rather than replicating
-	 * every last filter (an actor counted here that turns out not to actually claim a slot just
-	 * makes that tile's baseline marginally more conservative, never wrong) - and records each
-	 * tile's minimum (topmost, smallest-Y) raw anchor before any real claiming happens. Without
-	 * this, whichever actor happened to claim first became the tile's de facto top with no
-	 * correction possible once drawn: a later actor genuinely higher up would correctly avoid
-	 * overlapping it (see claimStackSlot()), but nothing pulled the first actor's own position up
-	 * to match if it wasn't actually the group's topmost member - e.g. a player only just arrived
-	 * on the tile, still mid-run-animation, could easily be lower than everyone already settled
-	 * there. Reported as "a new player running under a stack renders far below the others." See
-	 * CLAUDE.md, "Same-tile stack anchored to whichever actor claimed first".
+	 * Picks and persists, per contested tile, ONE actor whose live screen anchor alone defines
+	 * that tile's whole same-tile stack this frame - seeded into tileStacks before any of the
+	 * three claiming passes below runs, so whichever of them happens to reach the tile first
+	 * always finds this actor's anchor already there (see claimStackSlot()'s own doc).
+	 *
+	 * Replaces three earlier attempts at the same underlying bug, all built around some notion of
+	 * per-actor "settled"/"stable" gating tied to timing (a tile-identity/tick heuristic, then a
+	 * frame-to-frame *screen*-anchor comparison, then a tick-boundary screen-anchor comparison -
+	 * see CLAUDE.md, "Player health bars snapping when a new player walks into a stack too early"
+	 * and its two follow-ups). The last of those fixed the original walking-newcomer bug per its
+	 * own diagnostic logging, but introduced a new one: gating on the *projected screen* anchor
+	 * means ordinary camera movement (pan/rotate/zoom) - which shifts every actor's anchor by a
+	 * different amount depending on its own sub-tile position - could flip which actor was
+	 * "trusted" to set the baseline from tick to tick, reading as a standing-still stack's
+	 * names/bars snapping randomly. No amount of threshold or window tuning fixes that, because
+	 * the flaw isn't the timing - it's using a camera-dependent signal to answer a question
+	 * ("has this actor actually moved") that only the actor's own world position can answer.
+	 *
+	 * This drops timing/thresholds entirely: exactly one actor per tile - chosen once and kept
+	 * sticky (persisted in lastReferenceActors) for as long as it remains on that tile, regardless
+	 * of who else joins, leaves, or how the camera moves - is trusted to define the group's
+	 * baseline, using its own live anchor fresh every single frame. That anchor tracks the camera
+	 * exactly as smoothly as the model itself does, with nothing gating it. Every other actor on
+	 * the tile only ever stacks relative to that one anchor (see claimStackSlot()), so their own
+	 * screen positions - noisy with camera movement, transient while walking in - never factor in
+	 * at all. Reassigned only when the current reference actor itself leaves the tile - a rare,
+	 * one-time repositioning, not a per-frame jitter.
 	 */
-	private void seedTileStackTops(Map<WorldPoint, Point> tileStacks, Player localPlayer, WorldPoint selfPriorityTile)
+	private void resolveReferenceActors(Map<WorldPoint, Point> tileStacks, Player localPlayer, WorldPoint selfPriorityTile,
+			Map<WorldPoint, Actor> frameReferenceActors)
+	{
+		Map<WorldPoint, List<Actor>> tileGroups = new HashMap<>();
+		collectStackCandidates(tileGroups, localPlayer, selfPriorityTile);
+
+		for (Map.Entry<WorldPoint, List<Actor>> entry : tileGroups.entrySet())
+		{
+			WorldPoint tile = entry.getKey();
+			List<Actor> group = entry.getValue();
+
+			Actor sticky = lastReferenceActors.get(tile);
+			Actor reference = (sticky != null && group.contains(sticky)) ? sticky : group.get(0);
+
+			Point anchor = actorAnchor(reference);
+			if (anchor == null)
+			{
+				continue;
+			}
+
+			frameReferenceActors.put(tile, reference);
+			tileStacks.put(tile, anchor);
+		}
+	}
+
+	/**
+	 * Groups every actor that could claim a same-tile stack slot this frame by WorldPoint -
+	 * mirroring the three claiming passes' own candidate sets, deliberately a bit broader rather
+	 * than replicating every last filter (a tile counted here that turns out not to actually claim
+	 * a slot just makes resolveReferenceActors() marginally more conservative, never wrong).
+	 */
+	private void collectStackCandidates(Map<WorldPoint, List<Actor>> tileGroups, Player localPlayer, WorldPoint selfPriorityTile)
 	{
 		for (Actor actor : plugin.getTrackedActors().keySet())
 		{
-			seedTileStackTop(tileStacks, actor, selfPriorityTile);
+			addStackCandidate(tileGroups, actor, selfPriorityTile);
 		}
 
 		if (config.alwaysShowNpcBar() || (config.showNpcName() && config.alwaysShowNpcName()))
@@ -684,14 +746,14 @@ class CustomHpBarOverlay extends Overlay
 			{
 				if (npc != null && plugin.isTrackedNpcCached(npc))
 				{
-					seedTileStackTop(tileStacks, npc, selfPriorityTile);
+					addStackCandidate(tileGroups, npc, selfPriorityTile);
 				}
 			}
 		}
 
-		// Mirrors the real "Always Show Player Bar/Name" pass below exactly: seed a player here iff
-		// that pass would draw something (bar and/or name) for them. showForPlayers now gates the
-		// bar half (alwaysShowPlayerBar requires it), same as it always has for the tracked path.
+		// Mirrors the real "Always Show Player Bar/Name" pass below exactly: a player only counts
+		// here iff that pass would draw something (bar and/or name) for them. showForPlayers gates
+		// the bar half (alwaysShowPlayerBar requires it), same as it always has for the tracked path.
 		boolean seedAlwaysPlayerBar = config.showForPlayers() && config.alwaysShowPlayerBar();
 		boolean seedAlwaysPlayerName = config.showPlayerName() && config.alwaysShowPlayerName();
 		if (seedAlwaysPlayerBar || seedAlwaysPlayerName)
@@ -701,21 +763,14 @@ class CustomHpBarOverlay extends Overlay
 				if (other != null && other != localPlayer
 					&& (seedAlwaysPlayerBar || isDisplayableName(other.getName())))
 				{
-					seedTileStackTop(tileStacks, other, selfPriorityTile);
+					addStackCandidate(tileGroups, other, selfPriorityTile);
 				}
 			}
 		}
 	}
 
-	/**
-	 * Records actor's whole raw anchor (X and Y) as its tile's baseline if it's higher (smaller Y)
-	 * than whatever's already recorded there - the X half is what claimStackSlot() later hands to
-	 * every actor sharing this tile, so the group renders as a straight column instead of each
-	 * actor's own sub-tile X leaking through. See claimStackSlot()'s own doc. Skips an actor
-	 * suppressedForSelfTile() the same as every real claiming pass does - a suppressed actor
-	 * shouldn't even influence the tile's baseline, since it never actually draws.
-	 */
-	private void seedTileStackTop(Map<WorldPoint, Point> tileStacks, Actor actor, WorldPoint selfPriorityTile)
+	/** Adds actor to its own tile's candidate group, unless suppressedForSelfTile() - a suppressed actor never draws, so it shouldn't influence the tile's baseline or be eligible as its reference. */
+	private void addStackCandidate(Map<WorldPoint, List<Actor>> tileGroups, Actor actor, WorldPoint selfPriorityTile)
 	{
 		if (suppressedForSelfTile(actor, selfPriorityTile))
 		{
@@ -728,17 +783,7 @@ class CustomHpBarOverlay extends Overlay
 			return;
 		}
 
-		Point anchor = actorAnchor(actor);
-		if (anchor == null)
-		{
-			return;
-		}
-
-		Point existing = tileStacks.get(tile);
-		if (existing == null || anchor.getY() < existing.getY())
-		{
-			tileStacks.put(tile, anchor);
-		}
+		tileGroups.computeIfAbsent(tile, t -> new ArrayList<>()).add(actor);
 	}
 
 	/**
@@ -796,24 +841,30 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
-	 * Shared bookkeeping for both claim*StackSlot() methods: reserves consumed pixels above the
-	 * higher (numerically smaller Y) of this actor's own raw anchor and whatever this tile has
-	 * already claimed, so a slot never lands below space already spoken for - correct however far
-	 * apart (or close) the two actors' real anchors happen to be this frame, not assumed identical.
-	 * The X half of the returned Point is always the tile's shared reference X (carried forward
-	 * from whichever actor seedTileStackTop() found topmost), never this actor's own raw X - using
-	 * each actor's own X here is exactly what caused the reported horizontal drift: Y was already
-	 * shared/aligned per-tile, but X wasn't, so a straight-down stack of bars/names visually
-	 * staggered left/right by however much the actors' individual sub-tile positions differed.
+	 * Shared bookkeeping for both claim*StackSlot() methods: reserves consumed pixels above
+	 * whatever this tile has already claimed. The X half of the returned Point, and the Y half's
+	 * starting value for a tile's very first claim, always trace back to resolveReferenceActors()'s
+	 * seed (that tile's sticky reference actor's own live anchor) - never this actor's own raw
+	 * anchor, unless resolveReferenceActors() genuinely found nothing to seed this tile with
+	 * (claimed == null; shouldn't normally happen, since its candidate set is deliberately broader
+	 * than these callers', but falls back safely to this actor's own anchor rather than crashing).
+	 * This is the whole fix: only ONE actor's position - the sticky reference, resolved once
+	 * up front - ever defines a tile's baseline, so neither a still-arriving newcomer nor ordinary
+	 * camera-driven jitter in any other member's screen position can move the group. See
+	 * resolveReferenceActors()'s own doc and CLAUDE.md.
+	 *
+	 * X was already immune to any of this by construction - refX only ever comes from an existing
+	 * claimed entry (or, on first claim, the seeded reference's own X), never from a later actor's
+	 * own raw X - so a same-tile group renders as a straight column instead of each actor's own
+	 * sub-tile X leaking through and staggering it left/right.
 	 */
 	private static Point claimStackSlot(Map<WorldPoint, Point> tileStacks, WorldPoint tile, Point anchor, int consumed)
 	{
 		Point claimed = tileStacks.get(tile);
 		int refX = claimed != null ? claimed.getX() : anchor.getX();
 		int claimedTopY = claimed != null ? claimed.getY() : anchor.getY();
-		int effectiveTop = Math.min(anchor.getY(), claimedTopY);
-		tileStacks.put(tile, new Point(refX, effectiveTop - consumed));
-		return new Point(refX, effectiveTop);
+		tileStacks.put(tile, new Point(refX, claimedTopY - consumed));
+		return new Point(refX, claimedTopY);
 	}
 
 	/**
