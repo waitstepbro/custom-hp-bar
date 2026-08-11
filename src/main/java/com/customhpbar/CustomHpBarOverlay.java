@@ -427,13 +427,16 @@ class CustomHpBarOverlay extends Overlay
 		// "Always Show Player Bar"/"Always Show Player Name" - same "regardless of tracked state"
 		// idea as the NPC pass above, one shared loop so they don't double-claim same-tile stack
 		// slots (mirrors alwaysBar/alwaysName above exactly). Separate loop from the NPC one since
-		// Player/NPC share no common iterable and the local player is never a candidate.
+		// Player/NPC share no common iterable and the local player is never a candidate. Also the
+		// only place a player with neither a bar nor a name showing, but an active skull/overhead
+		// icon, gets drawn at all - see the iconOnly branch below and CLAUDE.md. That's why this
+		// loop now always runs rather than being gated on the two always-show toggles: a skulled
+		// or praying player can appear regardless of either.
 		// alwaysShowPlayerBar requires showForPlayers, same as alwaysShowHpBar requires
 		// showForSelf; alwaysShowPlayerName deliberately doesn't - that toggle is scoped to health
 		// bars only, so names stay visible with showForPlayers off. See CLAUDE.md.
 		boolean alwaysPlayerBar = config.showForPlayers() && config.alwaysShowPlayerBar();
 		boolean alwaysPlayerName = config.showPlayerName() && config.alwaysShowPlayerName();
-		if (alwaysPlayerBar || alwaysPlayerName)
 		{
 			double zoom = zoomFactor();
 			for (Player other : client.getTopLevelWorldView().players())
@@ -449,14 +452,18 @@ class CustomHpBarOverlay extends Overlay
 				// the bug that check was originally added to close for NPCs.
 				boolean drawBarForThis = alwaysPlayerBar && !CustomHpBarPlugin.isConfirmedDead(other);
 				boolean drawNameForThis = alwaysPlayerName && isDisplayableName(other.getName());
-				if (!drawBarForThis && !drawNameForThis)
-				{
-					continue;
-				}
 
-				// Same charge/skip as the main loop above - reuses the cached decision if this
-				// player was already considered there (tracked case), so it's never charged twice.
-				if (!playerStackAllowed(playerStackCounts, playerStackDecided, other))
+				// Neither a bar nor a name is drawing for this player this frame - the only
+				// remaining reason to consider them is an active skull or overhead icon with
+				// nowhere else to be drawn (CustomHpBarPlugin.updateOverheadEligiblePlayers()
+				// suppresses the native versions for exactly this population too, so leaving them
+				// undrawn here would make them vanish). Deliberately skips playerStackAllowed and
+				// same-tile stack claiming entirely below - an icon-only player isn't part of the
+				// bar/name stack at all, just its own anchor, snapping to the same "no name" default
+				// position drawSkullIcon()/drawOverheadIcon() already use.
+				boolean iconOnly = !drawBarForThis && !drawNameForThis
+					&& (other.getSkullIcon() != SkullIcon.NONE || other.getOverheadIcon() != null);
+				if (!drawBarForThis && !drawNameForThis && !iconOnly)
 				{
 					continue;
 				}
@@ -468,6 +475,29 @@ class CustomHpBarOverlay extends Overlay
 				}
 
 				otherPlayerStyle = otherPlayerStyle != null ? otherPlayerStyle : resolveStyle(other);
+
+				if (iconOnly)
+				{
+					// Non-null only if some other pass already drew this player this frame -
+					// shouldn't normally happen (iconOnly implies neither of the branches below
+					// ran for them), but appliedStacks is authoritative either way, same
+					// convention as the bar/name branches use.
+					if (appliedStacks.get(other) == null)
+					{
+						drawSkullIcon(g, other, otherPlayerStyle, false);
+						drawOverheadIcon(g, other, otherPlayerStyle, false);
+						drawHitsplats(g, other);
+						drawOverheadChatText(g, other);
+					}
+					continue;
+				}
+
+				// Same charge/skip as the main loop above - reuses the cached decision if this
+				// player was already considered there (tracked case), so it's never charged twice.
+				if (!playerStackAllowed(playerStackCounts, playerStackDecided, other))
+				{
+					continue;
+				}
 
 				// Non-null once the main loop above already drew this player - reuse its resolved
 				// anchor rather than claiming a second slot for the same actor.
@@ -499,8 +529,12 @@ class CustomHpBarOverlay extends Overlay
 					// here when neither happened.
 					if (applied == null && !drawBarForThis)
 					{
-						drawSkullIcon(g, other, otherPlayerStyle, true);
-						drawOverheadIcon(g, other, otherPlayerStyle, true);
+						// isNamesVisible(), not a hardcoded true - drawNameForThis only means the
+						// name is config-enabled, not that it actually drew this frame (the hotkey
+						// may have hidden it). See the drawBar()-tail call site's own comment.
+						boolean nameLiveShown = plugin.isNamesVisible();
+						drawSkullIcon(g, other, otherPlayerStyle, nameLiveShown);
+						drawOverheadIcon(g, other, otherPlayerStyle, nameLiveShown);
 						drawHitsplats(g, other);
 						drawOverheadChatText(g, other);
 					}
@@ -1176,7 +1210,12 @@ class CustomHpBarOverlay extends Overlay
 			Player other = (Player) actor;
 			// Whichever of the two branches above actually drew it (or alwaysShowPlayerName drawing
 			// it in the dedicated pass instead), the outcome's the same row at the same position.
-			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName());
+			// isNamesVisible() included deliberately - unlike the name row itself (a "purely
+			// visual" hotkey choke point that doesn't reflow anything else, see drawBar()'s own
+			// comment), the skull/overhead icon is meant to track what's actually on screen right
+			// now, so it snaps down to the bar's own top the instant names are hotkey-hidden. See
+			// CLAUDE.md.
+			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName()) && plugin.isNamesVisible();
 			drawSkullIcon(g, other, style, nameShown);
 			drawOverheadIcon(g, other, style, nameShown);
 			drawHitsplats(g, other);

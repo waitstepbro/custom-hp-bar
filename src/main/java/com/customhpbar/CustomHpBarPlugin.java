@@ -15,6 +15,7 @@ import net.runelite.api.Prayer;
 import net.runelite.api.Renderable;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
+import net.runelite.api.SkullIcon;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
@@ -713,9 +714,18 @@ public class CustomHpBarPlugin extends Plugin
 	/**
 	 * Recomputes overheadEligiblePlayers: tracked other players (a bar is showing) union "Always
 	 * Show Player Name" eligible other players (a name is showing) union "Always Show Player HP
-	 * Bar" eligible other players (a bar is showing) - the same conditions CustomHpBarOverlay's
-	 * own render() passes use to decide whether a player gets anything drawn at all. Tick-granular,
-	 * not per-frame - see the field's own doc for why.
+	 * Bar" eligible other players (a bar is showing) union any other player currently showing a
+	 * skull or overhead (prayer) icon - the same conditions CustomHpBarOverlay's own render()
+	 * passes use to decide whether a player gets anything drawn at all (see its "Always Show
+	 * Player Bar"/"Always Show Player Name" loop, and its iconOnly branch specifically for the
+	 * last case). Tick-granular, not per-frame - see the field's own doc for why.
+	 *
+	 * The skull/icon union exists so a player with neither a bar nor a name showing (not tracked,
+	 * neither "Always Show" toggle on) still gets their native skull/prayer icon suppressed - and
+	 * therefore needs CustomHpBarOverlay to actually redraw a replacement, or it would just
+	 * vanish instead of showing at its own default position. Requires scanning every player
+	 * unconditionally now, not just when an always-show toggle is on, since a skulled/praying
+	 * player can appear regardless of those toggles.
 	 */
 	private void updateOverheadEligiblePlayers()
 	{
@@ -729,15 +739,21 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 
-		if ((config.showPlayerName() && config.alwaysShowPlayerName())
-			|| (config.showForPlayers() && config.alwaysShowPlayerBar()))
+		boolean alwaysShow = (config.showPlayerName() && config.alwaysShowPlayerName())
+			|| (config.showForPlayers() && config.alwaysShowPlayerBar());
+		for (Player player : client.getTopLevelWorldView().players())
 		{
-			for (Player player : client.getTopLevelWorldView().players())
+			if (player == null || player == localPlayer)
 			{
-				if (player != null && player != localPlayer && player.getName() != null && !player.getName().isEmpty())
-				{
-					eligible.add(player);
-				}
+				continue;
+			}
+			if (alwaysShow && player.getName() != null && !player.getName().isEmpty())
+			{
+				eligible.add(player);
+			}
+			else if (player.getSkullIcon() != SkullIcon.NONE || player.getOverheadIcon() != null)
+			{
+				eligible.add(player);
 			}
 		}
 
