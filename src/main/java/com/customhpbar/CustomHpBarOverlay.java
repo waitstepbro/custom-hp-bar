@@ -505,7 +505,22 @@ class CustomHpBarOverlay extends Overlay
 				// Non-null once the main loop above already drew this player - reuse its resolved
 				// anchor rather than claiming a second slot for the same actor.
 				Point applied = appliedStacks.get(other);
+
+				// A name-only entry (no bar - see drawBarForThis above) sharing self's exact tile is
+				// deliberately kept OUT of the same-tile stack rather than claiming a slot: self is
+				// always the tile's reference actor (resolveReferenceActors()) and reserves height for
+				// its whole bar stack, so a stacked name here would render far above the player's own
+				// head instead of at its default position right above it. Once this player has a bar
+				// of their own (drawBarForThis true, or a future frame tracks them), the name goes
+				// back to riding directly above that bar as normal - only the bar-less case is
+				// exempted. Doesn't apply when self shares the tile with an NPC, or when two other
+				// players share a tile with each other - only the self-and-bar-less-other-player pair.
+				boolean nameOnlySharingSelfTile = applied == null && !drawBarForThis
+					&& localPlayer != null && localPlayer.getWorldLocation() != null
+					&& localPlayer.getWorldLocation().equals(other.getWorldLocation());
+
 				anchor = applied != null ? applied
+					: nameOnlySharingSelfTile ? anchor
 					: (drawBarForThis ? claimBarStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom)
 						: claimNameStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom));
 

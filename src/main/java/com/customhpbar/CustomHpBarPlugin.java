@@ -535,6 +535,17 @@ public class CustomHpBarPlugin extends Plugin
 			track(actor, client.getTickCount());
 		}
 
+		// A hit you dealt to someone else - Hitsplat.isMine(), which includes BLOCK_ME (a 0-damage
+		// hit you landed) - keeps your own bar's tracked clock refreshed even while you're not
+		// taking damage yourself. Without this, isInCombat(localPlayer) (native health ratio, taking
+		// damage only) is the sole thing keeping self tracked, so the bar could expire mid-fight
+		// just from attacking something that isn't hitting back. See CLAUDE.md.
+		Player localPlayer = client.getLocalPlayer();
+		if (actor != localPlayer && hitsplat.isMine() && isTrackedType(localPlayer))
+		{
+			track(localPlayer, client.getTickCount());
+		}
+
 		trackStatusEffect(actor, hitsplat.getHitsplatType());
 
 		if (actor instanceof NPC && OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
