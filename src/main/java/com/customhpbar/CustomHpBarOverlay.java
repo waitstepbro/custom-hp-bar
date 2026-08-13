@@ -754,7 +754,22 @@ class CustomHpBarOverlay extends Overlay
 			List<Actor> group = entry.getValue();
 
 			Actor sticky = lastReferenceActors.get(tile);
-			Actor reference = (sticky != null && group.contains(sticky)) ? sticky : group.get(0);
+			Actor reference;
+			if (group.contains(localPlayer))
+			{
+				// Root cause found live 2026-08-12 (Blood Moon, see CLAUDE.md "Fourth live test"):
+				// self was just as eligible as anyone else to lose the reference pick here, meaning
+				// self's OWN bar could get computed from a boss's anchor instead of the player's own
+				// the moment their tiles coincided (a hitbox push landing self on the boss's reported
+				// tile, or literally standing under it - both reported live). Self must always be its
+				// own tile's reference; every other actor sharing the tile still stacks relative to
+				// self, just never the reverse.
+				reference = localPlayer;
+			}
+			else
+			{
+				reference = (sticky != null && group.contains(sticky)) ? sticky : group.get(0);
+			}
 
 			Point anchor = actorAnchor(reference);
 			if (anchor == null)
