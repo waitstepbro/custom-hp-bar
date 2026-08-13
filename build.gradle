@@ -64,6 +64,19 @@ task runClient(type: JavaExec, dependsOn: jar) {
     jvmArgs "-ea", "-Xmx2048m", "-Xss2m"
 }
 
+// Found 2026-08-12 (TODO item 2 investigation, CLAUDE.md): runPlugin's implicit dependency on
+// compileJava (via sourceSets.test.runtimeClasspath) sometimes reported UP-TO-DATE and skipped
+// recompilation despite real source changes, so a live test session ran stale bytecode - a fix
+// looked "confirmed failed" when it had never actually been exercised. compileTestJava wasn't
+// affected in the one session that caught this, but forcing both costs nothing on a
+// single-plugin codebase this small (sub-second either way) and removes the whole class of doubt.
+compileJava {
+    outputs.upToDateWhen { false }
+}
+compileTestJava {
+    outputs.upToDateWhen { false }
+}
+
 task runPlugin(type: JavaExec) {
     group = "runelite"
     description = "Launch RuneLite with this plugin loaded via ExternalPluginManager, using the Maven-resolved client jar"

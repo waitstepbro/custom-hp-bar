@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.NPC;
@@ -25,6 +26,7 @@ import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
@@ -442,6 +444,21 @@ public class CustomHpBarPlugin extends Plugin
 		if ("showForSelf".equals(event.getKey()))
 		{
 			suppressSelfOverheads = config.showForSelf();
+		}
+	}
+
+	/**
+	 * Scene reloads (walking far enough to shift the loaded area, not just world-hops) can rebuild the
+	 * client's health-bar render cache without re-consulting our sprite overrides, letting the native bar
+	 * flash through until something else touches it again. Re-assert on every LOADING -> LOGGED_IN
+	 * transition, not just config changes.
+	 */
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		if (event.getGameState() == GameState.LOGGED_IN)
+		{
+			clientThread.invokeLater(this::syncNativeBarOverrides);
 		}
 	}
 
