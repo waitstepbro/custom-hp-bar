@@ -9,18 +9,18 @@ ToA NPC on purpose - not a bug. Formula and mapping verified in `CLAUDE.md` ("To
 bug fixed 2026-08-12. Diagnostic logging re-added 2026-08-14; needs a live repro with
 `[stacking debug]` lines from `client.log` before attempting a fix (three prior blind attempts on
 this neighboring bug already). Full history in `CLAUDE.md` ("Other players' names
-drifting/bunching (TODO.md item 2)...").
+drifting/bunching (TODO.md item 2)").
 
 **3. Boss "bar disappears with `hideNativeBar` on" - same symptom, different causes per boss. Do
 not reuse a fix across sub-items.**
   - **Duke Sucellus's Fermentation Vat (TABLED)** - scenery, not an NPC. Needs a live sprite-ID
-    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat...").
+    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat").
   - **Verzik Supporting Pillars (UNRESOLVED)** - real NPCs that never take a hitsplat before the
     room's phase-1-to-2 collapse, so they never enter `trackedActors`. Needs live confirmation
-    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars...").
+    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars").
   - **ToB Nylocas room "Support" pillars (UNCONFIRMED)** - game objects, not NPCs, so the Verzik
     fix can't reach them; likely vat-shaped instead. Not yet confirmed broken. `CLAUDE.md`
-    ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars...").
+    ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars").
 
 **4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on** (issue #31) - separate
 resource from HP, apparently also getting overridden by `hideNativeBar`.
