@@ -15,54 +15,59 @@ it (option a)"). Needs a live repro to confirm before considering this done.
 **3. Boss "bar disappears with `hideNativeBar` on" - same symptom, different causes per boss. Do
 not reuse a fix across sub-items.**
   - **Duke Sucellus's Fermentation Vat (TABLED)** - scenery, not an NPC. Needs a live sprite-ID
-    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat").
-    Owner responded on issue #16 (2026-08-17): aware of it, fix hopefully landing next release;
-    interim workaround is disabling "Hide native health bar."
+    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat"). You
+    told a reporter on [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16) you're
+    already aware and hoping to land a fix next release - disabling "Hide native health bar" works
+    around it for now.
   - **Verzik Supporting Pillars (UNRESOLVED)** - real NPCs that never take a hitsplat before the
     room's phase-1-to-2 collapse, so they never enter `trackedActors`. Needs live confirmation
-    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars"). Owner gave the same
-    response as the vat above on issue #16 - aware, fix hopefully next release, same interim
-    workaround. A commenter also noted the wiki lists Supporting Pillar as both scenery and NPC,
-    which may explain why only *some* pillars are affected.
+    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars"). Same answer as the
+    vat above, on the same [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16) -
+    you're aware, a fix is hopefully coming next release, same workaround. A commenter there also
+    pointed out the wiki lists Supporting Pillar as both scenery and NPC, which might explain why
+    only *some* pillars are affected.
   - **ToB Nylocas room "Support" pillars (UNCONFIRMED)** - game objects, not NPCs, so the Verzik
     fix can't reach them; likely vat-shaped instead. Not yet confirmed broken. `CLAUDE.md`
     ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars").
 
-**4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on** (issue #31) - separate
-resource from HP, apparently also getting overridden by `hideNativeBar`. Owner posted before/after
-screenshots on the issue (2026-08-17) showing the charge bar missing vs. visible - consistent with
-the same hideNativeBar-suppression pattern confirmed for the Vat/Pillars on issue #16, though not
-stated outright there.
+**4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on**
+([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - separate resource from HP,
+apparently also getting overridden by `hideNativeBar`. You posted before/after screenshots on the
+issue showing the charge bar missing vs. visible - looks like the same hideNativeBar-suppression
+pattern as the Vat/Pillars above, though you never spelled that out there.
 
-**5. CoX mobs show no health bars except Olm's hands** (issue #34) - reporter can't use the plugin
-in raids as a result; cause not yet investigated. Owner asked the reporter for screenshots
-(2026-08-17); awaiting reply.
+**5. CoX mobs show no health bars except Olm's hands**
+([issue #34](https://github.com/waitstepbro/custom-hp-bar/issues/34)) - reporter can't use the
+plugin in raids as a result; cause not yet investigated. You asked the reporter for screenshots
+and are still waiting to hear back.
 
 ## Features
 
 **1. Something to identify slayer task NPCs.**
 
 **2. Player combat level shown, color-coded red/yellow/green by difference to own level**
-(issue #35) - same idea as the existing NPC combat-level display. Owner confirmed on the issue
-(2026-08-17): will implement, but the color scheme will be fixed, not user-configurable (avoiding
-config option bloat).
+([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - same idea as the existing
+NPC combat-level display. You're on board with building it, but want the colors fixed rather than
+configurable so it doesn't add to config bloat.
 
 **3. Extra info in name display** (issue #27) - NPC level and max hit beside the name, weakness
 icon (via surge-spell icons, nicer than NPC Level Overlay's rune icons) beside it, with a
 configurable icon position.
 
-**4. Per-element text color** (issue #32) - HP, Prayer, HP number, and HP percentage colored
-independently, plus an option to hide other players' HP bars (mirroring the existing NPC bar
-filter). Owner responded on the issue (2026-08-17): Prayer color is a yes; HP-number/percentage
-color he'll consider but isn't committing to (avoiding option bloat); asked the requester whether
-"hide other players' bars" means a per-name blacklist - awaiting clarification.
+**4. Per-element text color** ([issue #32](https://github.com/waitstepbro/custom-hp-bar/issues/32))
+- HP, Prayer, HP number, and HP percentage colored independently, plus an option to hide other
+players' HP bars (mirroring the existing NPC bar filter). You're fine with a Prayer number color
+option; less sure about HP number/percentage since you'd rather not pile on config options; and you
+asked the requester whether "hide other players' bars" means a per-name blacklist - still waiting
+on that answer.
 
-**5. Player bar number and percentage shown together**, not mutually exclusive (issue #33). Owner
-confirmed on the issue (2026-08-17): no issues implementing this.
+**5. Player bar number and percentage shown together**, not mutually exclusive
+([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)). You said this one's no
+problem to add.
 
-**6. Scale NPC bar length to the mob's tile size** (issue #33) - fixed-length bars look off on
-large mobs. Owner said on the issue (2026-08-17) this needs investigation/testing before
-confirming it's feasible.
+**6. Scale NPC bar length to the mob's tile size**
+([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - fixed-length bars look off
+on large mobs. You said this needs some investigation and testing before you can call it doable.
 
 ## Feature Ideas
 
