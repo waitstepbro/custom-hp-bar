@@ -5,8 +5,11 @@
 **1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
 ToA NPC on purpose - not a bug.
 
-**2. Other players' names bunch when a shared tile's reference player leaves and another joins the
-same tick**, snapping every other name/bar on that tile onto the new player's anchor.
+**2. Other players' names overlap when several share one tile.** Fixed on 2026-08-17 by having
+same-tile claims measure real drawn canvas-Y edges instead of a cumulative height (see CLAUDE.md,
+"REGRESSION #5") - needs live confirmation with three name-only players walking on one tile.
+Separately still open: two or more bar-less other players standing on *my own* tile bypass the
+same-tile stack entirely and overlap each other.
 
 **3. Boss "bar disappears with `hideNativeBar` on"** - same symptom, different causes per boss, so
 a fix for one sub-item shouldn't be assumed to cover the others.
@@ -39,7 +42,7 @@ waiting to hear back.
 NPC combat-level display. Willing to build it, but the colors should be fixed rather than
 configurable so it doesn't add to config bloat.
 
-**3. Extra info in name display** (issue #27) - NPC level and max hit beside the name, weakness
+**3. Extra info in name display** ([issue #27] (https://github.com/waitstepbro/custom-hp-bar/issues/27)) - NPC level and max hit beside the name, weakness
 icon (via surge-spell icons, nicer than NPC Level Overlay's rune icons) beside it, with a
 configurable icon position.
 
