@@ -5,12 +5,12 @@
 **1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
 ToA NPC on purpose - not a bug. Formula and mapping verified in `CLAUDE.md` ("ToA minion HP").
 
-**2. FIX ATTEMPTED (2026-08-16), NOT YET TESTED LIVE - other players' names bunch when a shared
-tile's reference player leaves and another joins the same tick**, snapping every other name/bar on
-that tile onto the new player's anchor. Root cause confirmed via log + screenshot; fix blends the
-tile's anchor across a reassignment instead of snapping it. Compiles and passes `checkstyleMain`
-clean. `CLAUDE.md` ("FIX ATTEMPTED (2026-08-16): blend the reassignment snap instead of preventing
-it (option a)"). Needs a live repro to confirm before considering this done.
+**2. FIX ATTEMPTED, NOT YET TESTED LIVE - other players' names bunch when a shared tile's
+reference player leaves and another joins the same tick**, snapping every other name/bar on that
+tile onto the new player's anchor. Root cause confirmed via log + screenshot; fix blends the tile's
+anchor across a reassignment instead of snapping it. Compiles and passes `checkstyleMain` clean.
+`CLAUDE.md` ("FIX ATTEMPTED: blend the reassignment snap instead of preventing it (option a)").
+Needs a live repro to confirm before considering this done.
 
 **3. Boss "bar disappears with `hideNativeBar` on" - same symptom, different causes per boss. Do
 not reuse a fix across sub-items.**
@@ -19,16 +19,16 @@ not reuse a fix across sub-items.**
     Already aware of this (see [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
     and hoping to land a fix next release - disabling "Hide native health bar" is the workaround for
     now.
-  - **Verzik Supporting Pillars (UNRESOLVED)** - real NPCs that never take a hitsplat before the
-    room's phase-1-to-2 collapse, so they never enter `trackedActors`. Needs live confirmation
-    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars"). Same situation as the
-    vat above, same [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16) thread - a
-    fix is hopefully coming next release, same workaround for now. A commenter there also pointed
-    out the wiki lists Supporting Pillar as both scenery and NPC, which might explain why only
-    *some* pillars are affected.
-  - **ToB Nylocas room "Support" pillars (UNCONFIRMED)** - game objects, not NPCs, so the Verzik
-    fix can't reach them; likely vat-shaped instead. Not yet confirmed broken. `CLAUDE.md`
-    ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars").
+  - **Verzik Supporting Pillars** - some are real NPCs that can go the whole fight without taking
+    a hitsplat before the phase-1-to-2 collapse, so they never make it into `trackedActors` and
+    show no bar; same [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16) thread as
+    the vat above, with a fix hopefully coming next release and "Hide native health bar" as the
+    workaround until then. A commenter pointed out the wiki lists Supporting Pillar as both scenery
+    and NPC, which could explain why only some pillars are affected. `CLAUDE.md` ("UNRESOLVED: some
+    Verzik Supporting Pillars").
+  - **ToB Nylocas room "Support" pillars** - game objects, not NPCs, so the Verzik fix above can't
+    reach them; probably shaped like the vat's bug instead, but not yet confirmed broken.
+    `CLAUDE.md` ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars").
 
 **4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on**
 ([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - separate resource from HP,
