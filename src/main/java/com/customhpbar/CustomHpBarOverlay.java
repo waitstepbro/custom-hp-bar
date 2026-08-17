@@ -52,6 +52,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,6 +161,25 @@ class CustomHpBarOverlay extends Overlay
 	/** Icons bundled as plugin resources, keyed by file name - for graphics with no confirmed client SpriteID. */
 	private final Map<String, BufferedImage> bundledIcons = new HashMap<>();
 
+	/**
+	 * This frame's overhead icon owner per tile - the one other player on each tile whose skull/
+	 * prayer icon row draws at all, picked by whoever reached the tile first (resolveIconOwners()).
+	 * drawSkullIcon()/drawOverheadIcon() suppress every other player's, and render() defers the
+	 * owner's whole entry to the top of that tile's stack, so a crowd shows one icon clear above the
+	 * names instead of one per player punched through the name above them. Self is never a candidate
+	 * and never suppressed - your own overhead icon always draws, at its own reserved row.
+	 */
+	private Map<WorldPoint, Player> iconOwners = new HashMap<>();
+
+	/**
+	 * When each player was first seen on the tile they're standing on now - feeds
+	 * resolveIconOwners()'s "first one there wins". Double-buffered per frame the way the rest of
+	 * this file's per-frame state is: a player who left the scene simply isn't carried into the next
+	 * swap, so no despawn cleanup is needed. Ownership only - no screen position is stored or
+	 * borrowed here (see claimStackSlot()).
+	 */
+	private Map<Player, TileArrival> tileArrivals = new HashMap<>();
+
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
 			ItemStatChangesService itemStatService)
@@ -196,6 +216,18 @@ class CustomHpBarOverlay extends Overlay
 		// means every actor is considered normally, same as before this existed.
 		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf()
 			? localPlayer.getWorldLocation() : null;
+
+		// Resolved before anything draws - drawSkullIcon()/drawOverheadIcon() read iconOwners to
+		// suppress every non-owner's icon row, and the loops below defer each owner's entry.
+		Map<Player, TileArrival> frameArrivals = new HashMap<>();
+		Map<WorldPoint, Player> frameIconOwners = new HashMap<>();
+		resolveIconOwners(frameIconOwners, frameArrivals, localPlayer, selfPriorityTile);
+		iconOwners = frameIconOwners;
+		tileArrivals = frameArrivals;
+
+		// Other players whose whole entry is deferred to the end of render() so their icon row lands
+		// on top of their tile's stack - see resolveIconOwners() and the deferred pass below.
+		Map<Player, DeferredIconEntry> deferredIcons = new LinkedHashMap<>();
 
 		// The local player's own bar is drawn last of everything below, so it never ends up buried
 		// under an NPC's bar (map/loop order is otherwise arbitrary - see TODO.md idea 7). These
@@ -289,6 +321,18 @@ class CustomHpBarOverlay extends Overlay
 			else
 			{
 				style = targetStyle != null ? targetStyle : (targetStyle = resolveStyle(actor));
+			}
+
+			// Their tile's icon owner claims and draws in the deferred pass at the end of render()
+			// instead, so their icon row ends up on top of the tile's whole stack.
+			if (actor instanceof Player && actor != localPlayer && isIconOwner((Player) actor))
+			{
+				DeferredIconEntry deferred = new DeferredIconEntry((Player) actor, anchor, style);
+				deferred.drawBar = true;
+				deferred.hp = hp;
+				deferred.maxHp = maxHp;
+				deferredIcons.put((Player) actor, deferred);
+				continue;
 			}
 
 			anchor = claimBarStackSlot(tileStacks, actor, anchor, style, zoomFactor());
@@ -453,8 +497,7 @@ class CustomHpBarOverlay extends Overlay
 				// same-tile stack claiming entirely below - an icon-only player isn't part of the
 				// bar/name stack at all, just its own anchor, snapping to the same "no name" default
 				// position drawSkullIcon()/drawOverheadIcon() already use.
-				boolean iconOnly = !drawBarForThis && !drawNameForThis
-					&& (other.getSkullIcon() != SkullIcon.NONE || other.getOverheadIcon() != null);
+				boolean iconOnly = !drawBarForThis && !drawNameForThis && hasOverheadIcons(other);
 				if (!drawBarForThis && !drawNameForThis && !iconOnly)
 				{
 					continue;
@@ -468,8 +511,24 @@ class CustomHpBarOverlay extends Overlay
 
 				otherPlayerStyle = otherPlayerStyle != null ? otherPlayerStyle : resolveStyle(other);
 
+				DeferredIconEntry deferred = deferredIcons.get(other);
+				boolean iconOwner = deferred != null || isIconOwner(other);
+
 				if (iconOnly)
 				{
+					// An icon-only owner is deferred like any other, and claims a slot sized to its
+					// icon row alone (claimIconStackSlot()) rather than staying out of the stack -
+					// otherwise the one icon this tile is allowed to draw punches through whatever
+					// bars/names the rest of the tile stacked above it.
+					if (iconOwner)
+					{
+						if (deferred == null)
+						{
+							deferredIcons.put(other, new DeferredIconEntry(other, anchor, otherPlayerStyle));
+						}
+						continue;
+					}
+
 					// Non-null only if some other pass already drew this player this frame -
 					// shouldn't normally happen (iconOnly implies neither of the branches below
 					// ran for them), but appliedStacks is authoritative either way, same
@@ -507,6 +566,32 @@ class CustomHpBarOverlay extends Overlay
 				boolean nameOnlySharingSelfTile = applied == null && !drawBarForThis
 					&& localPlayer != null && localPlayer.getWorldLocation() != null
 					&& localPlayer.getWorldLocation().equals(other.getWorldLocation());
+
+				// Deferred to the end of render() (see the tracked loop's own branch) - the entry
+				// collects both passes' decisions, since a tracked owner can also be picked up here
+				// for its "Always Show Player Name" row. A bar-less name on self's own tile is left
+				// out of the deferral for the same reason it's left out of the stack (see
+				// nameOnlySharingSelfTile above): it stays at its default position right above its
+				// owner's head, icon included. Only applies if nothing deferred it already - a
+				// tracked owner is already committed to the deferred pass by then.
+				if (iconOwner && (deferred != null || !nameOnlySharingSelfTile))
+				{
+					if (deferred == null)
+					{
+						deferred = new DeferredIconEntry(other, anchor, otherPlayerStyle);
+						deferredIcons.put(other, deferred);
+					}
+					deferred.drawBar |= drawBarForThis;
+					deferred.drawName |= drawNameForThis;
+					if (deferred.drawBar && deferred.hp == null)
+					{
+						int maxHp = resolveMaxHp(other);
+						int[] hp = resolveHp(other, maxHp);
+						deferred.hp = hp != null ? hp : new int[]{1, 1};
+						deferred.maxHp = maxHp;
+					}
+					continue;
+				}
 
 				anchor = applied != null ? applied
 					: nameOnlySharingSelfTile ? anchor
@@ -546,6 +631,44 @@ class CustomHpBarOverlay extends Overlay
 						drawHitsplats(g, other);
 						drawOverheadChatText(g, other);
 					}
+				}
+			}
+		}
+
+		// Every tile's icon owner, claimed after all three passes above so its slot is that tile's
+		// topmost and its icon row draws clear of every name below it - see resolveIconOwners().
+		// Nothing claims after this, which is also why no claim here reserves the icon row itself.
+		{
+			double zoom = zoomFactor();
+			for (DeferredIconEntry deferred : deferredIcons.values())
+			{
+				Player other = deferred.player;
+				Point anchor = deferred.drawBar
+					? claimBarStackSlot(tileStacks, other, deferred.anchor, deferred.style, zoom)
+					: deferred.drawName
+						? claimNameStackSlot(tileStacks, other, deferred.anchor, deferred.style, zoom)
+						: claimIconStackSlot(tileStacks, other, deferred.anchor, deferred.style, zoom);
+				appliedStacks.put(other, anchor);
+
+				if (deferred.drawBar)
+				{
+					drawBar(g, other, anchor, deferred.hp[0], deferred.hp[1], deferred.maxHp, deferred.style);
+				}
+
+				if (deferred.drawName)
+				{
+					drawPlayerNameOnly(g, other, anchor, deferred.style, zoom);
+				}
+
+				// Same split as the two passes above: drawBar() already drew all of these for a
+				// player it drew a bar for, so this only covers the name-only and icon-only entries.
+				if (!deferred.drawBar)
+				{
+					boolean nameLiveShown = deferred.drawName && plugin.isNamesVisible();
+					drawSkullIcon(g, other, anchor, deferred.style, nameLiveShown);
+					drawOverheadIcon(g, other, anchor, deferred.style, nameLiveShown);
+					drawHitsplats(g, other);
+					drawOverheadChatText(g, other);
 				}
 			}
 		}
@@ -716,6 +839,97 @@ class CustomHpBarOverlay extends Overlay
 	}
 
 	/**
+	 * Picks, per tile, the one other player whose overhead icon row draws this frame - the earliest
+	 * arrival on that tile who currently has a PK skull or an overhead prayer icon. Every other
+	 * player's row is suppressed (drawSkullIcon()/drawOverheadIcon()) and the owner's whole entry is
+	 * deferred to the top of its tile's stack (render()), so a stacked crowd shows exactly one icon,
+	 * clear above the names, instead of one per player drawn straight through the name above them.
+	 *
+	 * Earliest-arrival is deliberately stable: a player who arrives later can never outrank one
+	 * already standing there, so ownership changes only when the owner leaves the tile or loses
+	 * their icon. Self is never a candidate - your own icon always draws, at its own reserved row
+	 * (reserveSelfStackHeight()), so a tile you're standing on can show yours plus the owner's.
+	 */
+	private void resolveIconOwners(Map<WorldPoint, Player> owners, Map<Player, TileArrival> arrivals,
+			Player localPlayer, WorldPoint selfPriorityTile)
+	{
+		int tick = client.getTickCount();
+		Map<WorldPoint, TileArrival> best = new HashMap<>();
+		for (Player other : client.getTopLevelWorldView().players())
+		{
+			if (other == null || other == localPlayer)
+			{
+				continue;
+			}
+			WorldPoint tile = other.getWorldLocation();
+			if (tile == null)
+			{
+				continue;
+			}
+
+			// Carried over as long as they're still on the same tile, so "when did they get here"
+			// survives across frames without any despawn cleanup - see tileArrivals's own doc.
+			TileArrival previous = tileArrivals.get(other);
+			TileArrival arrival = previous != null && tile.equals(previous.tile) ? previous : new TileArrival(tile, tick);
+			arrivals.put(other, arrival);
+
+			if (suppressedForSelfTile(other, selfPriorityTile) || !hasOverheadIcons(other))
+			{
+				continue;
+			}
+
+			TileArrival incumbent = best.get(tile);
+			if (incumbent == null || arrival.tick < incumbent.tick)
+			{
+				best.put(tile, arrival);
+				owners.put(tile, other);
+			}
+		}
+	}
+
+	/** Whether player's tile picked them as its one icon-row owner this frame - see resolveIconOwners(). */
+	private boolean isIconOwner(Player player)
+	{
+		WorldPoint tile = player.getWorldLocation();
+		return tile != null && iconOwners.get(tile) == player;
+	}
+
+	/**
+	 * Whether player's overhead icon row draws at all this frame: always for self, and for exactly
+	 * one other player per tile (resolveIconOwners()). Suppressing the rest is what stops a stacked
+	 * crowd from drawing one icon per player through the names above them. The native icons are
+	 * already hidden for this population by CustomHpBarPlugin.updateOverheadEligiblePlayers(), so a
+	 * non-owner shows none at all - which is the intent, not a side effect.
+	 */
+	private boolean iconRowShown(Player player)
+	{
+		return player == client.getLocalPlayer() || isIconOwner(player);
+	}
+
+	/** Whether player has anything in their overhead icon row at all - a PK skull, a prayer icon, or both. */
+	private static boolean hasOverheadIcons(Player player)
+	{
+		return player.getSkullIcon() != SkullIcon.NONE || player.getOverheadIcon() != null;
+	}
+
+	/**
+	 * Height of the overhead icon row (PK skull and/or prayer icon) a player draws above their
+	 * bar/name row, matching drawSkullIcon()/drawOverheadIcon()'s own layout - 0 when they have
+	 * neither. STACK_ICON_CLEARANCE stands in for a prayer sprite the client hasn't loaded yet.
+	 */
+	private int overheadRowClearance(Player player, double zoom)
+	{
+		int clearance = skullClearance(player, zoom);
+		HeadIcon headIcon = player.getOverheadIcon();
+		if (headIcon != null)
+		{
+			BufferedImage image = headIconImage(headIcon);
+			clearance += scaled((image != null ? image.getHeight() : STACK_ICON_CLEARANCE) + OVERHEAD_ICON_GAP, zoom);
+		}
+		return clearance;
+	}
+
+	/**
 	 * Claims self's own same-tile slot before either claim pass below runs this frame - guarantees
 	 * self is always effectively first at its own tile regardless of plugin.getTrackedActors()'s
 	 * iteration order. Self's own returned position is never affected either way -
@@ -818,6 +1032,23 @@ class CustomHpBarOverlay extends Overlay
 		int[] rect = barRect(anchor, style, zoom);
 		int nameGap = scaled(NAME_GAP, zoom);
 		return claimStackSlot(tileStacks, tile, anchor, rect[1] - rect[3] - nameGap, rect[1] - nameGap, zoom);
+	}
+
+	/**
+	 * Claims a slot for a player drawing neither a bar nor a name, just their overhead icon row (the
+	 * icon-only branch in render()). Only ever used for a tile's icon owner - every other icon-only
+	 * player stays out of the stack entirely, as they always have.
+	 */
+	private Point claimIconStackSlot(Map<WorldPoint, Integer> tileStacks, Player player, Point anchor, BarStyle style, double zoom)
+	{
+		WorldPoint tile = player.getWorldLocation();
+		if (tile == null)
+		{
+			return anchor;
+		}
+
+		int[] rect = barRect(anchor, style, zoom);
+		return claimStackSlot(tileStacks, tile, anchor, rect[1] - overheadRowClearance(player, zoom), rect[1], zoom);
 	}
 
 	/**
@@ -1489,7 +1720,7 @@ class CustomHpBarOverlay extends Overlay
 	private void drawOverheadIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
 		HeadIcon headIcon = player.getOverheadIcon();
-		if (headIcon == null)
+		if (headIcon == null || !iconRowShown(player))
 		{
 			return;
 		}
@@ -1546,7 +1777,7 @@ class CustomHpBarOverlay extends Overlay
 	private void drawSkullIcon(Graphics2D g, Player player, Point anchor, BarStyle style, boolean nameShown)
 	{
 		BufferedImage image = skullImage(player.getSkullIcon());
-		if (image == null)
+		if (image == null || !iconRowShown(player))
 		{
 			return;
 		}
@@ -2144,6 +2375,39 @@ class CustomHpBarOverlay extends Overlay
 			return client.getRealSkillLevel(Skill.HITPOINTS);
 		}
 		return -1;
+	}
+
+	/** When a player was first seen on the tile they're standing on now - see tileArrivals. */
+	@AllArgsConstructor
+	private static final class TileArrival
+	{
+		final WorldPoint tile;
+		final int tick;
+	}
+
+	/**
+	 * One other player whose draw render() deferred to the end of the frame, so their overhead icon
+	 * row lands on top of their tile's stack - see resolveIconOwners(). Mutable because the same
+	 * player can be picked up by both the tracked loop (bar) and the "Always Show Player Name" pass
+	 * (name); whichever reaches them first creates the entry and the other one adds to it.
+	 */
+	private static final class DeferredIconEntry
+	{
+		final Player player;
+		/** Raw, unclaimed - the deferred pass claims the slot itself. */
+		final Point anchor;
+		final BarStyle style;
+		int[] hp;
+		int maxHp;
+		boolean drawBar;
+		boolean drawName;
+
+		DeferredIconEntry(Player player, Point anchor, BarStyle style)
+		{
+			this.player = player;
+			this.anchor = anchor;
+			this.style = style;
+		}
 	}
 
 	@AllArgsConstructor

@@ -5,11 +5,9 @@
 **1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
 ToA NPC on purpose - not a bug.
 
-**2. Other players' names overlap when several share one tile.** Fixed on 2026-08-17 by having
-same-tile claims measure real drawn canvas-Y edges instead of a cumulative height (see CLAUDE.md,
-"REGRESSION #5") - needs live confirmation with three name-only players walking on one tile.
-Separately still open: two or more bar-less other players standing on *my own* tile bypass the
-same-tile stack entirely and overlap each other.
+**2. Two or more bar-less other players standing on my own tile overlap each other** - they bypass
+the same-tile stack entirely (the `nameOnlySharingSelfTile` exemption), so nothing reserves room
+against anything. Not the same as the general same-tile overlap, which is fixed and confirmed.
 
 **3. Boss "bar disappears with `hideNativeBar` on"** - same symptom, different causes per boss, so
 a fix for one sub-item shouldn't be assumed to cover the others.
