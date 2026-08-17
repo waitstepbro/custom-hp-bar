@@ -5,22 +5,25 @@
 **1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
 ToA NPC on purpose - not a bug.
 
-**2. FIX ATTEMPTED, NOT YET TESTED LIVE - other players' names bunch when a shared tile's
-reference player leaves and another joins the same tick**, snapping every other name/bar on that
-tile onto the new player's anchor. Root cause confirmed via log + screenshot; fix blends the tile's
-anchor across a reassignment instead of snapping it. Compiles and passes `checkstyleMain` clean.
-Needs a live repro to confirm before considering this done.
+**2. Other players' names bunch when a shared tile's reference player leaves and another joins the
+same tick**, snapping every other name/bar on that tile onto the new player's anchor.
 
-**3. Duke Sucellus's Fermentation Vat's boss bar disappears with `hideNativeBar` on**
-([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - it's scenery, not an NPC,
-and needs a live sprite-ID capture before a fix is possible, with "Hide native health bar" as the
-workaround for now.
+**3. Boss "bar disappears with `hideNativeBar` on"** - same symptom, different causes per boss, so
+a fix for one sub-item shouldn't be assumed to cover the others.
+  - **Duke Sucellus's Fermentation Vat** ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
+    - it's scenery, not an NPC, and needs a live sprite-ID capture before a fix is possible, with
+    "Hide native health bar" as the workaround for now.
+  - **Verzik Supporting Pillars** ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
+    - some are real NPCs that can survive the whole fight without a hitsplat before the
+    phase-1-to-2 collapse, so they never enter `trackedActors` and show no bar.
+  - **ToB Nylocas room "Support" pillars** - these are game objects, not NPCs, so the Verzik fix
+    above can't reach them, and it's not yet confirmed whether they show the same bug.
 
 **4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on**
 ([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - separate resource from HP,
 apparently also getting overridden by `hideNativeBar`. Before/after screenshots posted on the issue
 show the charge bar missing vs. visible - looks like the same hideNativeBar-suppression pattern as
-the Vat above, though that was never spelled out there.
+the Vat/Pillars above, though that was never spelled out there.
 
 **5. CoX mobs show no health bars except Olm's hands**
 ([issue #34](https://github.com/waitstepbro/custom-hp-bar/issues/34)) - reporter can't use the
