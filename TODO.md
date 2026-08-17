@@ -3,38 +3,24 @@
 ## Bugs
 
 **1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
-ToA NPC on purpose - not a bug. Formula and mapping verified in `CLAUDE.md` ("ToA minion HP").
+ToA NPC on purpose - not a bug.
 
 **2. FIX ATTEMPTED, NOT YET TESTED LIVE - other players' names bunch when a shared tile's
 reference player leaves and another joins the same tick**, snapping every other name/bar on that
 tile onto the new player's anchor. Root cause confirmed via log + screenshot; fix blends the tile's
 anchor across a reassignment instead of snapping it. Compiles and passes `checkstyleMain` clean.
-`CLAUDE.md` ("FIX ATTEMPTED: blend the reassignment snap instead of preventing it (option a)").
 Needs a live repro to confirm before considering this done.
 
-**3. Boss "bar disappears with `hideNativeBar` on" - same symptom, different causes per boss. Do
-not reuse a fix across sub-items.**
-  - **Duke Sucellus's Fermentation Vat (TABLED)** - scenery, not an NPC. Needs a live sprite-ID
-    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat").
-    Already aware of this (see [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
-    and hoping to land a fix next release - disabling "Hide native health bar" is the workaround for
-    now.
-  - **Verzik Supporting Pillars** - some are real NPCs that can go the whole fight without taking
-    a hitsplat before the phase-1-to-2 collapse, so they never make it into `trackedActors` and
-    show no bar; same [issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16) thread as
-    the vat above, with a fix hopefully coming next release and "Hide native health bar" as the
-    workaround until then. A commenter pointed out the wiki lists Supporting Pillar as both scenery
-    and NPC, which could explain why only some pillars are affected. `CLAUDE.md` ("UNRESOLVED: some
-    Verzik Supporting Pillars").
-  - **ToB Nylocas room "Support" pillars** - game objects, not NPCs, so the Verzik fix above can't
-    reach them; probably shaped like the vat's bug instead, but not yet confirmed broken.
-    `CLAUDE.md` ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars").
+**3. Duke Sucellus's Fermentation Vat's boss bar disappears with `hideNativeBar` on**
+([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - it's scenery, not an NPC,
+and needs a live sprite-ID capture before a fix is possible, with "Hide native health bar" as the
+workaround for now.
 
 **4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on**
 ([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - separate resource from HP,
 apparently also getting overridden by `hideNativeBar`. Before/after screenshots posted on the issue
 show the charge bar missing vs. visible - looks like the same hideNativeBar-suppression pattern as
-the Vat/Pillars above, though that was never spelled out there.
+the Vat above, though that was never spelled out there.
 
 **5. CoX mobs show no health bars except Olm's hands**
 ([issue #34](https://github.com/waitstepbro/custom-hp-bar/issues/34)) - reporter can't use the
@@ -87,6 +73,6 @@ since the anchor moves with the model each frame; smooth or snap the canvas posi
 **1. Add a 1-tick delay before overhead names are affected by player positioning.**
 
 **2. Decouple HP bar and name from character animation** - related to the still-tabled
-player-bar-bob investigation in `CLAUDE.md` ("TABLED: player bars (self and other) still move
-slightly with attack animations") and Ideas item 4 below (same shaking issue, NPC-scoped there).
+player-bar-bob investigation (player bars, self and other, still move slightly with attack
+animations) and Ideas item 4 below (same shaking issue, NPC-scoped there).
 
