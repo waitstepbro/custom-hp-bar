@@ -1,6 +1,7 @@
 package com.customhpbar;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.HeadIcon;
@@ -56,6 +57,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+@Slf4j
 class CustomHpBarOverlay extends Overlay
 {
 	private static final double MIN_ZOOM_SCALE = 0.4;
@@ -786,6 +788,27 @@ class CustomHpBarOverlay extends Overlay
 				reference = (sticky != null && group.contains(sticky)) ? sticky : group.get(0);
 			}
 
+			// TODO.md item 2 ("other players' names drifting/bunching") re-add: same shape as the
+			// self-detachment investigation's instrumentation (CLAUDE.md, "Fourth live test"),
+			// generalized since this symptom isn't self-specific. groupHasPlayer mirrors that
+			// investigation's own noise fix - pure NPC-NPC tile overlap is expected/benign and
+			// drowned out everything relevant last time. Throttled to actual state changes (first
+			// formation, or a reassignment away from a still-valid sticky pick), not per-frame.
+			// Remove once this item is confirmed fixed - not meant to ship long-term.
+			if (group.size() > 1 && group.stream().anyMatch(a -> a instanceof Player))
+			{
+				if (sticky == null)
+				{
+					log.warn("[stacking debug] multi-actor stack formed at {}: reference {} ({} candidates: {})",
+						tile, actorLabel(reference), group.size(), stackCandidateLabels(group));
+				}
+				else if (reference != sticky)
+				{
+					log.warn("[stacking debug] stack reference actor reassigned at {}: {} -> {} ({} candidates: {})",
+						tile, actorLabel(sticky), actorLabel(reference), group.size(), stackCandidateLabels(group));
+				}
+			}
+
 			Point anchor = actorAnchor(reference);
 			if (anchor == null)
 			{
@@ -795,6 +818,33 @@ class CustomHpBarOverlay extends Overlay
 			frameReferenceActors.put(tile, reference);
 			tileStacks.put(tile, anchor);
 		}
+	}
+
+	/** [stacking debug] helper: "Name" for a player/self, "Name [NPC]" for an NPC, "?" for a null/nameless actor. */
+	private String actorLabel(Actor actor)
+	{
+		if (actor == null)
+		{
+			return "?";
+		}
+		String name = actor.getName();
+		name = name == null ? "?" : name;
+		return actor instanceof NPC ? name + " [NPC]" : name;
+	}
+
+	/** [stacking debug] helper: actorLabel() for every candidate in a tile's group, comma-separated. */
+	private String stackCandidateLabels(List<Actor> group)
+	{
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < group.size(); i++)
+		{
+			if (i > 0)
+			{
+				sb.append(", ");
+			}
+			sb.append(actorLabel(group.get(i)));
+		}
+		return sb.toString();
 	}
 
 	/**

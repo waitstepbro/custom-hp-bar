@@ -2,55 +2,72 @@
 
 ## Bugs
 
-**1. Exact ToA minion HP (raid level x path level x party size) is not implemented.**
-`resolveNpcMaxHp()` returns `-1` for every non-boss ToA NPC on purpose. Verified formula and
-region-to-path mapping are in `CLAUDE.md` ("ToA minion HP") - ready to implement whenever an exact
-number (not percent) is wanted, but not a bug on its own.
+**1. Exact ToA minion HP not implemented.** `resolveNpcMaxHp()` returns `-1` for every non-boss
+ToA NPC on purpose - not a bug. Formula and mapping verified in `CLAUDE.md` ("ToA minion HP").
 
-**2. UNCONFIRMED - Other players' names can bunch up near a boss when several players and a large
-NPC share a tile.** Was bundled with a self-anchor detachment/snap-onto-NPC symptom, which is now
-fixed and confirmed live (2026-08-12: self is forced to always be its own tile's reference actor in
-`resolveReferenceActors()`, so self's bar can no longer get computed from another actor's anchor -
-root cause and full history in `CLAUDE.md`, "Fourth live test (2026-08-12, Blood Moon)..."). This
-symptom is different - other players' names/bars bunching together, not self's - and isn't known to
-be fixed by the same change; same `tileStacks` system, plausible but untested. The diagnostic
-logging built for the self-bug investigation (`multi-actor stack formed`/`stack reference actor
-reassigned` in `resolveReferenceActors()`) was removed once that bug was confirmed fixed - not
-meant to ship long-term, per its own comments. Re-add equivalent instrumentation when this item is
-picked up; needs live confirmation with multiple real players sharing a tile with a boss.
+**2. CONFIRMED - other players' names drift/bunch on a shared tile**, same shape as the self-bar
+bug fixed 2026-08-12. Diagnostic logging re-added 2026-08-14; needs a live repro with
+`[stacking debug]` lines from `client.log` before attempting a fix (three prior blind attempts on
+this neighboring bug already). Full history in `CLAUDE.md` ("Other players' names
+drifting/bunching (TODO.md item 2)...").
 
-**3. TABLED - Duke Sucellus's Fermentation Vat "bar" disappears with `hideNativeBar` on.** It's
-scenery, not an NPC - no Actor to track, so the no-attack-option NPC fix above doesn't apply.
-Needs a live sprite-ID capture at the vat before any fix can be attempted. Full investigation in
-`CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat...").
+**3. Boss "bar disappears with `hideNativeBar` on" - same symptom, different causes per boss. Do
+not reuse a fix across sub-items.**
+  - **Duke Sucellus's Fermentation Vat (TABLED)** - scenery, not an NPC. Needs a live sprite-ID
+    capture before a fix is possible. `CLAUDE.md` ("TABLED: Duke Sucellus's Fermentation Vat...").
+  - **Verzik Supporting Pillars (UNRESOLVED)** - real NPCs that never take a hitsplat before the
+    room's phase-1-to-2 collapse, so they never enter `trackedActors`. Needs live confirmation
+    before a fix. `CLAUDE.md` ("UNRESOLVED: some Verzik Supporting Pillars...").
+  - **ToB Nylocas room "Support" pillars (UNCONFIRMED)** - game objects, not NPCs, so the Verzik
+    fix can't reach them; likely vat-shaped instead. Not yet confirmed broken. `CLAUDE.md`
+    ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars...").
 
-**4. UNRESOLVED - Some Verzik Supporting Pillars still show no bar with `hideNativeBar` on.** Same
-visible symptom as item 3, different cause: a real, trackable NPC, not scenery - but one that never
-takes a hitsplat before the room's phase-1-to-2 collapse never enters `trackedActors`, so nothing
-draws it once its native sprite is already overridden. Needs a live test confirming the bar-less
-pillars are specifically the ones that took zero hits that phase, before writing a fix. Do not
-reuse a fix for item 3 here or vice versa. Full investigation in `CLAUDE.md` ("UNRESOLVED: some
-Verzik Supporting Pillars...").
+**4. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on** (issue #31) - separate
+resource from HP, apparently also getting overridden by `hideNativeBar`.
 
-**5. UNCONFIRMED - ToB Nylocas room "Support" pillars may share item 3's shape, not item 4's.**
-These are game objects, not NPCs, so no amount of fixing tracking/discovery logic (item 4's fix)
-could ever reach them. Not yet confirmed broken at all - the open question is whether the room's
-health indicator is a HUD widget (unaffected by `hideNativeBar`, no bug) or a genuine in-world
-sprite (affected, same shape as item 3 but worse - no single Actor/object to track). Full
-investigation in `CLAUDE.md` ("UNCONFIRMED: ToB's Nylocas room 'Support' pillars...").
+**5. CoX mobs show no health bars except Olm's hands** (issue #34) - reporter can't use the plugin
+in raids as a result; cause not yet investigated.
 
-## Ideas
+## Features
+
+**1. Something to identify slayer task NPCs.**
+
+**2. Player combat level shown, color-coded red/yellow/green by difference to own level**
+(issue #35) - same idea as the existing NPC combat-level display.
+
+**3. Extra info in name display** (issue #27) - NPC level and max hit beside the name, weakness
+icon (via surge-spell icons, nicer than NPC Level Overlay's rune icons) beside it, with a
+configurable icon position.
+
+**4. Per-element text color** (issue #32) - HP, Prayer, HP number, and HP percentage colored
+independently, plus an option to hide other players' HP bars (mirroring the existing NPC bar
+filter).
+
+**5. Player bar number and percentage shown together**, not mutually exclusive (issue #33).
+
+**6. Scale NPC bar length to the mob's tile size** (issue #33) - fixed-length bars look off on
+large mobs.
+
+## Feature Ideas
 
 Unscheduled, not commitments. Mostly unchecked against the real API.
 
-**1. Damage-taken trail** - ghost segment lagging the fill after a hit. `drawBarShape()` already
-layers segments for the food/prayer preview.
+**1. Damage-taken trail** - ghost segment lagging the fill after a hit (`drawBarShape()` already
+layers segments for the food/prayer preview).
 
-**2. Phase markers** - tick marks at boss thresholds (Vorkath 50%, Zulrah, Hydra). Best of these
-ideas, but needs a per-NPC threshold table with the same maintenance problem as `npc_hp.csv`.
+**2. Phase markers** - tick marks at boss thresholds (Vorkath 50%, Zulrah, Hydra); needs a
+per-NPC threshold table, same upkeep problem as `npc_hp.csv`.
 
-**3. Dim non-target bars** - cuts multi-combat clutter. Target from `localPlayer.getInteracting()`.
+**3. Dim non-target bars** - cut multi-combat clutter using `localPlayer.getInteracting()`.
 
-**4. Reduce shaking of the HP bar above NPCs** - bars jitter on large/animated models (fire giants
-are the obvious case) because the anchor point moves with the model each frame. Look at smoothing
-or snapping the canvas position rather than following the raw per-frame value.
+**4. Reduce HP bar shaking above NPCs** - bars jitter on large/animated models (e.g. fire giants)
+since the anchor moves with the model each frame; smooth or snap the canvas position instead.
+
+## Functional Changes
+
+**1. Add a 1-tick delay before overhead names are affected by player positioning.**
+
+**2. Decouple HP bar and name from character animation** - related to the still-tabled
+player-bar-bob investigation in `CLAUDE.md` ("TABLED: player bars (self and other) still move
+slightly with attack animations") and Ideas item 4 below (same shaking issue, NPC-scoped there).
+
