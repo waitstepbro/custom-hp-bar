@@ -70,9 +70,7 @@ since the anchor moves with the model each frame; smooth or snap the canvas posi
 
 ## Functional Changes
 
-**1. Add a 1-tick delay before overhead names are affected by player positioning.**
-
-**2. Decouple HP bar and name from character animation** - related to the still-tabled
+**1. Decouple HP bar and name from character animation** - related to the still-tabled
 player-bar-bob investigation (player bars, self and other, still move slightly with attack
 animations) and Ideas item 4 below (same shaking issue, NPC-scoped there).
 
