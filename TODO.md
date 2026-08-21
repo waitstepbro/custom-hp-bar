@@ -27,19 +27,6 @@ the Vat/Pillars above, though that was never spelled out there.
 plugin in raids as a result; cause not yet investigated. Asked the reporter for screenshots, still
 waiting to hear back.
 
-**5. Other player names/bars snap to the stack a tick before the model arrives.** Stacking is keyed
-on `getWorldLocation()`, which snaps to the destination tile while `getLocalLocation()` is still
-interpolating, so an entry joins its destination tile's stack while its model is still crossing the
-old one. Reported live.
-
-**Tried and reverted (2026-08-20): dropping the shift for players entirely.** Players reserved their
-tile slot but never received one, so every player entry rendered at its own model anchor - self's
-existing treatment, generalized. That does fix the snap, and it is the wrong trade: live testing
-showed other players' names simply overlapping each other again, the exact case `6d88898` fixed.
-Overlap avoidance has to survive whatever fixes the snap, so a future attempt has to keep stacking
-and change what it is keyed on or how it is timed, not remove it. The overlay has no debug logging
-right now.
-
 ## Features
 
 **1. Something to identify slayer task NPCs.**

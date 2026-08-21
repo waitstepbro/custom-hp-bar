@@ -14,6 +14,7 @@ import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
 import net.runelite.api.SkullIcon;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
@@ -238,12 +239,11 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle playerDrawStyle = null;
 		List<CustomHpBarConfig.BarKind> playerStandaloneStack = null;
 
-		// Same-tile stacking, rebuilt each frame: tileStacks tracks the canvas Y of the topmost pixel
-		// already claimed at each tile - every actor still renders at its OWN anchor, pushed up only
-		// as far as clearing that claim needs (see claimStackSlot()'s own doc); appliedStacks lets
-		// the "Always Show NPC/Player Bar/Name" passes below reuse an already-resolved anchor rather
-		// than re-deriving it.
-		Map<WorldPoint, Integer> tileStacks = new HashMap<>();
+		// Same-tile stacking, rebuilt each frame: tileStacks holds each tile's claimed top edge (Y)
+		// and the X every entry on that tile aligns to, seeded by whichever entry claims first (see
+		// claimStackSlot()'s own doc); appliedStacks lets the "Always Show NPC/Player Bar/Name"
+		// passes below reuse an already-resolved anchor rather than re-deriving it.
+		Map<WorldPoint, Point> tileStacks = new HashMap<>();
 		Map<Actor, Point> appliedStacks = new HashMap<>();
 
 		// npcStackCounts/npcStackDecided enforce npcStackLimit() - unlike the player-name cap below,
@@ -844,7 +844,7 @@ class CustomHpBarOverlay extends Overlay
 			{
 				continue;
 			}
-			WorldPoint tile = other.getWorldLocation();
+			WorldPoint tile = stackTile(other);
 			if (tile == null)
 			{
 				continue;
@@ -873,7 +873,7 @@ class CustomHpBarOverlay extends Overlay
 	/** Whether player's tile picked them as its one icon-row owner this frame - see resolveIconOwners(). */
 	private boolean isIconOwner(Player player)
 	{
-		WorldPoint tile = player.getWorldLocation();
+		WorldPoint tile = stackTile(player);
 		return tile != null && iconOwners.get(tile) == player;
 	}
 
@@ -939,13 +939,13 @@ class CustomHpBarOverlay extends Overlay
 	 * Same-tile stacking still exists (claimStackSlot()), but only as an upward push off each actor's
 	 * own anchor - there is no "reference" left to reassign, and therefore nothing left to blend.
 	 */
-	private void reserveSelfStackHeight(Map<WorldPoint, Integer> tileStacks, Player localPlayer)
+	private void reserveSelfStackHeight(Map<WorldPoint, Point> tileStacks, Player localPlayer)
 	{
 		if (localPlayer == null || !config.showForSelf())
 		{
 			return;
 		}
-		WorldPoint tile = localPlayer.getWorldLocation();
+		WorldPoint tile = stackTile(localPlayer);
 		if (tile == null)
 		{
 			return;
@@ -967,7 +967,7 @@ class CustomHpBarOverlay extends Overlay
 		int[] rect = barRect(anchor, style, zoom);
 		// overheadRowClearance(), same as every other player - reserving the icon row unconditionally
 		// put 27px of empty space above a self with no skull and no prayer icon.
-		tileStacks.put(tile, rect[1] - overheadRowClearance(localPlayer, zoom));
+		tileStacks.put(tile, new Point(anchor.getX(), rect[1] - overheadRowClearance(localPlayer, zoom)));
 	}
 
 	/**
@@ -982,14 +982,14 @@ class CustomHpBarOverlay extends Overlay
 	 * the bar. Keyed on showNpcName()/showPlayerName() alone, not the always-show toggles or
 	 * isNamesVisible(), so the reservation exists consistently whichever path draws the name.
 	 */
-	private Point claimBarStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
+	private Point claimBarStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
 	{
 		if (actor == client.getLocalPlayer())
 		{
 			return anchor;
 		}
 
-		WorldPoint tile = actor.getWorldLocation();
+		WorldPoint tile = stackTile(actor);
 		if (tile == null)
 		{
 			return anchor;
@@ -1007,9 +1007,9 @@ class CustomHpBarOverlay extends Overlay
 	 * passes). Actor-generic - reused for both; never called for self. No bar is drawn here, so the
 	 * claimed box is the name row alone, sitting NAME_GAP above where the bar would have been.
 	 */
-	private Point claimNameStackSlot(Map<WorldPoint, Integer> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
+	private Point claimNameStackSlot(Map<WorldPoint, Point> tileStacks, Actor actor, Point anchor, BarStyle style, double zoom)
 	{
-		WorldPoint tile = actor.getWorldLocation();
+		WorldPoint tile = stackTile(actor);
 		if (tile == null)
 		{
 			return anchor;
@@ -1026,9 +1026,9 @@ class CustomHpBarOverlay extends Overlay
 	 * icon-only branch in render()). Only ever used for a tile's icon owner - every other icon-only
 	 * player stays out of the stack entirely, as they always have.
 	 */
-	private Point claimIconStackSlot(Map<WorldPoint, Integer> tileStacks, Player player, Point anchor, BarStyle style, double zoom)
+	private Point claimIconStackSlot(Map<WorldPoint, Point> tileStacks, Player player, Point anchor, BarStyle style, double zoom)
 	{
-		WorldPoint tile = player.getWorldLocation();
+		WorldPoint tile = stackTile(player);
 		if (tile == null)
 		{
 			return anchor;
@@ -1037,6 +1037,22 @@ class CustomHpBarOverlay extends Overlay
 		int[] rect = barRect(anchor, style, zoom);
 		return claimStackSlot(tileStacks, tile, anchor, rect[1] - overheadRowClearance(player, zoom), rect[1],
 			stackPullLimit(player, anchor), zoom);
+	}
+
+	/**
+	 * The tile an actor stacks on: the one its model is actually over. getWorldLocation() is the
+	 * server-side location, which the API documents as running ahead of the render - a tick, or two
+	 * tiles at a run - so keying on it made a walker join a stack, and reseed its claim, before
+	 * arriving. Keying on getLocalLocation() instead means an actor's tile and its anchor come from
+	 * one source, so only models really on a tile can seed its claim. fromLocal(), never
+	 * fromLocalInstance(): the latter maps to template coords, where repeated instance chunks
+	 * collide. Multi-tile NPCs key on their model centre rather than their south-west tile as a
+	 * result - the tile their bar actually draws over. See CLAUDE.md.
+	 */
+	private WorldPoint stackTile(Actor actor)
+	{
+		LocalPoint local = actor.getLocalLocation();
+		return local == null ? actor.getWorldLocation() : WorldPoint.fromLocal(client, local);
 	}
 
 	/**
@@ -1068,20 +1084,27 @@ class CustomHpBarOverlay extends Overlay
 	 * screenshot of three overlapping player names. Measuring against real drawn edges makes the
 	 * gap exact regardless of how far apart the anchors are.
 	 *
-	 * This is NOT the pre-redesign borrowing coming back. Nothing here reads another actor's Point:
-	 * X is always the actor's own, the downward pull is bounded by that actor's OWN model height
-	 * (stackPullLimit()), and self is out of the picture entirely (see claimBarStackSlot()). The
-	 * bugs behind "REGRESSION #4 (2026-08-16)" came from an actor inheriting a shared reference
-	 * anchor and rendering away from its own model; a shift bounded by an actor's own geometry
-	 * can't do that.
+	 * X is the tile's shared reference, seeded from whichever entry claims the tile first and
+	 * carried by every entry after it - sub-tile positions differ, so without this the rows sit at
+	 * slightly different X and a Y-tight stack reads as drifting left and right. Restores what the
+	 * 2026-08-16 redesign dropped along with the reference actors. Bounded by the tile: membership
+	 * is keyed on the tile the model is over (stackTile()), so the seed is never further than one
+	 * tile from the entry adopting it.
+	 *
+	 * Y is still each actor's own: the vertical position comes from its own anchor, pushed up or
+	 * pulled down (bounded by stackPullLimit(), its own model height) only as far as clearing this
+	 * tile's claim needs, and self never receives a shift at all (see claimBarStackSlot()). That is
+	 * the half "REGRESSION #4 (2026-08-16)" was about - actors inheriting a shared reference anchor
+	 * and rendering vertically away from their own model.
 	 */
-	private static Point claimStackSlot(Map<WorldPoint, Integer> tileStacks, WorldPoint tile, Point anchor,
+	private static Point claimStackSlot(Map<WorldPoint, Point> tileStacks, WorldPoint tile, Point anchor,
 			int top, int bottom, int maxPull, double zoom)
 	{
-		Integer claimedTop = tileStacks.get(tile);
-		int shift = claimedTop == null ? 0 : Math.max(-maxPull, bottom + scaled(STACK_PADDING, zoom) - claimedTop);
-		tileStacks.put(tile, top - shift);
-		return new Point(anchor.getX(), anchor.getY() - shift);
+		Point claimed = tileStacks.get(tile);
+		int shift = claimed == null ? 0 : Math.max(-maxPull, bottom + scaled(STACK_PADDING, zoom) - claimed.getY());
+		int x = claimed == null ? anchor.getX() : claimed.getX();
+		tileStacks.put(tile, new Point(x, top - shift));
+		return new Point(x, anchor.getY() - shift);
 	}
 
 	/**
@@ -1106,7 +1129,7 @@ class CustomHpBarOverlay extends Overlay
 		boolean allowed = true;
 		if (limit > 0)
 		{
-			WorldPoint tile = npc.getWorldLocation();
+			WorldPoint tile = stackTile(npc);
 			if (tile != null)
 			{
 				int count = npcStackCounts.getOrDefault(tile, 0);
@@ -1139,7 +1162,7 @@ class CustomHpBarOverlay extends Overlay
 		boolean allowed = true;
 		if (limit > 0)
 		{
-			WorldPoint tile = player.getWorldLocation();
+			WorldPoint tile = stackTile(player);
 			if (tile != null)
 			{
 				int count = playerStackCounts.getOrDefault(tile, 0);
