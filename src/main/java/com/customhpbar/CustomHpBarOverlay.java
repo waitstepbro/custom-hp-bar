@@ -95,6 +95,17 @@ class CustomHpBarOverlay extends Overlay
 	/** Vertical padding between bars of actors sharing the same tile, before zoom scaling. */
 	private static final int STACK_PADDING = 2;
 
+	/**
+	 * How much closer to a new tile's centre than to its current one a model must be before its
+	 * entry moves to that tile's stack, in local units (128 = one tile). A bare tile lookup flips at
+	 * the boundary, half a tile before the model finishes arriving - a third of a second at walking
+	 * speed - so the name reached the stack visibly before its owner did. See stackTile().
+	 */
+	private static final int STACK_TILE_HYSTERESIS = 96;
+
+	/** One tile in local units - the cap on how far a stack tile may lag its actor. */
+	private static final int LOCAL_TILE_SIZE = Perspective.LOCAL_TILE_SIZE;
+
 	/** Full value for a 0-100 percentage bar with no separate max - special attack and run energy both work this way. */
 	private static final int FULL_PERCENT_ENERGY = 100;
 
@@ -181,6 +192,15 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private Map<Player, TileArrival> tileArrivals = new HashMap<>();
 
+	/**
+	 * Each actor's stack tile, this frame and last - see stackTile(), which decides once per actor
+	 * per frame and reads the previous frame's answer to apply its hysteresis. Double-buffered per
+	 * frame like the rest of this file's per-frame state, so an actor that left the scene is simply
+	 * not carried forward and needs no despawn cleanup.
+	 */
+	private Map<Actor, WorldPoint> stackTiles = new HashMap<>();
+	private Map<Actor, WorldPoint> previousStackTiles = new HashMap<>();
+
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
 			ItemStatChangesService itemStatService)
@@ -210,6 +230,11 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle otherPlayerStyle = null;
 
 		Player localPlayer = client.getLocalPlayer();
+
+		// Rotated before anything reads a tile: stackTile() fills the new map as it goes and
+		// consults the old one for hysteresis.
+		previousStackTiles = stackTiles;
+		stackTiles = new HashMap<>();
 
 		// "Prioritize Self on Same Tile": non-null means any NPC/other player sharing this exact
 		// tile with self gets no bar or name at all this frame (see suppressedForSelfTile()). Null
@@ -1047,12 +1072,50 @@ class CustomHpBarOverlay extends Overlay
 	 * one source, so only models really on a tile can seed its claim. fromLocal(), never
 	 * fromLocalInstance(): the latter maps to template coords, where repeated instance chunks
 	 * collide. Multi-tile NPCs key on their model centre rather than their south-west tile as a
-	 * result - the tile their bar actually draws over. See CLAUDE.md.
+	 * result - the tile their bar actually draws over.
+	 *
+	 * The lookup alone flips at the tile boundary, which is half a tile before a model reaches the
+	 * tile's centre - 0.3s at walking speed, and reported live as a name still arriving ahead of its
+	 * owner. So a tile is only adopted once the model is STACK_TILE_HYSTERESIS local units closer to
+	 * it than to the tile the actor is already on, which puts the change three eighths of a tile
+	 * past the boundary instead of at it, and holds an entry in its stack just as long on the way
+	 * out. Comparing the two distances rather than testing a radius around the centre keeps this
+	 * size-agnostic: an even-sized NPC rests on a corner, equidistant from four centres, and simply
+	 * stays where it is instead of never qualifying. The one-tile cap stops a lagging tile from
+	 * following an actor that jumped. Decided once per actor per frame. See CLAUDE.md.
 	 */
 	private WorldPoint stackTile(Actor actor)
 	{
+		WorldPoint decided = stackTiles.get(actor);
+		if (decided != null)
+		{
+			return decided;
+		}
+
 		LocalPoint local = actor.getLocalLocation();
-		return local == null ? actor.getWorldLocation() : WorldPoint.fromLocal(client, local);
+		WorldPoint tile = local == null ? actor.getWorldLocation() : WorldPoint.fromLocal(client, local);
+		WorldPoint previous = previousStackTiles.get(actor);
+		if (local != null && tile != null && previous != null && !previous.equals(tile)
+			&& previous.getPlane() == tile.getPlane())
+		{
+			LocalPoint previousCentre = LocalPoint.fromWorld(actor.getWorldView(), previous);
+			if (previousCentre != null)
+			{
+				int toPrevious = local.distanceTo(previousCentre);
+				LocalPoint centre = LocalPoint.fromWorld(actor.getWorldView(), tile);
+				int toTile = centre == null ? 0 : local.distanceTo(centre);
+				if (toPrevious <= LOCAL_TILE_SIZE && toTile + STACK_TILE_HYSTERESIS >= toPrevious)
+				{
+					tile = previous;
+				}
+			}
+		}
+
+		if (tile != null)
+		{
+			stackTiles.put(actor, tile);
+		}
+		return tile;
 	}
 
 	/**
