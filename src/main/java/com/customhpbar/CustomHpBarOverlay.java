@@ -554,27 +554,11 @@ class CustomHpBarOverlay extends Overlay
 				// anchor rather than claiming a second slot for the same actor.
 				Point applied = appliedStacks.get(other);
 
-				// A name-only entry (no bar - see drawBarForThis above) sharing self's exact tile is
-				// deliberately kept OUT of the same-tile stack rather than claiming a slot: self claims
-				// its own slot up front, overhead-icon row included (reserveSelfStackHeight()), so a
-				// stacked name here would render above that whole row instead of at its default
-				// position right above the player's own head. Once this player has a bar
-				// of their own (drawBarForThis true, or a future frame tracks them), the name goes
-				// back to riding directly above that bar as normal - only the bar-less case is
-				// exempted. Doesn't apply when self shares the tile with an NPC, or when two other
-				// players share a tile with each other - only the self-and-bar-less-other-player pair.
-				boolean nameOnlySharingSelfTile = applied == null && !drawBarForThis
-					&& localPlayer != null && localPlayer.getWorldLocation() != null
-					&& localPlayer.getWorldLocation().equals(other.getWorldLocation());
-
 				// Deferred to the end of render() (see the tracked loop's own branch) - the entry
 				// collects both passes' decisions, since a tracked owner can also be picked up here
-				// for its "Always Show Player Name" row. A bar-less name on self's own tile is left
-				// out of the deferral for the same reason it's left out of the stack (see
-				// nameOnlySharingSelfTile above): it stays at its default position right above its
-				// owner's head, icon included. Only applies if nothing deferred it already - a
-				// tracked owner is already committed to the deferred pass by then.
-				if (iconOwner && (deferred != null || !nameOnlySharingSelfTile))
+				// for its "Always Show Player Name" row. Only applies if nothing deferred it already
+				// - a tracked owner is already committed to the deferred pass by then.
+				if (iconOwner)
 				{
 					if (deferred == null)
 					{
@@ -594,7 +578,6 @@ class CustomHpBarOverlay extends Overlay
 				}
 
 				anchor = applied != null ? applied
-					: nameOnlySharingSelfTile ? anchor
 					: (drawBarForThis
 						? claimBarStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom)
 						: claimNameStackSlot(tileStacks, other, anchor, otherPlayerStyle, zoom));
@@ -982,7 +965,9 @@ class CustomHpBarOverlay extends Overlay
 		BarStyle style = resolveStyle(localPlayer);
 		double zoom = zoomFactor();
 		int[] rect = barRect(anchor, style, zoom);
-		tileStacks.put(tile, rect[1] - scaled(STACK_ICON_CLEARANCE + OVERHEAD_ICON_GAP, zoom));
+		// overheadRowClearance(), same as every other player - reserving the icon row unconditionally
+		// put 27px of empty space above a self with no skull and no prayer icon.
+		tileStacks.put(tile, rect[1] - overheadRowClearance(localPlayer, zoom));
 	}
 
 	/**
@@ -1013,7 +998,8 @@ class CustomHpBarOverlay extends Overlay
 		boolean nameShown = actor instanceof NPC ? config.showNpcName() : config.showPlayerName();
 		int[] rect = barRect(anchor, style, zoom);
 		int top = nameShown ? rect[1] - rect[3] - scaled(NAME_GAP, zoom) : rect[1];
-		return claimStackSlot(tileStacks, tile, anchor, top, rect[1] + rect[3], zoom);
+		return claimStackSlot(tileStacks, tile, anchor, top, rect[1] + rect[3],
+			stackPullLimit(actor, anchor), zoom);
 	}
 
 	/**
@@ -1031,7 +1017,8 @@ class CustomHpBarOverlay extends Overlay
 
 		int[] rect = barRect(anchor, style, zoom);
 		int nameGap = scaled(NAME_GAP, zoom);
-		return claimStackSlot(tileStacks, tile, anchor, rect[1] - rect[3] - nameGap, rect[1] - nameGap, zoom);
+		return claimStackSlot(tileStacks, tile, anchor, rect[1] - rect[3] - nameGap, rect[1] - nameGap,
+			stackPullLimit(actor, anchor), zoom);
 	}
 
 	/**
@@ -1048,14 +1035,31 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		int[] rect = barRect(anchor, style, zoom);
-		return claimStackSlot(tileStacks, tile, anchor, rect[1] - overheadRowClearance(player, zoom), rect[1], zoom);
+		return claimStackSlot(tileStacks, tile, anchor, rect[1] - overheadRowClearance(player, zoom), rect[1],
+			stackPullLimit(player, anchor), zoom);
+	}
+
+	/**
+	 * How far an entry may be pulled DOWN toward its tile's stack (claimStackSlot()) - the distance
+	 * from its own anchor to its own feet, i.e. its model height on canvas. Same-tile anchors diverge
+	 * by logical height and by getLocalLocation()'s sub-tile interpolation, so an entry can float
+	 * above the stack it belongs to with nothing to close the gap. This bound keeps the pull from
+	 * ever dropping a row below its owner's own tile, and reads that actor's own position only.
+	 * 0 when the ground point is off-screen, which is the old push-only behavior.
+	 */
+	private int stackPullLimit(Actor actor, Point anchor)
+	{
+		Point ground = actorAnchor(actor, 0);
+		return ground == null ? 0 : Math.max(0, ground.getY() - anchor.getY());
 	}
 
 	/**
 	 * Shared bookkeeping for both claim*StackSlot() methods. top/bottom are the canvas Y edges of
 	 * what this entry would actually draw at its own unshifted anchor; tileStacks holds the topmost
-	 * edge already claimed at this tile. The entry is pushed up by exactly enough to clear that
-	 * edge (plus STACK_PADDING), and not at all when its own anchor already sits above it.
+	 * edge already claimed at this tile. The entry is moved to sit exactly STACK_PADDING clear of
+	 * that edge - pushed up when it would otherwise overlap, pulled DOWN (negative shift, bounded by
+	 * maxPull - see stackPullLimit()) when its own anchor already floats above the stack and would
+	 * otherwise leave a gap. The tile's first claimant is never moved at all.
 	 *
 	 * A pure cumulative-height counter (the 2026-08-16 redesign's first form) can't do this: two
 	 * actors truly on one WorldPoint can sit tens of pixels apart on screen (getLocalLocation()
@@ -1065,16 +1069,17 @@ class CustomHpBarOverlay extends Overlay
 	 * gap exact regardless of how far apart the anchors are.
 	 *
 	 * This is NOT the pre-redesign borrowing coming back. Nothing here reads another actor's Point:
-	 * X is always the actor's own, the shift is >= 0 (an entry is never dragged down onto another
-	 * actor's position), and self is out of the picture entirely (see claimBarStackSlot()). The
+	 * X is always the actor's own, the downward pull is bounded by that actor's OWN model height
+	 * (stackPullLimit()), and self is out of the picture entirely (see claimBarStackSlot()). The
 	 * bugs behind "REGRESSION #4 (2026-08-16)" came from an actor inheriting a shared reference
-	 * anchor and rendering away from its own model; a bounded upward push can't do that.
+	 * anchor and rendering away from its own model; a shift bounded by an actor's own geometry
+	 * can't do that.
 	 */
 	private static Point claimStackSlot(Map<WorldPoint, Integer> tileStacks, WorldPoint tile, Point anchor,
-			int top, int bottom, double zoom)
+			int top, int bottom, int maxPull, double zoom)
 	{
 		Integer claimedTop = tileStacks.get(tile);
-		int shift = claimedTop == null ? 0 : Math.max(0, bottom + scaled(STACK_PADDING, zoom) - claimedTop);
+		int shift = claimedTop == null ? 0 : Math.max(-maxPull, bottom + scaled(STACK_PADDING, zoom) - claimedTop);
 		tileStacks.put(tile, top - shift);
 		return new Point(anchor.getX(), anchor.getY() - shift);
 	}
