@@ -49,7 +49,10 @@ a fix for one sub-item shouldn't be assumed to cover the others.
     "Hide native health bar" as the workaround for now.
   - **Verzik Supporting Pillars** ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
     - some are real NPCs that can survive the whole fight without a hitsplat before the
-    phase-1-to-2 collapse, so they never enter `trackedActors` and show no bar.
+    phase-1-to-2 collapse, so they never enter `trackedActors` and show no bar. Whoever tests
+    this next should also eyeball the widened "Only Show Combat NPC Names" gate shipped in `259d8bd`
+    for the CoX fix - an earlier, stricter version of that gate once reopened this bug, and the CoX
+    confirmation did not cover Verzik.
   - **ToB Nylocas room "Support" pillars** - these are game objects, not NPCs, so the Verzik fix
     above can't reach them, and it's not yet confirmed whether they show the same bug.
 
@@ -58,19 +61,6 @@ a fix for one sub-item shouldn't be assumed to cover the others.
 apparently also getting overridden by `hideNativeBar`. Before/after screenshots posted on the issue
 show the charge bar missing vs. visible - looks like the same hideNativeBar-suppression pattern as
 the Vat/Pillars above, though that was never spelled out there.
-
-**4. CoX mobs show no health bars except Olm's hands: BUILT, NOT YET TESTED LIVE.**
-([issue #34](https://github.com/waitstepbro/custom-hp-bar/issues/34)) - CoX's scaled trash has no combat
-level, and "Only Show Combat NPC Names" gates on level, so everything but Olm's levelled head/claws lost
-its bar. The gate is now widening-only (`level <= 0 && !isAttackableNpc(npc)`), so CoX trash passes on its
-Attack option and nothing that passed before is excluded. Needs a real raid with the toggle on, plus a
-Verzik check that the pillar path is untouched - an earlier, stricter version of this fix reopened that bug.
-
-**5. Gemstone Crab greyed out and showed a number: BUILT, NOT YET TESTED LIVE.** It is a public
-group encounter, so it is now exempt from `greyOutOtherPlayerDamage` via `isCommunalLootEncounter()`,
-and `isPercentOnlyNpc()` withholds its max HP so the label is the boss HUD's percentage rather than a
-raw number. Needs a live visit to confirm the HUD name matches "Gemstone Crab" (`nativeHudHp()` matches
-by name) and that the bar still behaves with the game's boss HUD turned off.
 
 ## Features
 
