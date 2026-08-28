@@ -10,11 +10,13 @@ public class CustomHpBarPluginTest
 		ExternalPluginManager.loadBuiltin(CustomHpBarPlugin.class);
 
 		// --developer-mode unlocks the core Developer Tools plugin (widget inspector etc.) -
-		// needed while investigating TODO item 2. Appended rather than replacing args so
-		// whatever's passed to :runPlugin still comes through.
-		String[] devArgs = new String[args.length + 1];
+		// needed while investigating same-tile stacking. --debug is what actually lets log.debug
+		// through, without which logToaScaling() prints nothing. Appended rather than replacing
+		// args so whatever's passed to :runPlugin still comes through.
+		String[] devArgs = new String[args.length + 2];
 		System.arraycopy(args, 0, devArgs, 0, args.length);
 		devArgs[args.length] = "--developer-mode";
+		devArgs[args.length + 1] = "--debug";
 
 		RuneLite.main(devArgs);
 	}
