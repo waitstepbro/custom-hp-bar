@@ -1,9 +1,3 @@
-# TODO
-
-Open work only, one or two lines each. The reasoning, research and live-test history live in
-CLAUDE.md - search it by the item's own name, since older sections there cite TODO numbers that have
-shifted as finished items were deleted.
-
 ## Bugs
 
 **1. ToA minion HP.** Built and confirmed at two raid levels solo; four measurements still open - a
