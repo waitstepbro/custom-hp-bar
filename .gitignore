@@ -25,3 +25,4 @@ Thumbs.db
 
 # Stray local scratch files
 compile_out.txt
+.gitignore
