@@ -502,7 +502,10 @@ class CustomHpBarOverlay extends Overlay
 			double zoom = zoomFactor();
 			for (Player other : client.getTopLevelWorldView().players())
 			{
-				if (other == null || other == localPlayer || suppressedForSelfTile(other, selfPriorityTile))
+				// This loop bypasses trackedActors, so the Player Blacklist has to be re-checked here -
+				// same reason the NPC pass above calls isTrackedNpcCached() rather than trusting it.
+				if (other == null || other == localPlayer || !plugin.isTrackedPlayer(other)
+					|| suppressedForSelfTile(other, selfPriorityTile))
 				{
 					continue;
 				}
@@ -790,6 +793,7 @@ class CustomHpBarOverlay extends Overlay
 			int midpoint = self ? config.playerMidpoint() : config.otherPlayerMidpoint();
 			Color barBackground = self ? config.playerBarBackground() : config.otherPlayerBarBackground();
 			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
+			Color textColor = self ? config.playerTextColor() : config.otherPlayerTextColor();
 			return new BarStyle(
 				config.playerBarWidth(), config.playerBarHeight(), config.playerCornerRadius(),
 				config.playerBorderWidth(), config.playerBorderColor(), barColor,
@@ -797,7 +801,7 @@ class CustomHpBarOverlay extends Overlay
 				midpoint,
 				barBackground, barOpacity, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
-				config.playerTextColor(), config.playerTextOutline(), config.playerTextVerticalNudge(),
+				textColor, config.playerTextOutline(), config.playerTextVerticalNudge(),
 				config.playerTextAlignment());
 		}
 		return new BarStyle(
@@ -2099,7 +2103,8 @@ class CustomHpBarOverlay extends Overlay
 
 		Color prayerColor = config.prayerBarColor();
 		int restoreValue = config.showPrayerRestorePreview() ? hoveredRestoreValue(Skill.PRAYER) : -1;
-		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor, restoreValue);
+		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor,
+			config.prayerTextColor(), restoreValue);
 
 		if (config.showPrayerTickTimer() && (!config.hidePrayerTickTimerWhenInactive() || plugin.isPrayerActive()))
 		{
@@ -2140,7 +2145,7 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Fills+labels a simple current/max bar (Prayer/Special/Run) - the shape/[preview]/label sequence all three share. restoreValue < 0 skips the preview. */
 	private void drawSimpleBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc,
-			double zoom, int current, int max, Color color, int restoreValue)
+			double zoom, int current, int max, Color color, Color textColor, int restoreValue)
 	{
 		double fraction = max > 0 ? (double) current / max : 0;
 		drawBarShape(g, style, x, y, w, h, border, arc, fraction, color);
@@ -2150,7 +2155,7 @@ class CustomHpBarOverlay extends Overlay
 			drawHealPreview(g, x, y, w, h, border, current, max, restoreValue, translucent(color));
 		}
 
-		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, style.textColor, 0, style.textAlignment);
+		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, textColor, 0, style.textAlignment);
 	}
 
 	/** No restore preview, unlike Prayer/Run: itemstats' Stats has no special-attack Stat to match on. See CLAUDE.md. */
@@ -2158,7 +2163,8 @@ class CustomHpBarOverlay extends Overlay
 	{
 		int current = plugin.specialAttackEnergy();
 		Color specialColor = config.specialAttackBarColor();
-		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, specialColor, -1);
+		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, specialColor,
+			config.specialAttackTextColor(), -1);
 	}
 
 	/** Fill color swaps to runEnergyStaminaColor while a Stamina potion's drain-reduction buff is active - mirrors core's own run orb. */
@@ -2167,7 +2173,8 @@ class CustomHpBarOverlay extends Overlay
 		int current = plugin.runEnergy();
 		Color runColor = plugin.isStaminaActive() ? config.runEnergyStaminaColor() : config.runEnergyBarColor();
 		int restoreValue = config.showRunEnergyRestorePreview() ? hoveredRestoreValue("Run Energy") : -1;
-		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, runColor, restoreValue);
+		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, runColor,
+			config.runEnergyTextColor(), restoreValue);
 	}
 
 	/** Bar Color at full HP, blending through Mid at the midpoint to Low at empty. */
