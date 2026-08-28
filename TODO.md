@@ -1,8 +1,17 @@
 ## Bugs
 
-**1. ToA minion HP.** Built and confirmed at two raid levels solo; four measurements still open - a
-team raid (the party-size term has never executed, and where it applies is the open question), the
-Wardens, the Egg (11728/11729), and the Agile Scarab (11727). See "ToA: what is left to test".
+**1. ToA minion HP.** Confirmed solo at two raid levels; the 5-man at raid 305 settled the
+party-size term and the Wardens, but every one of those readings was a boss. Open:
+  - **Party scaling on minions.** `toaScaledMaxHp()` applies the party term to every ToA NPC, while
+    the wiki only ever claims it for "the base health of bosses". At a party of 5 that term is x4, so
+    if minions don't take it, every minion number in a team is out by up to that much. One baboon or
+    scarab kill in a team with `--debug` settles it - the two predictions differ fourfold.
+  - **The Egg (11728/11729)**, exempt from scaling on assumption alone, and the **Agile Scarab
+    (11727)**, scaled on assumption while its neighbour 11723 measured static.
+  - **`toaPartySize()`'s varbit read**, never seen reporting a real team - every figure so far was
+    read off the game rather than the plugin.
+
+  See "Team scaling settled".
 
 **2. Bar disappears with `hideNativeBar` on**
 ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different

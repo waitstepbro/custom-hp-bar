@@ -178,8 +178,8 @@ public class CustomHpBarPlugin extends Plugin
 		// Wardens - both forms, all three phases
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE1_INACTIVE, NpcID.TOA_WARDEN_TUMEKEN_PHASE1_INACTIVE,
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE1, NpcID.TOA_WARDEN_TUMEKEN_PHASE1,
-		NpcID.TOA_WARDEN_ELIDINIS_PHASE2_MAGE, NpcID.TOA_WARDEN_ELIDINIS_PHASE2_RANGE, NpcID.TOA_WARDEN_ELIDINIS_PHASE2_EXPOSED,
-		NpcID.TOA_WARDEN_TUMEKEN_PHASE2_MAGE, NpcID.TOA_WARDEN_TUMEKEN_PHASE2_RANGE, NpcID.TOA_WARDEN_TUMEKEN_PHASE2_EXPOSED,
+		NpcID.TOA_WARDEN_ELIDINIS_PHASE2_MAGE, NpcID.TOA_WARDEN_ELIDINIS_PHASE2_RANGE,
+		NpcID.TOA_WARDEN_TUMEKEN_PHASE2_MAGE, NpcID.TOA_WARDEN_TUMEKEN_PHASE2_RANGE,
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE3_INACTIVE, NpcID.TOA_WARDEN_TUMEKEN_PHASE3_INACTIVE,
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE3, NpcID.TOA_WARDEN_TUMEKEN_PHASE3,
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE3_CHARGING, NpcID.TOA_WARDEN_TUMEKEN_PHASE3_CHARGING,
@@ -250,13 +250,21 @@ public class CustomHpBarPlugin extends Plugin
 	 *
 	 * The Scarabs, the Crocodile and Ba-Ba's Baboon are measured, not sourced: nothing on the wiki
 	 * says they scale, and logToaDeathTally() found each sitting on its base row at two different
-	 * raid levels while the formula predicted roughly double. Egg and Obelisk are still assumption
-	 * alone - no kill has been logged for either.
+	 * raid levels while the formula predicted roughly double. The Egg is still assumption alone - no
+	 * kill has been logged for it.
+	 *
+	 * The Obelisk (11751) sat here on that same assumption and is now measured out of it: a 5-man raid
+	 * at raid level 305 read 2310 off the boss HUD, exactly the scaled figure, where static would have
+	 * been 260 (2026-08-27, see CLAUDE.md). It scales like anything else.
 	 *
 	 * Not here, and deliberately not in npc_hp.csv either: the scenery NPCs (Boulder 11783/11737,
 	 * Rubble 11784, Jug 11735) were measured at 25/150/12/5 and left rowless, so they resolve to -1
-	 * and show a percentage. A row is what turns an NPC into a number, so dropping the row is how you
-	 * opt one out entirely. See CLAUDE.md.
+	 * and show a percentage. The Wardens' phase-2 exposed core (11755/11758) is rowless for the same
+	 * reason, by choice rather than measurement - not a pool worth tracking as a number - and is out of
+	 * TOA_BOSS_NPC_IDS too, so the boss HUD cannot lend it one either.
+	 *
+	 * A row is what turns an NPC into a number, so dropping the row is how you opt one out entirely.
+	 * See CLAUDE.md.
 	 *
 	 * NOT here, though it reads like it belongs: Baboon Thrall (11718) scales normally - measured 3
 	 * at raid 230 and 4 at raid 300 off a base of 2, exactly what toaScaledMaxHp() gives.
@@ -275,8 +283,7 @@ public class CustomHpBarPlugin extends Plugin
 		11723,          // Scarab - Kephri's room
 		11705,          // Crocodile - Crondis
 		11781,          // Baboon - Ba-Ba's room, not the wave room
-		11728, 11729,   // Egg - Kephri
-		11751           // Obelisk - Wardens
+		11728, 11729    // Egg - Kephri
 	));
 
 	/**
