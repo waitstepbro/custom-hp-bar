@@ -430,6 +430,10 @@ public class CustomHpBarPlugin extends Plugin
 	private String cachedFilterString = "";
 	private List<Pattern> cachedPatterns = new ArrayList<>();
 
+	/** Same, for the other-player blacklist - kept separate so one filter's edits don't invalidate the other's cache. */
+	private String cachedPlayerFilterString = "";
+	private List<Pattern> cachedPlayerPatterns = new ArrayList<>();
+
 	/** isTrackedNpc() result per NPC, cached for one game tick rather than recomputed every frame - see isTrackedNpcCached(). CLAUDE.md. */
 	private int trackedNpcCacheTick = Integer.MIN_VALUE;
 	private final Map<NPC, Boolean> trackedNpcCache = new ConcurrentHashMap<>();
@@ -886,7 +890,9 @@ public class CustomHpBarPlugin extends Plugin
 			|| (config.showForPlayers() && config.alwaysShowPlayerBar());
 		for (Player player : client.getTopLevelWorldView().players())
 		{
-			if (player == null || player == localPlayer)
+			// Player Blacklist excludes them here as well as from trackedActors: without this a filtered
+			// player's native overhead icon would still be suppressed, with nothing redrawing it.
+			if (player == null || player == localPlayer || !isTrackedPlayer(player))
 			{
 				continue;
 			}
@@ -1868,6 +1874,7 @@ public class CustomHpBarPlugin extends Plugin
 		// getInteracting() reference doesn't clear until despawn either, so without this the
 		// discovery loops below would re-track them the moment evict() removes them.
 		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers())
+			&& isTrackedPlayer((Player) actor)
 			&& !isConfirmedDead(actor);
 	}
 
@@ -1973,6 +1980,42 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * Pure blacklist for other players, mirroring matchesFilter() for NPCs. Text.standardize() rather
+	 * than toLowerCase(): every multi-word RSN carries U+00A0 non-breaking spaces, so a user-typed
+	 * "Zezima Two" would never match the raw name. See CLAUDE.md.
+	 */
+	private boolean matchesPlayerFilter(String playerName)
+	{
+		String filterStr = config.playerFilter().trim();
+		if (filterStr.isEmpty() || playerName == null)
+		{
+			return true;
+		}
+
+		if (!filterStr.equals(cachedPlayerFilterString))
+		{
+			cachedPlayerFilterString = filterStr;
+			cachedPlayerPatterns = compilePatterns(filterStr);
+		}
+
+		String standardized = Text.standardize(playerName);
+		for (Pattern pattern : cachedPlayerPatterns)
+		{
+			if (pattern.matcher(standardized).matches())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Whether player is eligible for a bar, a name, or a redrawn overhead icon at all. The local player is never filtered. */
+	boolean isTrackedPlayer(Player player)
+	{
+		return player == client.getLocalPlayer() || matchesPlayerFilter(player.getName());
 	}
 
 	private static List<Pattern> compilePatterns(String filterStr)
