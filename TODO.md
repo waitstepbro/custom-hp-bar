@@ -1,111 +1,53 @@
 # TODO
 
+Open work only, one or two lines each. The reasoning, research and live-test history live in
+CLAUDE.md - search it by the item's own name, since older sections there cite TODO numbers that have
+shifted as finished items were deleted.
+
 ## Bugs
 
-**1. ToA minion HP: BUILT, MOSTLY CONFIRMED LIVE.** `resolveNpcMaxHp()` scales `npc_hp.csv`'s base
-HP by raid level, path level and party size. Three solo raids on 2026-08-21 (raid 300, then two at
-raid 230, the last a full clear including the Path of Het and the Wardens) tallied 342 kills through
-`logToaDeathTally()`, which sums every damage hitsplat on a ToA NPC and dumps the total on the
-killing blow.
+**1. ToA minion HP.** Built and confirmed at two raid levels solo; four measurements still open - a
+team raid (the party-size term has never executed, and where it applies is the open question), the
+Wardens, the Egg (11728/11729), and the Agile Scarab (11727). See "ToA: what is left to test".
 
-Confirmed live, at two raid levels and both path levels: the raid-level term, the path-level term on
-minions, both rounding bands (Ba-Ba 836 -> 840 at the 10s, Akkha's Shadow 144 -> 145 at the 5s),
-`HET_SEAL_SOLO_HP` (measured exactly 119), and every static exemption that has had a kill logged -
-the Apmeken wave-room baboons, Ba-Ba's own Baboon, both Scarabs and the Crocodile. The Baboon Thrall
-un-exemption checks out too: predicted 3 at raid 230, measured 3 across 14 kills. The scenery NPCs
-(Boulder, Rubble, Jug) are measured but deliberately rowless, so they show a percentage rather than a
-number.
-
-Still open:
-- **A team raid.** All four raids were solo, so the party-size term has still never executed. The
-  coefficient is not in doubt - the wiki states it verbatim, "the 2nd-3rd member will add 90% of the
-  base health of bosses each, while the 4th and beyond will add 60% each", which is exactly our
-  `9 * min(n-1, 2) + 6 * max(n-3, 0)` tenths. What a team settles is *where it applies*: the wiki
-  reads as additive against BASE, while our code compounds it onto the already raid- and path-scaled
-  total. At raid 200 / path 1 / 2-man on Ba-Ba those differ by ~30% (1400 vs 1080).
-- **Tumeken's Warden.** The damage tally can't measure a multi-phase boss - Akkha's restarts at every
-  elemental form, the Warden's carries across its phase change and logged 2028 against a predicted
-  1690 - so the boss HP HUD is the measurement instead: `VarbitID.HPBAR_HUD_BASEHP` is the server's
-  own scaled max for whatever the bar shows. `logToaBossHud()` records it. Every other boss is now
-  confirmed that way (Akkha 830, Kephri 310 and 165, Zebak 1200, Ba-Ba 790, Het's Seal 119, all
-  exactly as predicted at raid 230 / path 1); the Wardens just haven't been reached since the logging
-  went in.
-- **Egg (11728/11729) and Obelisk (11751)** remain exempt on assumption alone - still no kill logged.
-  The Obelisk no longer depends on that guess for what it *displays*, though: its three ids are now in
-  `TOA_BOSS_NPC_IDS`, so `nativeHudHp()` shows the boss HUD's own current/max while the bar is up, and
-  the table row is only the fallback for when it isn't (a player can turn the boss HUD off in the
-  game's settings). `logToaBossHud()` still records the figure, which is what says whether the 260 row
-  and its exemption are right: at raid 230, 260 confirms both and ~499 says it scales.
-- **Agile Scarab (11727)** is the one Kephri-room scarab with no measurement: it is currently scaled
-  (predicted 61 at raid 230 / path 1) while its neighbour 11723 turned out static.
-
-One tally caveat: a single Soldier Scarab kill once totalled 96 against 95 on the others, so the
-tally can over-count by a splat. Take the repeated value as truth, not the maximum.
-
-**2. Boss "bar disappears with `hideNativeBar` on"** - same symptom, different causes per boss, so
-a fix for one sub-item shouldn't be assumed to cover the others.
-  - **Duke Sucellus's Fermentation Vat** ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
-    - it's scenery, not an NPC, and needs a live sprite-ID capture before a fix is possible, with
-    "Hide native health bar" as the workaround for now.
-  - **Verzik Supporting Pillars** ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16))
-    - some are real NPCs that can survive the whole fight without a hitsplat before the
-    phase-1-to-2 collapse, so they never enter `trackedActors` and show no bar. Whoever tests
-    this next should also eyeball the widened "Only Show Combat NPC Names" gate shipped in `259d8bd`
-    for the CoX fix - an earlier, stricter version of that gate once reopened this bug, and the CoX
-    confirmation did not cover Verzik.
-  - **ToB Nylocas room "Support" pillars** - these are game objects, not NPCs, so the Verzik fix
-    above can't reach them, and it's not yet confirmed whether they show the same bug.
+**2. Bar disappears with `hideNativeBar` on**
+([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different
+cause per boss, so a fix for one is not a fix for the others:
+  - **Duke Sucellus's Fermentation Vat** - scenery, not an NPC; needs a live sprite-ID capture.
+  - **Verzik Supporting Pillars** - real NPCs that can survive a whole fight without a hitsplat, so
+    they never enter `trackedActors`. Also eyeball the widened "Only Show Combat NPC Names" gate
+    shipped in `259d8bd` while here - the CoX confirmation did not cover Verzik.
+  - **ToB Nylocas room "Support" pillars** - game objects, so the Verzik fix can't reach them, and
+    it isn't confirmed they show the bug at all.
 
 **3. Doom of Mokhaiotl's yellow charge bar disappears with the plugin on**
-([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - separate resource from HP,
-apparently also getting overridden by `hideNativeBar`. Before/after screenshots posted on the issue
-show the charge bar missing vs. visible - looks like the same hideNativeBar-suppression pattern as
-the Vat/Pillars above, though that was never spelled out there.
+([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - almost certainly the same
+`hideNativeBar` over-suppression as item 2.
 
 ## Features
 
-**1. Something to identify slayer task NPCs.**
+Researched in full, nothing built - see "Feature backlog research pass".
 
-**2. Player combat level shown, color-coded red/yellow/green by difference to own level**
-([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - same idea as the existing
-NPC combat-level display. Willing to build it, but the colors should be fixed rather than
-configurable so it doesn't add to config bloat.
+- **Slayer task NPC identification.**
+- **Player combat level, color-coded by difference to own level**
+  ([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - fixed colors, not configurable.
+- **Extra info in the name display**
+  ([issue #27](https://github.com/waitstepbro/custom-hp-bar/issues/27)) - level, max hit, weakness icon.
+- **Per-element text color, and hiding other players' bars**
+  ([issue #32](https://github.com/waitstepbro/custom-hp-bar/issues/32)) - Prayer color and the
+  blacklist are the cheap pair; HP number vs percentage coloring is the costly one.
+- **Player bar number and percentage together**
+  ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - self already does this;
+  confirm with the requester whether they meant other players.
+- **Scale NPC bar length to the mob's tile size**
+  ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.
 
-**3. Extra info in name display** ([issue #27] (https://github.com/waitstepbro/custom-hp-bar/issues/27)) - NPC level and max hit beside the name, weakness
-icon (via surge-spell icons, nicer than NPC Level Overlay's rune icons) beside it, with a
-configurable icon position.
+## Ideas
 
-**4. Per-element text color** ([issue #32](https://github.com/waitstepbro/custom-hp-bar/issues/32))
-- HP, Prayer, HP number, and HP percentage colored independently, plus an option to hide other
-players' HP bars (mirroring the existing NPC bar filter). A Prayer number color option is fine;
-less sure about HP number/percentage, would rather not pile on config options; still need to
-confirm with the requester whether "hide other players' bars" means a per-name blacklist.
+Unscheduled, not commitments.
 
-**5. Player bar number and percentage shown together**, not mutually exclusive
-([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - no problem adding this.
-
-**6. Scale NPC bar length to the mob's tile size**
-([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - fixed-length bars look off
-on large mobs. Needs some investigation and testing before calling it doable.
-
-## Feature Ideas
-
-Unscheduled, not commitments. Mostly unchecked against the real API.
-
-**1. Damage-taken trail** - ghost segment lagging the fill after a hit (`drawBarShape()` already
-layers segments for the food/prayer preview).
-
-**2. Phase markers** - tick marks at boss thresholds (Vorkath 50%, Zulrah, Hydra); needs a
-per-NPC threshold table, same upkeep problem as `npc_hp.csv`.
-
-**3. Dim non-target bars** - cut multi-combat clutter using `localPlayer.getInteracting()`.
-
-**4. Reduce HP bar shaking above NPCs** - bars jitter on large/animated models (e.g. fire giants)
-since the anchor moves with the model each frame; smooth or snap the canvas position instead.
-
-## Functional Changes
-
-**1. Decouple HP bar and name from character animation** - related to the still-tabled
-player-bar-bob investigation (player bars, self and other, still move slightly with attack
-animations) and Ideas item 4 below (same shaking issue, NPC-scoped there).
-
+- **Damage-taken trail** - ghost segment lagging the fill after a hit.
+- **Phase markers** at boss HP thresholds.
+- **Dim non-target bars** to cut multi-combat clutter.
+- **Decouple bar and name from character animation** - the NPC bar shake and the player-bar bob are
+  the same problem.
