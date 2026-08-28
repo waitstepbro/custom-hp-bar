@@ -29,8 +29,6 @@ cause per boss, so a fix for one is not a fix for the others:
 
 ## Features
 
-Researched in full, nothing built - see "Feature backlog research pass".
-
 - **Slayer task NPC identification.**
 - **Player combat level, color-coded by difference to own level**
   ([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - fixed colors, not configurable.
@@ -46,8 +44,6 @@ Researched in full, nothing built - see "Feature backlog research pass".
   ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.
 
 ## Ideas
-
-Unscheduled, not commitments.
 
 - **Damage-taken trail** - ghost segment lagging the fill after a hit.
 - **Phase markers** at boss HP thresholds.
