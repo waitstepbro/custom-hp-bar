@@ -2186,16 +2186,18 @@ class CustomHpBarOverlay extends Overlay
 				int hp = (int) Math.round(hpFraction * maxHp);
 				// One BOTH format for every actor type - see CLAUDE.md for why players lost their parentheses.
 				return hp + " " + pct + "%";
+			case NEITHER:
 			default:
+				// null suppresses the label; the bar itself still draws.
 				return null;
 		}
 	}
 
 	/**
-	 * The Display Mode governing this actor: self and NPCs each have their own configurable mode.
-	 * Other players are always PERCENT, not configurable - resolveMaxHp() has no way to learn another
-	 * player's max HP (no API exposes it, no Party-plugin integration exists here), so NUMBER/BOTH
-	 * would just silently fall back to percent in buildLabel() anyway; no real option to offer.
+	 * The Display Mode governing this actor: self, other players and NPCs each have their own
+	 * configurable mode. Other players get PERCENT/NEITHER only - resolveMaxHp() has no way to learn
+	 * another player's max HP (no API exposes it, no Party-plugin integration exists here), so
+	 * NUMBER/BOTH would just silently fall back to percent in buildLabel() anyway.
 	 */
 	private CustomHpBarConfig.DisplayMode displayMode(Actor actor)
 	{
@@ -2203,7 +2205,13 @@ class CustomHpBarOverlay extends Overlay
 		{
 			return config.selfDisplayMode();
 		}
-		return actor instanceof Player ? CustomHpBarConfig.DisplayMode.PERCENT : config.targetDisplayMode();
+		if (actor instanceof Player)
+		{
+			return config.otherPlayerDisplayMode() == CustomHpBarConfig.OtherPlayerDisplayMode.NEITHER
+				? CustomHpBarConfig.DisplayMode.NEITHER
+				: CustomHpBarConfig.DisplayMode.PERCENT;
+		}
+		return config.targetDisplayMode();
 	}
 
 	/** Pixels to push a bar's HP number and percentage apart, or 0 for one undivided label - BOTH mode only. Clamped in drawLabel, not here. */
