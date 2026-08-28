@@ -85,7 +85,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetDisplayMode",
 		name = "Display Mode",
-		description = "Show HP as a raw number, a percentage, or both.",
+		description = "Show HP as a raw number, a percentage, both, or neither (bar only, no text).",
 		section = TARGET_SECTION,
 		position = 0
 	)
@@ -618,7 +618,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfDisplayMode",
 		name = "Self Display Mode",
-		description = "Display mode for your own bar. Requires 'Show for Self'.",
+		description = "Display mode for your own bar - number, percentage, both, or neither (bar only, no text). Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 1
 	)
@@ -1262,12 +1262,25 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "otherPlayerDisplayMode",
+		name = "Display Mode",
+		description = "Show other players' HP as a percentage, or neither (bar only, no text). Raw " +
+			"numbers aren't offered - no API exposes another player's max HP.",
+		section = OTHER_PLAYER_SECTION,
+		position = 2
+	)
+	default OtherPlayerDisplayMode otherPlayerDisplayMode()
+	{
+		return OtherPlayerDisplayMode.PERCENT;
+	}
+
+	@ConfigItem(
 		keyName = "otherPlayerVerticalOffset",
 		name = "Vertical Offset (Other Players)",
 		description = "Pixels to shift other players' bars up (positive) or down (negative) from center - " +
 			"independent of your own 'Vertical Offset (Self)' in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 2
+		position = 3
 	)
 	@Range(min = -50, max = 100)
 	default int otherPlayerVerticalOffset()
@@ -1281,7 +1294,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fill color of other players' bars, and the full-HP color when HP Color Gradient " +
 			"is on - independent of your own Bar Color in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 3
+		position = 4
 	)
 	default Color otherPlayerBarColor()
 	{
@@ -1294,7 +1307,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP " +
 			"levels - independent of your own toggle in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 4
+		position = 5
 	)
 	default boolean otherPlayerHpColorGradient()
 	{
@@ -1307,7 +1320,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color " +
 			"Gradient. Independent of your own color in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 5
+		position = 6
 	)
 	default Color otherPlayerColorMid()
 	{
@@ -1320,7 +1333,7 @@ public interface CustomHpBarConfig extends Config
 		description = "HP percentage at which other players' bars are exactly Mid HP Color - independent " +
 			"of your own midpoint in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 6
+		position = 7
 	)
 	@Range(min = 1, max = 99)
 	default int otherPlayerMidpoint()
@@ -1334,7 +1347,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color reached at 0% HP. Requires HP Color Gradient. Independent of your own color " +
 			"in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 7
+		position = 8
 	)
 	default Color otherPlayerColorLow()
 	{
@@ -1347,7 +1360,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of the empty portion of other players' bars - independent of your own " +
 			"background color in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 8
+		position = 9
 	)
 	default Color otherPlayerBarBackground()
 	{
@@ -1360,7 +1373,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Overall transparency of other players' bar background, fill, and border. " +
 			"100 = fully opaque. Independent of your own opacity in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 9
+		position = 10
 	)
 	@Range(min = 0, max = 100)
 	default int otherPlayerBarOpacity()
@@ -1491,7 +1504,8 @@ public interface CustomHpBarConfig extends Config
 	{
 		NUMBER,
 		PERCENT,
-		BOTH;
+		BOTH,
+		NEITHER;
 
 		@Override
 		public String toString()
@@ -1504,9 +1518,24 @@ public interface CustomHpBarConfig extends Config
 					return "Percent";
 				case BOTH:
 					return "Both";
+				case NEITHER:
+					return "Neither";
 				default:
 					return name();
 			}
+		}
+	}
+
+	/** Other players' only real choices - see CustomHpBarOverlay.displayMode() for why NUMBER/BOTH aren't offered. */
+	enum OtherPlayerDisplayMode
+	{
+		PERCENT,
+		NEITHER;
+
+		@Override
+		public String toString()
+		{
+			return this == PERCENT ? "Percent" : "Neither";
 		}
 	}
 
