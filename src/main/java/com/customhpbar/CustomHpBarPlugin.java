@@ -188,6 +188,13 @@ public class CustomHpBarPlugin extends Plugin
 		NpcID.TOA_WARDENS_P2_OBELISK_NPC
 	));
 
+	/**
+	 * The Gemstone Crab and the remains it leaves - a public group encounter with participation-based
+	 * rewards, so it is grey-out exempt, and percent-only in isPercentOnlyNpc().
+	 */
+	private static final Set<Integer> GEMSTONE_CRAB_NPC_IDS = new HashSet<>(Arrays.asList(
+		NpcID.GEMSTONE_CRAB, NpcID.GEMSTONE_CRAB_REMAINS
+	));
 
 	/** NPC IDs for encounters where loot is based on personal participation, not "who dealt the kill" - exempt from greyOutOtherPlayerDamage. */
 	private static final Set<Integer> COMMUNAL_LOOT_NPC_IDS = new HashSet<>(Arrays.asList(
@@ -1072,6 +1079,16 @@ public class CustomHpBarPlugin extends Plugin
 		return new int[]{nativeHudCurrentHp, nativeHudMaxHp};
 	}
 
+	/**
+	 * NPCs whose HP must always read as a percentage, never a number - the native HUD carries a real
+	 * current/max for them, but the encounter only ever shows a percentage in game, so resolveMaxHp()
+	 * returns -1 for these and the HUD figures survive only as the fraction behind that percentage.
+	 */
+	boolean isPercentOnlyNpc(NPC npc)
+	{
+		return GEMSTONE_CRAB_NPC_IDS.contains(npc.getId());
+	}
+
 	private void cacheHp(Actor actor)
 	{
 		int[] hp = readHp(client, actor);
@@ -1798,10 +1815,10 @@ public class CustomHpBarPlugin extends Plugin
 			&& !isCommunalLootEncounter(npc);
 	}
 
-	/** Whether npc belongs to a confirmed Ironman group-loot exemption (CoX/ToB/ToA by location, or COMMUNAL_LOOT_NPC_IDS/NAMES). */
+	/** Whether npc belongs to a confirmed Ironman group-loot exemption (CoX/ToB/ToA by location, the Gemstone Crab, or COMMUNAL_LOOT_NPC_IDS/NAMES). */
 	private boolean isCommunalLootEncounter(NPC npc)
 	{
-		if (COMMUNAL_LOOT_NPC_IDS.contains(npc.getId()))
+		if (COMMUNAL_LOOT_NPC_IDS.contains(npc.getId()) || GEMSTONE_CRAB_NPC_IDS.contains(npc.getId()))
 		{
 			return true;
 		}

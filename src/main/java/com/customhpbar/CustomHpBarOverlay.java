@@ -2452,6 +2452,12 @@ class CustomHpBarOverlay extends Overlay
 	/** Actor's max HP, or -1 if unknown (falls back to percent). Native HUD wins first, then resolveNpcMaxHp()/Hitpoints skill. */
 	private int resolveMaxHp(Actor actor)
 	{
+		// Percent-only NPCs suppress the number without losing the HUD's own fraction: resolveHp()
+		// still reads the HUD, only the max is withheld so buildLabel() falls through to a percentage.
+		if (actor instanceof NPC && plugin.isPercentOnlyNpc((NPC) actor))
+		{
+			return -1;
+		}
 		int[] hud = plugin.nativeHudHp(actor);
 		if (hud != null)
 		{

@@ -66,6 +66,12 @@ its bar. The gate is now widening-only (`level <= 0 && !isAttackableNpc(npc)`), 
 Attack option and nothing that passed before is excluded. Needs a real raid with the toggle on, plus a
 Verzik check that the pillar path is untouched - an earlier, stricter version of this fix reopened that bug.
 
+**5. Gemstone Crab greyed out and showed a number: BUILT, NOT YET TESTED LIVE.** It is a public
+group encounter, so it is now exempt from `greyOutOtherPlayerDamage` via `isCommunalLootEncounter()`,
+and `isPercentOnlyNpc()` withholds its max HP so the label is the boss HUD's percentage rather than a
+raw number. Needs a live visit to confirm the HUD name matches "Gemstone Crab" (`nativeHudHp()` matches
+by name) and that the bar still behaves with the game's boss HUD turned off.
+
 ## Features
 
 **1. Something to identify slayer task NPCs.**
