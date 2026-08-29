@@ -38,7 +38,8 @@ If you would like to support in some way, please consider joining the
 - **Other players' names** — optionally drawn above their bar, at all times or only while it's
   tracked, and optionally with their combat level. Requires Show for Other Players.
 - **Combat level coloring** — combat levels shown on NPCs and other players can be colored by
-  how far each is from your own, using the game's own red-to-green scale.
+  how far each is from your own, using the game's own red-to-green scale. Their names can
+  optionally take the same color.
 - **Always show other players' HP bars** — optionally show the bar on every visible player, not
   just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
@@ -80,10 +81,10 @@ If you would like to support in some way, please consider joining the
 
 Settings are grouped into eight sections:
 
-- Target Bar — Style
-- Target Bar — NPC Info
+- NPC Bar — Style
+- NPC Bar — Info
 - Player Bar — Style
-- Player Bar — Player Info
+- Player Bar — Info
 - Other Player Bar — Style
 - Other Player Bar — Info
 - Behavior
@@ -94,7 +95,7 @@ size/shape/border/font settings (Player Bar — Style), but each gets its own co
 background, text color, opacity, and vertical offset - yours there, other players' in Other
 Player Bar — Style.
 
-### Style options (present in both Target Bar — Style and Player Bar — Style)
+### Style options (present in both NPC Bar — Style and Player Bar — Style)
 
 | Setting | Description | Default |
 |---|---|---|
@@ -106,10 +107,10 @@ Player Bar — Style.
 | Bar Color | Fill color of the bar, and the full-HP color when HP Color Gradient is on. | Green |
 | HP Color Gradient | Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels. | Off |
 | Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient. | Yellow |
-| Midpoint | HP percentage at which the bar is exactly Mid HP Color. Target allows 0-100, player 1-99. | 50 |
+| Midpoint | HP percentage at which the bar is exactly Mid HP Color. NPC allows 0-100, player 1-99. | 50 |
 | Low HP Color | Color reached at 0% HP. Requires HP Color Gradient. | Red |
 | Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
-| Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | Target: 5 · Player: 15 |
+| Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | NPC: 5 · Player: 15 |
 | Font | Typeface for the HP text | System Default |
 | Font Style | Applied on top of the chosen font | Bold |
 | Font Size | Size of the HP number text | 11 |
@@ -120,13 +121,13 @@ Player Bar — Style.
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
 | Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. Player bar also covers the Prayer, Special Attack, and Run Energy bars. | 100 |
 
-### Target Bar — Style (in addition to the above)
+### NPC Bar — Style (in addition to the above)
 
 | Setting | Description | Default |
 |---|---|---|
 | Display Mode | Show HP as a raw number, a percentage, or both. | Number |
 
-### Target Bar — NPC Info
+### NPC Bar — Info
 
 | Setting | Description | Default |
 |---|---|---|
@@ -147,11 +148,11 @@ Player Bar — Style.
 | Persist Duration (seconds) | How long the bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
-| NPC Blacklist | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 | NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 | Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. Nothing is drawn for an NPC with no weakness. | Off |
 | Show Weakness Percent | Draws the weakness percentage above the icon. Requires Show Weakness Icon. | On |
 | Weakness Percent Color | Color of the weakness percentage text. Requires Show Weakness Percent. | White |
+| NPC Blacklist | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
 ### Player Bar — Style (in addition to the shared options)
 
@@ -164,7 +165,7 @@ in this section, including the color settings in the shared table, is self-only 
 | Show for Self | Draw the player bar over your own character | On |
 | Self Display Mode | Display mode for your own bar. Requires Show for Self. | Number |
 
-### Player Bar — Player Info
+### Player Bar — Info
 
 | Setting | Description | Default |
 |---|---|---|
@@ -234,6 +235,7 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just blacklisted NPCs | On |
 | Prioritize Self on Same Tile | When you're on the same tile as an NPC or another player, hides their bar and name entirely instead of stacking it with your own - only your bar/name shows there. | On |
 | Color Combat Levels | Colors a combat level by how far it is from your own, red through yellow to green. Requires a combat level to be showing on the NPC or player. | On |
+| Color Names By Combat Level | Colors an NPC or player's name by how far their combat level is from your own, on the same scale. Replaces the configured name color; NPCs with no combat level keep it. | Off |
 
 ### Hotkeys
 

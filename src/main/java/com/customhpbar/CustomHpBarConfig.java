@@ -14,7 +14,7 @@ import java.awt.Font;
 public interface CustomHpBarConfig extends Config
 {
 	@ConfigSection(
-		name = "Target Bar — Style",
+		name = "NPC Bar — Style",
 		description = "Size, shape, color, and text settings for the bar drawn over NPCs",
 		position = 0,
 		closedByDefault = true
@@ -22,7 +22,7 @@ public interface CustomHpBarConfig extends Config
 	String TARGET_SECTION = "target";
 
 	@ConfigSection(
-		name = "Target Bar — NPC Info",
+		name = "NPC Bar — Info",
 		description = "NPC names, aggression, status effects, and which NPCs get a bar",
 		position = 1,
 		closedByDefault = true
@@ -40,7 +40,7 @@ public interface CustomHpBarConfig extends Config
 	String PLAYER_SECTION = "player";
 
 	@ConfigSection(
-		name = "Player Bar — Player Info",
+		name = "Player Bar — Info",
 		description = "Prayer bar, status effects, restore previews, and the overhead icon",
 		position = 3,
 		closedByDefault = true
@@ -580,7 +580,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 17
+		position = 21
 	)
 	default String npcFilter()
 	{
@@ -593,7 +593,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
 			"ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 17
 	)
 	@Range(min = 0, max = 30)
 	default int npcStackLimit()
@@ -607,7 +607,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
 			"Nothing is drawn for an NPC with no weakness.",
 		section = TARGET_NPC_SECTION,
-		position = 19
+		position = 18
 	)
 	default boolean showNpcWeaknessIcon()
 	{
@@ -619,7 +619,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Weakness Percent",
 		description = "Draws the weakness percentage above the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
-		position = 20
+		position = 19
 	)
 	default boolean showNpcWeaknessPercent()
 	{
@@ -631,7 +631,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Weakness Percent Color",
 		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
 		section = TARGET_NPC_SECTION,
-		position = 21
+		position = 20
 	)
 	default Color npcWeaknessPercentColor()
 	{
@@ -862,7 +862,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "playerTextColor",
 		name = "HP Text Color",
 		description = "Color of your own HP number. The Prayer, special attack, and run energy numbers " +
-			"have their own in Player Bar — Player Info.",
+			"have their own in Player Bar — Info.",
 		section = PLAYER_SECTION,
 		position = 22
 	)
@@ -1596,6 +1596,19 @@ public interface CustomHpBarConfig extends Config
 	default boolean colorCombatLevelByDifference()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "colorNamesByCombatLevel",
+		name = "Color Names By Combat Level",
+		description = "Colors an NPC or player's name by how far their combat level is from your own, " +
+			"on the same scale. Replaces the configured name color; NPCs with no combat level keep it.",
+		section = BEHAVIOR_SECTION,
+		position = 4
+	)
+	default boolean colorNamesByCombatLevel()
+	{
+		return false;
 	}
 
 	@ConfigItem(
