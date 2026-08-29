@@ -80,6 +80,31 @@ class CustomHpBarOverlay extends Overlay
 	/** Trailing whitespace left behind by a name truncation, non-breaking space included. */
 	private static final Pattern TRAILING_SPACE = Pattern.compile("[\\s\\u00A0]+$");
 
+	/**
+	 * Lower bound of each band in LEVEL_DIFF_COLORS, on the target's combat level minus your own.
+	 * Descending, so the first band a difference clears is its own; anything under the last falls
+	 * through to the final color. See levelDiffColor().
+	 *
+	 * The negative half is deliberately -3/-6/-9, not the -1/-4/-7 the issue's own screenshot lists.
+	 * That screenshot labels each negative band by its UPPER bound ("Difference <= -1"), and these
+	 * are lower bounds - the bands themselves are the same three-wide -1..-3, -4..-6, -7..-9. Do not
+	 * "correct" these back to the screenshot's numbers; that collapses each band to a single level
+	 * and shifts every color below parity. Verified against the game's own thresholds.
+	 */
+	private static final int[] LEVEL_DIFF_BANDS = {10, 7, 4, 1, 0, -3, -6, -9};
+
+	/**
+	 * The game's own relative-combat-level gradient: red where the target is far above you, through
+	 * yellow at parity, to green far below. Deliberately fixed rather than configurable (issue #35) -
+	 * these are the exact stops vanilla colors its own right-click levels with, so they already read
+	 * without explanation. One entry longer than LEVEL_DIFF_BANDS; the last is the fall-through.
+	 */
+	private static final Color[] LEVEL_DIFF_COLORS = {
+		new Color(0xFF0000), new Color(0xFF3000), new Color(0xFF7000), new Color(0xFFB000),
+		new Color(0xFFFF00),
+		new Color(0xC0FF00), new Color(0x80FF00), new Color(0x40FF00), new Color(0x00FF00),
+	};
+
 	/** Size of the aggressive-NPC badge icon (see showAggressiveNpcIcon), before zoom scaling. */
 	private static final int AGGRESSIVE_ICON_SIZE = 12;
 
@@ -1293,22 +1318,23 @@ class CustomHpBarOverlay extends Overlay
 			nameColor = config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc)
 				? config.aggressiveNpcColor() : config.npcNameColor();
 		}
-		// Suffix only - shares the name's color and line, so it costs no stack height.
+		// Suffix only - shares the name's line, so it costs no stack height. It shares the name's
+		// color too unless relative coloring claims it, which is the one thing that outranks the
+		// grey/aggressive tints above: those describe the NPC, the level describes you against it.
 		String label = truncateName(Text.removeTags(npcName));
 		int level = npc.getCombatLevel();
-		if (config.showNpcCombatLevel() && level > 0)
-		{
-			label += " (lvl " + level + ")";
-		}
-		drawLabel(g, style, label, x, y - h - nameGap, w, h, zoom, nameColor);
+		String levelSuffix = config.showNpcCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
+		drawNameLabel(g, style, label, levelSuffix, x, y - h - nameGap, w, h, zoom, nameColor,
+			levelSuffixColor(level));
 	}
 
 	/**
 	 * Draws just another player's name label at its would-be bar position - used both by
 	 * drawBar() (tracked, or untracked-but-bar-shown via alwaysShowPlayerBar) and the "Always Show
-	 * Player Name" pass (name only, no bar). No combat-level suffix, aggressive/loot-tainted color,
-	 * or truncation - none of those NPC-only concepts apply to players; this is intentionally the
-	 * minimal version of drawNpcNameOnly(). playerNameStackLimit() is enforced by both call sites'
+	 * Player Name" pass (name only, no bar). Carries the same optional " (lvl N)" suffix as
+	 * drawNpcNameOnly() (issue #35, its own toggle), but none of that method's aggressive/
+	 * loot-tainted coloring or truncation - those stay NPC-only concepts, so this is still the
+	 * smaller of the two. playerNameStackLimit() is enforced by both call sites'
 	 * playerStackAllowed() check before they ever get here, not by this method itself - it gates
 	 * the player's whole entry (bar and name together), not the name alone. Same shape as
 	 * drawNpcNameOnly()/npcStackAllowed(). Also the choke point for "Toggle Names" - see
@@ -1338,7 +1364,11 @@ class CustomHpBarOverlay extends Overlay
 		int w = rect[2];
 		int h = rect[3];
 		int nameGap = scaled(NAME_GAP, zoom);
-		drawLabel(g, style, Text.removeTags(playerName), x, y - h - nameGap, w, h, zoom, config.playerNameColor());
+		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s.
+		int level = player.getCombatLevel();
+		String levelSuffix = config.showPlayerCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
+		drawNameLabel(g, style, Text.removeTags(playerName), levelSuffix, x, y - h - nameGap, w, h, zoom,
+			config.playerNameColor(), levelSuffixColor(level));
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */
@@ -1423,6 +1453,42 @@ class CustomHpBarOverlay extends Overlay
 			default:
 				return null;
 		}
+	}
+
+	/**
+	 * The " (lvl N)" suffix's own color, or null to leave it inheriting the name's - what every
+	 * level suffix did before issue #35, and still what happens with the toggle off. Also null
+	 * whenever there is nothing to compare against: no local player, or a local combat level not
+	 * populated yet (it reads 0 for a moment on login, which would otherwise paint every level in
+	 * the scene red).
+	 */
+	private Color levelSuffixColor(int level)
+	{
+		if (!config.colorCombatLevelByDifference())
+		{
+			return null;
+		}
+
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer == null || localPlayer.getCombatLevel() <= 0)
+		{
+			return null;
+		}
+
+		return levelDiffColor(level - localPlayer.getCombatLevel());
+	}
+
+	/** The LEVEL_DIFF_COLORS band for a target's combat level minus your own. */
+	private static Color levelDiffColor(int difference)
+	{
+		for (int i = 0; i < LEVEL_DIFF_BANDS.length; i++)
+		{
+			if (difference >= LEVEL_DIFF_BANDS[i])
+			{
+				return LEVEL_DIFF_COLORS[i];
+			}
+		}
+		return LEVEL_DIFF_COLORS[LEVEL_DIFF_BANDS.length];
 	}
 
 	/** Cuts a name to npcNameMaxLength characters plus a period. The combat level suffix is appended after this, so it never gets cut. */
@@ -2434,6 +2500,57 @@ class CustomHpBarOverlay extends Overlay
 		int tailX = textX + (int) Math.round(font.getStringBounds(label.substring(0, split + 1), frc).getWidth()) + gap;
 		drawText(g, style, head, textX, textY, textColor);
 		drawText(g, style, tail, tailX, textY, textColor);
+	}
+
+	/**
+	 * The name row for an NPC or another player: the name, an optional " (lvl N)" suffix, one
+	 * centered line. A null suffix is the name alone; a null suffixColor leaves the suffix
+	 * inheriting nameColor, both going through drawLabel() as the single undivided string they
+	 * always were. Only a colored suffix takes the split path.
+	 */
+	private void drawNameLabel(Graphics2D g, BarStyle style, String name, String suffix, int x, int y, int w, int h,
+			double zoom, Color nameColor, Color suffixColor)
+	{
+		if (suffix == null)
+		{
+			drawLabel(g, style, name, x, y, w, h, zoom, nameColor);
+		}
+		else if (suffixColor == null)
+		{
+			drawLabel(g, style, name + suffix, x, y, w, h, zoom, nameColor);
+		}
+		else
+		{
+			drawSplitLabel(g, style, name, suffix, x, y, w, h, zoom, nameColor, suffixColor);
+		}
+	}
+
+	/**
+	 * A centered label drawn as two independently colored runs. Measured and positioned off the
+	 * concatenation, so the pair lands exactly where drawLabel() would have put the same string -
+	 * only the tail's color differs. CENTER only, since its one caller is the name row, which
+	 * drawLabel()'s own single-color overload already centers unconditionally.
+	 */
+	private void drawSplitLabel(Graphics2D g, BarStyle style, String head, String tail, int x, int y, int w, int h,
+			double zoom, Color headColor, Color tailColor)
+	{
+		Font font = resolveFont(style.fontFamily, style.fontStyle, scaled(style.fontSize, zoom));
+		g.setFont(font);
+
+		String label = head + tail;
+		FontRenderContext frc = g.getFontRenderContext();
+		Rectangle pixelBounds = new TextLayout(label, font, frc).getPixelBounds(frc, 0, 0);
+
+		int textWidth = (int) Math.round(pixelBounds.getWidth());
+		int textX = x + (int) Math.round((w - textWidth) / 2.0) - pixelBounds.x;
+		int textY = y + (int) Math.round((h - pixelBounds.getHeight()) / 2.0) - pixelBounds.y
+			+ scaled(style.textNudge, zoom);
+
+		// Advance, not pixel bounds - where drawString would have left the pen had the two been
+		// drawn as one string, which is exact here because drawString applies no kerning.
+		int tailX = textX + (int) Math.round(font.getStringBounds(head, frc).getWidth());
+		drawText(g, style, head, textX, textY, headColor);
+		drawText(g, style, tail, tailX, textY, tailColor);
 	}
 
 	/** One string with its outline/shadow, at an already-resolved pen position. */

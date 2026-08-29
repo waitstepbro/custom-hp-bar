@@ -1497,11 +1497,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showPlayerCombatLevel",
+		name = "Show Combat Level",
+		description = "Appends the player's combat level to their name. Requires 'Show Player Name'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 2
+	)
+	default boolean showPlayerCombatLevel()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "playerNameColor",
 		name = "Player Name Color",
 		description = "Color of the player name text, separate from the HP number's color.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 2
+		position = 3
 	)
 	default Color playerNameColor()
 	{
@@ -1513,7 +1525,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Player Blacklist",
 		description = "Comma-separated player names to hide. Supports * wildcards; leave blank to show all.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 3
+		position = 4
 	)
 	default String playerFilter()
 	{
@@ -1526,7 +1538,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
 			"which ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 4
+		position = 5
 	)
 	@Range(min = 0, max = 30)
 	default int playerNameStackLimit()
@@ -1569,6 +1581,19 @@ public interface CustomHpBarConfig extends Config
 		position = 2
 	)
 	default boolean prioritizeSelfOnSameTile()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "colorCombatLevelByDifference",
+		name = "Color Combat Levels",
+		description = "Colors a combat level by how far it is from your own, red through yellow to green. " +
+			"Requires a combat level to be showing on the NPC or player.",
+		section = BEHAVIOR_SECTION,
+		position = 3
+	)
+	default boolean colorCombatLevelByDifference()
 	{
 		return true;
 	}

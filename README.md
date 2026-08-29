@@ -36,7 +36,9 @@ If you would like to support in some way, please consider joining the
   optionally with the NPC's combat level. Long names can be truncated to a character limit.
   Non-attackable NPCs are excluded by default.
 - **Other players' names** — optionally drawn above their bar, at all times or only while it's
-  tracked. Requires Show for Other Players.
+  tracked, and optionally with their combat level. Requires Show for Other Players.
+- **Combat level coloring** — combat levels shown on NPCs and other players can be colored by
+  how far each is from your own, using the game's own red-to-green scale.
 - **Always show other players' HP bars** — optionally show the bar on every visible player, not
   just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
@@ -219,6 +221,7 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 |---|---|---|
 | Show Player Name | Draws a name label above other players' bars. Without Always Show Player Name, still only shows for players tracked via Show for Other Players. | On |
 | Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
+| Show Combat Level | Appends the player's combat level to their name. Requires Show Player Name. | Off |
 | Player Name Color | Color of the player name text, separate from the HP number's color | White |
 | Player Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 | Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
@@ -230,6 +233,7 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
 | Hide Native Health Bar | Hides the game's built-in health bar for every actor, not just blacklisted NPCs | On |
 | Prioritize Self on Same Tile | When you're on the same tile as an NPC or another player, hides their bar and name entirely instead of stacking it with your own - only your bar/name shows there. | On |
+| Color Combat Levels | Colors a combat level by how far it is from your own, red through yellow to green. Requires a combat level to be showing on the NPC or player. | On |
 
 ### Hotkeys
 
