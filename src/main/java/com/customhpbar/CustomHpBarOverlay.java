@@ -86,6 +86,15 @@ class CustomHpBarOverlay extends Overlay
 	/** Gap between the aggressive-NPC icon and the name label it sits above, before zoom scaling. */
 	private static final int AGGRESSIVE_ICON_GAP = 2;
 
+	/** Size of the elemental-weakness icon (see showNpcWeaknessIcon), before zoom scaling. */
+	private static final int WEAKNESS_ICON_SIZE = 14;
+
+	/** Gap between the weakness icon and the HP bar's right edge, before zoom scaling. */
+	private static final int WEAKNESS_ICON_GAP = 2;
+
+	/** Gap between the weakness icon and the percent label to its right, before zoom scaling. */
+	private static final int WEAKNESS_PERCENT_GAP = 1;
+
 	/** Gap between the overhead icon and the HP bar's top edge, before zoom scaling. */
 	private static final int OVERHEAD_ICON_GAP = 3;
 
@@ -1348,6 +1357,74 @@ class CustomHpBarOverlay extends Overlay
 		g.drawImage(icon, iconX, iconY, size, size, null);
 	}
 
+	/**
+	 * The elemental-weakness badge to the right of an NPC's HP bar, with its percentage beside it.
+	 * Bar-anchored rather than name-anchored, so it tracks the bar's right edge whether or not a
+	 * name is showing - and, like the aggressive badge on the left, it only appears when a bar does.
+	 * Drawn at a point rather than centered in a box, so it can't reuse drawLabel() - see CLAUDE.md.
+	 */
+	private void drawWeaknessIcon(Graphics2D g, NPC npc, int barX, int barY, int barW, int barH, BarStyle style, double zoom)
+	{
+		if (!plugin.isWeaknessIconsVisible())
+		{
+			return;
+		}
+
+		NpcWeaknessTable.Weakness weakness = plugin.npcWeakness(npc);
+		if (weakness == null)
+		{
+			return;
+		}
+
+		BufferedImage icon = weaknessIcon(weakness.getElement());
+		if (icon == null)
+		{
+			return;
+		}
+
+		int size = scaled(WEAKNESS_ICON_SIZE, zoom);
+		int iconX = barX + barW + scaled(WEAKNESS_ICON_GAP, zoom);
+		int iconY = barY + barH / 2 - size / 2;
+		g.drawImage(icon, iconX, iconY, size, size, null);
+
+		if (!config.showNpcWeaknessPercent())
+		{
+			return;
+		}
+
+		// Same getPixelBounds + textNudge math drawLabel() uses, duplicated because this starts at a
+		// point off the icon's right edge rather than centering inside a box.
+		String percent = weakness.getPercent() + "%";
+		Font font = resolveFont(style.fontFamily, style.fontStyle, scaled(style.fontSize, zoom));
+		g.setFont(font);
+		FontRenderContext frc = g.getFontRenderContext();
+		Rectangle pixelBounds = new TextLayout(percent, font, frc).getPixelBounds(frc, 0, 0);
+
+		int textX = iconX + size + scaled(WEAKNESS_PERCENT_GAP, zoom) - pixelBounds.x;
+		// Vertically centered on the icon, the same way drawLabel() centers within a bar's height.
+		int textY = iconY + (int) Math.round((size - pixelBounds.getHeight()) / 2.0)
+			- pixelBounds.y + scaled(style.textNudge, zoom);
+		drawText(g, style, percent, textX, textY, config.npcWeaknessPercentColor());
+	}
+
+	/** Maps an element to its surge spell icon - the four standard-spellbook surges, asked for by name in issue #27. */
+	private BufferedImage weaknessIcon(NpcWeaknessTable.Element element)
+	{
+		switch (element)
+		{
+			case AIR:
+				return clientSprite(SpriteID.Magicon2.WIND_SURGE, 0);
+			case WATER:
+				return clientSprite(SpriteID.Magicon2.WATER_SURGE, 0);
+			case EARTH:
+				return clientSprite(SpriteID.Magicon2.EARTH_SURGE, 0);
+			case FIRE:
+				return clientSprite(SpriteID.Magicon2.FIRE_SURGE, 0);
+			default:
+				return null;
+		}
+	}
+
 	/** Cuts a name to npcNameMaxLength characters plus a period. The combat level suffix is appended after this, so it never gets cut. */
 	private String truncateName(String name)
 	{
@@ -1440,6 +1517,11 @@ class CustomHpBarOverlay extends Overlay
 		if (aggressive && config.showAggressiveNpcIcon())
 		{
 			drawAggressiveNpcIcon(g, x, hpY, h, zoom);
+		}
+
+		if (actor instanceof NPC && config.showNpcWeaknessIcon())
+		{
+			drawWeaknessIcon(g, (NPC) actor, x, hpY, w, h, style, zoom);
 		}
 
 		int bottomY = y + h;

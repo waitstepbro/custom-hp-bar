@@ -354,6 +354,8 @@ public class CustomHpBarPlugin extends Plugin
 	private volatile boolean namesVisible = true;
 	@Getter
 	private volatile boolean hpBarsVisible = true;
+	@Getter
+	private volatile boolean weaknessIconsVisible = true;
 
 	private final HotkeyListener toggleNamesHotkeyListener = new HotkeyListener(() -> config.toggleNamesHotkey())
 	{
@@ -370,6 +372,15 @@ public class CustomHpBarPlugin extends Plugin
 		public void hotkeyPressed()
 		{
 			hpBarsVisible = !hpBarsVisible;
+		}
+	};
+
+	private final HotkeyListener toggleWeaknessIconsHotkeyListener = new HotkeyListener(() -> config.toggleWeaknessIconsHotkey())
+	{
+		@Override
+		public void hotkeyPressed()
+		{
+			weaknessIconsVisible = !weaknessIconsVisible;
 		}
 	};
 
@@ -501,6 +512,7 @@ public class CustomHpBarPlugin extends Plugin
 		renderCallbackManager.register(renderCallback);
 		keyManager.registerKeyListener(toggleNamesHotkeyListener);
 		keyManager.registerKeyListener(toggleHpBarsHotkeyListener);
+		keyManager.registerKeyListener(toggleWeaknessIconsHotkeyListener);
 		clientThread.invokeLater(this::syncNativeBarOverrides);
 	}
 
@@ -511,6 +523,7 @@ public class CustomHpBarPlugin extends Plugin
 		overlayManager.remove(overlay);
 		keyManager.unregisterKeyListener(toggleNamesHotkeyListener);
 		keyManager.unregisterKeyListener(toggleHpBarsHotkeyListener);
+		keyManager.unregisterKeyListener(toggleWeaknessIconsHotkeyListener);
 		trackedActors.clear();
 		lastKnownHp.clear();
 		preciseNpcHp.clear();
@@ -1785,6 +1798,12 @@ public class CustomHpBarPlugin extends Plugin
 			aggressionSafeCenters[1] = location;
 			aggressionEndTick = currentTick + AGGRESSION_TICKS;
 		}
+	}
+
+	/** The NPC's elemental weakness, or null if it has none. Static per ID - no live client source exists, see CLAUDE.md. */
+	NpcWeaknessTable.Weakness npcWeakness(NPC npc)
+	{
+		return NpcWeaknessTable.getWeakness(npc.getId());
 	}
 
 	/** Whether npc would attack the local player if still aggressive (type + the OSRS 2x-combat-level rule). Doesn't check the tolerance window. */

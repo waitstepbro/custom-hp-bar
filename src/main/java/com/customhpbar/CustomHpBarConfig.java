@@ -601,6 +601,43 @@ public interface CustomHpBarConfig extends Config
 		return 0;
 	}
 
+	@ConfigItem(
+		keyName = "showNpcWeaknessIcon",
+		name = "Show Weakness Icon",
+		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
+			"Nothing is drawn for an NPC with no weakness.",
+		section = TARGET_NPC_SECTION,
+		position = 19
+	)
+	default boolean showNpcWeaknessIcon()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showNpcWeaknessPercent",
+		name = "Show Weakness Percent",
+		description = "Draws the weakness percentage above the icon. Requires 'Show Weakness Icon'.",
+		section = TARGET_NPC_SECTION,
+		position = 20
+	)
+	default boolean showNpcWeaknessPercent()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "npcWeaknessPercentColor",
+		name = "Weakness Percent Color",
+		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
+		section = TARGET_NPC_SECTION,
+		position = 21
+	)
+	default Color npcWeaknessPercentColor()
+	{
+		return new Color(255, 255, 255);
+	}
+
 	// ==================== Player bar style (self + other players) ====================
 
 	@ConfigItem(
@@ -1558,6 +1595,19 @@ public interface CustomHpBarConfig extends Config
 		position = 1
 	)
 	default Keybind toggleHpBarsHotkey()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "toggleWeaknessIconsHotkey",
+		name = "Toggle Weakness Icons",
+		description = "Instantly shows/hides the elemental weakness icon and its percentage. Doesn't "
+			+ "affect names, HP bars, or any other icon.",
+		section = HOTKEY_SECTION,
+		position = 2
+	)
+	default Keybind toggleWeaknessIconsHotkey()
 	{
 		return Keybind.NOT_SET;
 	}
