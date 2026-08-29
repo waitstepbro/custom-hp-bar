@@ -47,6 +47,8 @@ If you would like to support in some way, please consider joining the
   engage it.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
   show an icon by its bar, reverting once the game's tolerance timer expires.
+- **Elemental weakness icon** — optionally show the matching surge spell icon beside an NPC's bar,
+  with its weakness percentage above it.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar, its name, or both once another
   player damages it. Bosses with shared or personal loot are exempt.
 - **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
@@ -66,7 +68,7 @@ If you would like to support in some way, please consider joining the
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
   plugin's bar shows.
 - **Zoom scaling** — bars and text grow and shrink with camera zoom.
-- **Hotkeys** — optional keybinds to instantly show/hide names or HP bars (independent of each
+- **Hotkeys** — optional keybinds to instantly show/hide names, HP bars, or weakness icons (independent of each
   other), for a quick declutter without changing any setting.
 - **Independent persist duration** — NPCs and players each keep showing their last known HP for
   their own configurable duration after combat.
@@ -145,6 +147,9 @@ Player Bar — Style.
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 | NPC Blacklist | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 | NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
+| Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. Nothing is drawn for an NPC with no weakness. | Off |
+| Show Weakness Percent | Draws the weakness percentage above the icon. Requires Show Weakness Icon. | On |
+| Weakness Percent Color | Color of the weakness percentage text. Requires Show Weakness Percent. | White |
 
 ### Player Bar — Style (in addition to the shared options)
 
@@ -232,3 +237,4 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 |---|---|---|
 | Toggle Names | Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
 | Toggle HP Bars | Instantly shows/hides NPC and player HP bars (including your own). Doesn't affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons. | Not set |
+| Toggle Weakness Icons | Instantly shows/hides the elemental weakness icon and its percentage. Doesn't affect names, HP bars, or any other icon. | Not set |

@@ -32,8 +32,10 @@ cause per boss, so a fix for one is not a fix for the others:
 - **Slayer task NPC identification.**
 - **Player combat level, color-coded by difference to own level**
   ([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - fixed colors, not configurable.
-- **Extra info in the name display**
-  ([issue #27](https://github.com/waitstepbro/custom-hp-bar/issues/27)) - level, max hit, weakness icon.
+- **NPC max hit in the name display**
+  ([issue #27](https://github.com/waitstepbro/custom-hp-bar/issues/27)) - the last third of the request;
+  level and the weakness icon are built. Wiki `max_hit` is free text on 12% of rows (multi-style,
+  conditional, and 103 unparsable), so it needs a which-number policy before it can ship.
 - **Per-element text color, and hiding other players' bars**
   ([issue #32](https://github.com/waitstepbro/custom-hp-bar/issues/32)) - Prayer color and the
   blacklist are the cheap pair; HP number vs percentage coloring is the costly one.
