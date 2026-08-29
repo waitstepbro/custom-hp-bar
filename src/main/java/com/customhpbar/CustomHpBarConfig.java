@@ -552,8 +552,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "greyOutOtherPlayerDamage",
 		name = "Grey Out Health Bars",
-		description = "Greys out an NPC's bar once another player damages it, so an Ironman can tell the kill " +
-			"isn't exclusively theirs. Ironman accounts only; bosses with shared or personal loot are exempt.",
+		description = "Greys out an NPC's bar once another player damages it. Ironman accounts only; " +
+			"bosses with shared or personal loot are exempt.",
 		section = TARGET_NPC_SECTION,
 		position = 15
 	)
@@ -565,8 +565,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "greyOutOtherPlayerDamageNames",
 		name = "Grey Out Names",
-		description = "Greys out an NPC's name once another player damages it, on the same terms as 'Grey Out " +
-			"Health Bars'. Independent of that setting, and overrides the aggressive name color.",
+		description = "Greys out an NPC's name on the same terms as 'Grey Out Health Bars'. " +
+			"Independent of that setting, and overrides the aggressive name color.",
 		section = TARGET_NPC_SECTION,
 		position = 16
 	)
@@ -617,7 +617,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showNpcWeaknessPercent",
 		name = "Show Weakness Percent",
-		description = "Draws the weakness percentage above the icon. Requires 'Show Weakness Icon'.",
+		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
 		position = 19
 	)
@@ -655,7 +655,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfDisplayMode",
 		name = "Self Display Mode",
-		description = "Display mode for your own bar - number, percentage, both, or neither (bar only, no text). Requires 'Show for Self'.",
+		description = "Display mode for your own bar - number, percentage, both, or neither " +
+			"(bar only, no text). Requires 'Show for Self'.",
 		section = PLAYER_SECTION,
 		position = 1
 	)
@@ -731,8 +732,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarColor",
 		name = "Bar Color",
-		description = "Fill color of your own bar, and the full-HP color when HP Color Gradient is on - " +
-			"other players use their own separate color in Other Player Bar — Style.",
+		description = "Fill color of your own bar, and the full-HP color when HP Color Gradient is " +
+			"on. Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 12
 	)
@@ -744,8 +745,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends your own bar's fill color as HP drops. Off keeps Bar Color at all HP levels - " +
-			"other players have their own separate toggle in Other Player Bar — Style.",
+		description = "Blends your own bar's fill color as HP drops. Off keeps Bar Color at all HP " +
+			"levels. Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 13
 	)
@@ -757,8 +758,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerColorMid",
 		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color " +
-			"Gradient. Other players use their own separate color in Other Player Bar — Style.",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP " +
+			"Color Gradient. Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 14
 	)
@@ -770,8 +771,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerMidpoint",
 		name = "Midpoint",
-		description = "HP percentage at which your own bar is exactly Mid HP Color - other players use " +
-			"their own separate midpoint in Other Player Bar — Style.",
+		description = "HP percentage at which your own bar is exactly Mid HP Color. Other players " +
+			"have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 15
 	)
@@ -784,8 +785,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerColorLow",
 		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient. Other players use their own " +
-			"separate color in Other Player Bar — Style.",
+		description = "Color reached at 0% HP. Requires HP Color Gradient. Other players have their " +
+			"own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 16
 	)
@@ -797,8 +798,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarBackground",
 		name = "Background Color",
-		description = "Color of the empty portion of your own bar - other players use their own separate " +
-			"color in Other Player Bar — Style.",
+		description = "Color of the empty portion of your own bar. Other players have their own in " +
+			"Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 17
 	)
@@ -811,7 +812,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "playerVerticalOffset",
 		name = "Vertical Offset (Self)",
 		description = "Pixels to shift your own bar up (positive) or down (negative) from center. " +
-			"Other players use their own separate offset in Other Player Bar — Style.",
+			"Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 18
 	)
@@ -925,9 +926,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerBarOpacity",
 		name = "Bar Opacity",
-		description = "Overall transparency of your own bar's background, fill, and border, plus the " +
-			"Prayer and special attack bars. 100 = fully opaque. Other players use their own separate " +
-			"opacity in Other Player Bar — Style.",
+		description = "Overall transparency of your own bars' background, fill, and border. 100 = " +
+			"fully opaque. Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
 		position = 27
 	)
@@ -967,8 +967,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "alwaysShowPrayerBar",
 		name = "Always Show Prayer Bar",
-		description = "Shows the Prayer bar even when not tracked in combat. Still requires a prayer to be " +
-			"active if 'Hide Prayer Bar While Not Praying' is on. Requires 'Show Prayer Bar'.",
+		description = "Shows the Prayer bar even when not tracked in combat. Still subject to 'Hide " +
+			"Prayer Bar While Not Praying'. Requires 'Show Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
 		position = 2
 	)
@@ -1131,8 +1131,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "runEnergyBarTimeout",
 		name = "Run Energy Bar Timeout (seconds)",
-		description = "Hides the run energy bar this many seconds after you last actively ran (regen and " +
-			"item restores don't count). 0 = never time out. Requires 'Show Run Energy Bar'.",
+		description = "Hides the run energy bar this many seconds after you last ran. 0 = never time " +
+			"out. Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
 		position = 15
 	)
@@ -1296,8 +1296,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showRunEnergyRestorePreview",
 		name = "Show Run Energy Restore Preview",
-		description = "Previews run energy restored by a hovered item (e.g. Stamina potion) as an extra " +
-			"bar segment. Requires 'Show Run Energy Bar'.",
+		description = "Previews run energy restored by a hovered item as an extra bar segment. " +
+			"Requires 'Show Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
 		position = 28
 	)
@@ -1311,9 +1311,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showForPlayers",
 		name = "Show for Other Players",
-		description = "Draw the health bar over other players. With 'Always Show Player Name' on, names " +
-			"stay visible regardless of this setting; without it, a player still needs this on to be " +
-			"tracked - and therefore named - at all.",
+		description = "Draws the health bar over other players. Names can still show without this if " +
+			"'Always Show Player Name' is on.",
 		section = OTHER_PLAYER_SECTION,
 		position = 0
 	)
@@ -1338,8 +1337,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerDisplayMode",
 		name = "Display Mode",
-		description = "Show other players' HP as a percentage, or neither (bar only, no text). Raw " +
-			"numbers aren't offered - no API exposes another player's max HP.",
+		description = "Show other players' HP as a percentage, or neither (bar only, no text).",
 		section = OTHER_PLAYER_SECTION,
 		position = 2
 	)
@@ -1351,8 +1349,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerVerticalOffset",
 		name = "Vertical Offset (Other Players)",
-		description = "Pixels to shift other players' bars up (positive) or down (negative) from center - " +
-			"independent of your own 'Vertical Offset (Self)' in Player Bar — Style.",
+		description = "Pixels to shift other players' bars up (positive) or down (negative) from " +
+			"center. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 3
 	)
@@ -1365,8 +1363,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerBarColor",
 		name = "Bar Color",
-		description = "Fill color of other players' bars, and the full-HP color when HP Color Gradient " +
-			"is on - independent of your own Bar Color in Player Bar — Style.",
+		description = "Fill color of other players' bars, and the full-HP color when HP Color " +
+			"Gradient is on. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 4
 	)
@@ -1378,8 +1376,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends other players' bar fill color as HP drops. Off keeps Bar Color at all HP " +
-			"levels - independent of your own toggle in Player Bar — Style.",
+		description = "Blends other players' bar fill color as HP drops. Off keeps Bar Color at all " +
+			"HP levels. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 5
 	)
@@ -1391,8 +1389,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerColorMid",
 		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color " +
-			"Gradient. Independent of your own color in Player Bar — Style.",
+		description = "Color reached at the midpoint, blended toward from both sides. Requires HP " +
+			"Color Gradient. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 6
 	)
@@ -1404,8 +1402,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerMidpoint",
 		name = "Midpoint",
-		description = "HP percentage at which other players' bars are exactly Mid HP Color - independent " +
-			"of your own midpoint in Player Bar — Style.",
+		description = "HP percentage at which other players' bars are exactly Mid HP Color. " +
+			"Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 7
 	)
@@ -1418,8 +1416,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerColorLow",
 		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient. Independent of your own color " +
-			"in Player Bar — Style.",
+		description = "Color reached at 0% HP. Requires HP Color Gradient. Independent of your own in " +
+			"Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 8
 	)
@@ -1431,8 +1429,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerBarBackground",
 		name = "Background Color",
-		description = "Color of the empty portion of other players' bars - independent of your own " +
-			"background color in Player Bar — Style.",
+		description = "Color of the empty portion of other players' bars. Independent of your own in " +
+			"Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 9
 	)
@@ -1444,8 +1442,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerTextColor",
 		name = "HP Text Color",
-		description = "Color of the HP number on other players' bars - independent of your own HP Text " +
-			"Color in Player Bar — Style.",
+		description = "Color of the HP number on other players' bars. Independent of your own in " +
+			"Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 10
 	)
@@ -1457,8 +1455,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerBarOpacity",
 		name = "Bar Opacity",
-		description = "Overall transparency of other players' bar background, fill, and border. " +
-			"100 = fully opaque. Independent of your own opacity in Player Bar — Style.",
+		description = "Overall transparency of other players' bar background, fill, and border. 100 = " +
+			"fully opaque. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
 		position = 11
 	)
@@ -1473,8 +1471,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "showPlayerName",
 		name = "Show Player Name",
-		description = "Draws a name label above other players' bars. Without 'Always Show Player Name', " +
-			"still only shows for players tracked via 'Show for Other Players' in Other Player Bar — Style.",
+		description = "Draws a name label above other players' bars. Without 'Always Show Player " +
+			"Name', only shows for players tracked via 'Show for Other Players'.",
 		section = OTHER_PLAYER_INFO_SECTION,
 		position = 0
 	)
@@ -1563,7 +1561,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "hideNativeBar",
 		name = "Hide Native Health Bar",
-		description = "Hides the game's built-in health bar for every actor, not just blacklisted NPCs.",
+		description = "Hides the game's own overhead health bar client-wide, so only this plugin's " +
+			"bar shows.",
 		section = BEHAVIOR_SECTION,
 		position = 1
 	)
@@ -1575,8 +1574,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "prioritizeSelfOnSameTile",
 		name = "Prioritize Self on Same Tile",
-		description = "When you're on the same tile as an NPC or another player, hides their bar and " +
-			"name entirely instead of stacking it with your own - only your bar/name shows there.",
+		description = "When an NPC or another player shares your tile, hides their bar and name " +
+			"instead of stacking it with yours.",
 		section = BEHAVIOR_SECTION,
 		position = 2
 	)
@@ -1601,8 +1600,8 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "colorNamesByCombatLevel",
 		name = "Color Names By Combat Level",
-		description = "Colors an NPC or player's name by how far their combat level is from your own, " +
-			"on the same scale. Replaces the configured name color; NPCs with no combat level keep it.",
+		description = "Colors an NPC or player's name by how far their combat level is from your own. " +
+			"Replaces the configured name color.",
 		section = BEHAVIOR_SECTION,
 		position = 4
 	)
