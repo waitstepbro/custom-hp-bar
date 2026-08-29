@@ -30,8 +30,6 @@ cause per boss, so a fix for one is not a fix for the others:
 ## Features
 
 - **Slayer task NPC identification.**
-- **Player combat level, color-coded by difference to own level**
-  ([issue #35](https://github.com/waitstepbro/custom-hp-bar/issues/35)) - fixed colors, not configurable.
 - **NPC max hit in the name display**
   ([issue #27](https://github.com/waitstepbro/custom-hp-bar/issues/27)) - the last third of the request;
   level and the weakness icon are built. Wiki `max_hit` is free text on 12% of rows (multi-style,
