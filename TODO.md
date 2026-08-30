@@ -5,11 +5,16 @@ party-size term and the Wardens, but every one of those readings was a boss. Ope
   - **Party scaling on minions.** `toaScaledMaxHp()` applies the party term to every ToA NPC, while
     the wiki only ever claims it for "the base health of bosses". At a party of 5 that term is x4, so
     if minions don't take it, every minion number in a team is out by up to that much. One baboon or
-    scarab kill in a team with `--debug` settles it - the two predictions differ fourfold.
-  - **The Egg (11728/11729)**, exempt from scaling on assumption alone, and the **Agile Scarab
-    (11727)**, scaled on assumption while its neighbour 11723 measured static.
+    scarab kill in a team with `--debug` settles it - the two predictions differ fourfold. The
+    raid-level term is no longer in doubt on minions: the 2026-08-29 solo measured the scarabs
+    (40 -> 82), Akkha's Shadow (70 -> 145) and the Baboon Thrall (2 -> 3) exactly.
+  - **Agile Scarab (11727)**, scaled on assumption (predicted 61 at raid 230) while its neighbour
+    11723 measured static. It spawned on 2026-08-29 but never died; one kill settles it.
   - **`toaPartySize()`'s varbit read**, never seen reporting a real team - every figure so far was
     read off the game rather than the plugin.
+  - **Zebak tallies 21 more damage than its own HUD max** - 1221 against 1200 at raid 230 solo.
+    Killing hits cap at remaining HP, so a clean single-phase tally lands exactly on max; this one
+    did not. Same shape as the old Soldier Scarab 96-against-95.
 
 **2. Bar disappears with `hideNativeBar` on**
 ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different
