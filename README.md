@@ -30,6 +30,11 @@ If you would like to support in some way, please consider joining the
   configurable midpoint to a low color at empty, per bar type.
 - **Bar opacity** — an optional transparency slider for the bar's background, fill, and border,
   configurable separately per bar type.
+- **Damage trail** — optionally leaves a colored trail behind the bar when an actor takes damage,
+  holding briefly before draining down to the new HP. The trail can use its own color or take a
+  darkened copy of the bar's. Configurable separately per bar type.
+- **Fade out on death** — optionally fades an NPC's bar and name out when it dies instead of
+  hiding them the instant the killing blow lands.
 - **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
   burn, disease, and corruption. Multiple effects show side by side.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
@@ -92,8 +97,8 @@ Settings are grouped into eight sections:
 
 NPCs get their own full Style section. Your own bar and other players' bars share one set of
 size/shape/border/font settings (Player Bar — Style), but each gets its own colors, gradient,
-background, text color, opacity, and vertical offset - yours there, other players' in Other
-Player Bar — Style.
+background, text color, opacity, damage trail, and vertical offset - yours there, other players'
+in Other Player Bar — Style.
 
 ### Style options (present in both NPC Bar — Style and Player Bar — Style)
 
@@ -120,6 +125,9 @@ Player Bar — Style.
 | Text Alignment | Where the bar's text sits horizontally within it. On the player bar, applies to all stacked bars (HP, Prayer, Special, Run). | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
 | Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. On the player bar this covers every bar in the stack. | 100 |
+| Damage Trail | Leaves a colored trail behind the bar when the actor takes damage, draining to the new HP a moment later. Healing has no trail. | Off |
+| Damage Trail Color | Color of the health just lost. Timing is shared by every bar, in Behavior. | Red |
+| Match Bar Color | Colors the trail from the bar's own color at the health it is draining from, darkened. Replaces Damage Trail Color. | Off |
 
 ### NPC Bar — Style (in addition to the above)
 
@@ -148,6 +156,8 @@ Player Bar — Style.
 | Persist Duration (seconds) | How long the bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
+| Fade Bar On Death | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | Off |
+| Death Fade Duration (ms) | How long an NPC's bar takes to fade out after it dies. Ends early if the corpse despawns first. Requires Fade Bar On Death. | 600 |
 | NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 | Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. Nothing is drawn for an NPC with no weakness. | Off |
 | Show Weakness Percent | Draws the weakness percentage beside the icon. Requires Show Weakness Icon. | On |
@@ -199,7 +209,8 @@ in this section, including the color settings in the shared table, is self-only 
 ### Other Player Bar — Style
 
 Size, shape, border, and font come from Player Bar — Style, shared with your own bar. Colors,
-gradient, background, text color, opacity, and vertical offset below are independent of your own.
+gradient, background, text color, opacity, damage trail, and vertical offset below are independent
+of your own.
 
 | Setting | Description | Default |
 |---|---|---|
@@ -215,6 +226,9 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 | Background Color | Color of the empty portion of other players' bars | Dark gray (translucent) |
 | HP Text Color | Color of the HP number on other players' bars | White |
 | Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque | 100 |
+| Damage Trail | Leaves a colored trail behind another player's bar when they take damage, draining to their new HP a moment later. Healing has no trail. | Off |
+| Damage Trail Color | Color of the health another player just lost. Timing is shared by every bar, in Behavior. | Red |
+| Match Bar Color | Colors the trail from the bar's own color at the health it is draining from, darkened. Replaces Damage Trail Color. | Off |
 
 ### Other Player Bar — Info
 
@@ -236,6 +250,8 @@ gradient, background, text color, opacity, and vertical offset below are indepen
 | Prioritize Self on Same Tile | When an NPC or another player shares your tile, hides their bar and name instead of stacking it with yours. | On |
 | Color Combat Levels | Colors a combat level by how far it is from your own, red through yellow to green. Requires a combat level to be showing on the NPC or player. | On |
 | Color Names By Combat Level | Colors an NPC or player's name by how far their combat level is from your own. Replaces the configured name color. | Off |
+| Damage Trail Hold (ms) | How long a damage trail stays put before it starts draining. Requires Damage Trail on at least one bar. | 400 |
+| Damage Trail Drain (ms) | How long a damage trail takes to drain down to the current HP once it starts. Requires Damage Trail on at least one bar. | 250 |
 
 ### Hotkeys
 

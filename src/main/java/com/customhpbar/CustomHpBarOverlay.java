@@ -74,6 +74,10 @@ class CustomHpBarOverlay extends Overlay
 	/** Alpha for a bar's heal/restore preview segment - reads as "not real yet" over whatever color the bar is showing. */
 	private static final int PREVIEW_ALPHA = 110;
 
+	/** How far a matched damage trail is darkened from the bar color it copies, and the alpha it lands at. */
+	private static final float TRAIL_MATCH_DARKEN = 0.45f;
+	private static final int TRAIL_MATCH_ALPHA = 190;
+
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
 
@@ -408,6 +412,71 @@ class CustomHpBarOverlay extends Overlay
 			}
 
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
+		}
+
+		// "Fade Bar On Death": the one pass that draws an actor already gone from trackedActors.
+		// Every gate issue #22's instant-hide fix installed is untouched - isConfirmedDead() still
+		// evicts on the killing blow, isTrackedType() still refuses to re-track a corpse, and the
+		// "Always Show NPC Bar/Name" pass below still skips one - so an NPC only appears here at
+		// all because CustomHpBarPlugin.beginDeathFade() saw its bar on screen as it died. Runs
+		// straight after the tracked loop so a corpse claims its same-tile slot ahead of the
+		// "Always Show" passes, and nothing below it on the tile reflows while it fades.
+		if (config.fadeNpcBarOnDeath() && !plugin.getDeathFades().isEmpty())
+		{
+			long now = System.currentTimeMillis();
+			int fadeMs = Math.max(1, config.npcDeathFadeDuration());
+			double zoom = zoomFactor();
+			for (Map.Entry<Actor, Long> fade : plugin.getDeathFades().entrySet())
+			{
+				if (!(fade.getKey() instanceof NPC))
+				{
+					continue;
+				}
+
+				// isTrackedNpcCached() re-checked every frame, not just when the fade started, so
+				// blacklisting an NPC (or any other config change) stops one mid-fade.
+				NPC npc = (NPC) fade.getKey();
+				float alpha = 1f - (now - fade.getValue()) / (float) fadeMs;
+				if (alpha <= 0f || alpha > 1f || !plugin.isTrackedNpcCached(npc)
+					|| suppressedForSelfTile(npc, selfPriorityTile)
+					|| !npcStackAllowed(npcStackCounts, npcStackDecided, npc))
+				{
+					continue;
+				}
+
+				Point anchor = actorAnchor(npc);
+				if (anchor == null)
+				{
+					continue;
+				}
+
+				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
+				anchor = claimBarStackSlot(tileStacks, npc, anchor, targetStyle, zoom);
+				appliedStacks.put(npc, anchor);
+
+				int maxHp = resolveMaxHp(npc);
+				// A corpse still reports ratio 0 through its death animation, so this normally
+				// resolves live; the fallback only covers a read going invalid mid-fade, where an
+				// empty bar is what was being drawn anyway.
+				int[] hp = resolveHp(npc, maxHp);
+				if (hp == null)
+				{
+					hp = new int[]{0, 1};
+				}
+
+				Graphics2D fadeGraphics = (Graphics2D) g.create();
+				fadeGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+				drawBar(fadeGraphics, npc, anchor, hp[0], hp[1], maxHp, targetStyle);
+				// drawBar()'s own name branch needs the NPC tracked, and the "Always Show NPC Name"
+				// pass skips a corpse outright, so neither will draw this - and the name has to
+				// fade with the bar rather than popping off the instant it dies, which is the
+				// behavior "Always Show NPC Name left a corpse's name up" settled on.
+				if (config.showNpcName())
+				{
+					drawNpcNameOnly(fadeGraphics, npc, anchor, targetStyle, zoom);
+				}
+				fadeGraphics.dispose();
+			}
 		}
 
 		// Independent path: shows the Prayer/Special/Run/HP bars outside combat too (e.g. at a
@@ -828,12 +897,15 @@ class CustomHpBarOverlay extends Overlay
 			Color barBackground = self ? config.playerBarBackground() : config.otherPlayerBarBackground();
 			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
 			Color textColor = self ? config.playerTextColor() : config.otherPlayerTextColor();
+			boolean damageTrail = self ? config.playerDamageTrail() : config.otherPlayerDamageTrail();
+			Color damageTrailColor = self ? config.playerDamageTrailColor() : config.otherPlayerDamageTrailColor();
+			boolean damageTrailMatchBar = self ? config.playerDamageTrailMatchBar() : config.otherPlayerDamageTrailMatchBar();
 			return new BarStyle(
 				config.playerBarWidth(), config.playerBarHeight(), config.playerCornerRadius(),
 				config.playerBorderWidth(), config.playerBorderColor(), barColor,
 				hpColorGradient, colorMid, colorLow,
 				midpoint,
-				barBackground, barOpacity, verticalOffset,
+				barBackground, barOpacity, damageTrail, damageTrailColor, damageTrailMatchBar, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
 				textColor, config.playerTextOutline(), config.playerTextVerticalNudge(),
 				config.playerTextAlignment());
@@ -843,7 +915,9 @@ class CustomHpBarOverlay extends Overlay
 			config.targetBorderWidth(), config.targetBorderColor(), config.targetBarColor(),
 			config.targetHpColorGradient(), config.targetColorMid(), config.targetColorLow(),
 			config.targetMidpoint(),
-			config.targetBarBackground(), config.targetBarOpacity(), config.targetVerticalOffset(),
+			config.targetBarBackground(), config.targetBarOpacity(),
+			config.targetDamageTrail(), config.targetDamageTrailColor(), config.targetDamageTrailMatchBar(),
+			config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
 			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge(),
 			config.targetTextAlignment());
@@ -1569,20 +1643,19 @@ class CustomHpBarOverlay extends Overlay
 		boolean aggressive = actor instanceof NPC
 			&& (config.colorAggressiveNpcBars() || config.showAggressiveNpcIcon())
 			&& plugin.isNpcAggressive((NPC) actor);
-		Color fillColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
+		// Held separately from fillColor: null means the gradient is driving the fill, which is
+		// what lets a matched trail resolve its own color per HP level below.
+		Color overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
 			&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
-		if (fillColor == null)
+		if (overrideColor == null)
 		{
-			fillColor = plugin.statusEffectColor(actor);
+			overrideColor = plugin.statusEffectColor(actor);
 		}
-		if (fillColor == null && aggressive && config.colorAggressiveNpcBars())
+		if (overrideColor == null && aggressive && config.colorAggressiveNpcBars())
 		{
-			fillColor = config.aggressiveNpcColor();
+			overrideColor = config.aggressiveNpcColor();
 		}
-		if (fillColor == null)
-		{
-			fillColor = hpFillColor(style, hpFraction);
-		}
+		Color fillColor = overrideColor != null ? overrideColor : hpFillColor(style, hpFraction);
 		// "Toggle HP Bars" choke point - purely visual, same trade-off as "Toggle Names": the row's
 		// height/position is still reserved (hpY, bottomY, and every stack-slot/status-icon
 		// placement below are computed the same either way) so nothing else reflows when the
@@ -1591,7 +1664,22 @@ class CustomHpBarOverlay extends Overlay
 		// visible per the user's own answer when this was designed. See CLAUDE.md.
 		if (plugin.isHpBarsVisible())
 		{
-			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor);
+			// Inside the visibility gate on purpose: a bar hidden by the hotkey observes nothing,
+			// so damage taken while it was hidden snaps on the way back rather than animating down
+			// a gap the player never saw. Only the HP bar gets a trail - Prayer/Special/Run go
+			// through drawSimpleBar()'s trail-less overload.
+			double trailFraction = hpFraction;
+			Color trailColor = null;
+			if (style.damageTrail)
+			{
+				trailFraction = plugin.damageTrailFraction(actor, hpFraction, maxHp);
+				// With the gradient off hpFillColor returns barColor at every fraction, so this
+				// collapses to a darkened bar color - the native boss HUD's own treatment.
+				trailColor = style.damageTrailMatchBar
+					? matchedTrailColor(overrideColor != null ? overrideColor : hpFillColor(style, trailFraction))
+					: style.damageTrailColor;
+			}
+			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor, trailFraction, trailColor);
 
 			if (self && config.showFoodHealPreview())
 			{
@@ -2390,6 +2478,16 @@ class CustomHpBarOverlay extends Overlay
 		return Math.max(0, Math.min(1, v));
 	}
 
+	/** A matched damage trail's color: the bar's own color at that HP level, darkened and a little translucent. */
+	private static Color matchedTrailColor(Color base)
+	{
+		return new Color(
+			Math.round(base.getRed() * (1 - TRAIL_MATCH_DARKEN)),
+			Math.round(base.getGreen() * (1 - TRAIL_MATCH_DARKEN)),
+			Math.round(base.getBlue() * (1 - TRAIL_MATCH_DARKEN)),
+			TRAIL_MATCH_ALPHA);
+	}
+
 	/** A bar's own fill color, at the fixed preview alpha - see PREVIEW_ALPHA. */
 	private static Color translucent(Color color)
 	{
@@ -2400,25 +2498,55 @@ class CustomHpBarOverlay extends Overlay
 	private void drawBarShape(Graphics2D g, BarStyle style, int x, int y, int w, int h,
 			int border, int arc, double fraction, Color fillColor)
 	{
+		drawBarShape(g, style, x, y, w, h, border, arc, fraction, fillColor, fraction, null);
+	}
+
+	/**
+	 * As above, plus the damage trail: the same fill shape drawn once more at trailFraction and
+	 * underneath the real fill, so only the segment between the two is ever visible. Drawn as a
+	 * second RoundRectangle2D rather than a plain rect over the gap so it inherits the fill's own
+	 * rounded right edge - a rect would poke past the corner on a near-full trail. A null
+	 * trailColor (every caller but the HP bar) skips it entirely.
+	 */
+	private void drawBarShape(Graphics2D g, BarStyle style, int x, int y, int w, int h,
+			int border, int arc, double fraction, Color fillColor, double trailFraction, Color trailColor)
+	{
 		int innerW = Math.max(0, w - border * 2);
 		int innerH = Math.max(0, h - border * 2);
 		int fillWidth = (int) Math.round(innerW * fraction);
 		fillWidth = Math.max(0, Math.min(fillWidth, innerW));
+		int fillArc = Math.max(0, arc - border * 2);
 
 		RoundRectangle2D outline = new RoundRectangle2D.Float(x, y, w, h, arc, arc);
 
+		// Multiplied into whatever alpha the caller already set, not replacing it - the death-fade
+		// pass wraps this whole draw in an AlphaComposite of its own, and a plain setComposite here
+		// would throw that away for any bar whose opacity is under 100. See render()'s fade pass.
 		Composite previousComposite = g.getComposite();
-		if (style.opacity < 100)
+		float inherited = previousComposite instanceof AlphaComposite
+			? ((AlphaComposite) previousComposite).getAlpha() : 1f;
+		float alpha = inherited * (style.opacity / 100f);
+		if (alpha < 1f)
 		{
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, style.opacity / 100f));
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
 		g.setColor(style.background);
 		g.fill(outline);
 
+		if (trailColor != null && trailFraction > fraction)
+		{
+			int trailWidth = (int) Math.round(innerW * trailFraction);
+			trailWidth = Math.max(0, Math.min(trailWidth, innerW));
+			if (trailWidth > 0)
+			{
+				g.setColor(trailColor);
+				g.fill(new RoundRectangle2D.Float(x + border, y + border, trailWidth, innerH, fillArc, fillArc));
+			}
+		}
+
 		if (fillWidth > 0)
 		{
-			int fillArc = Math.max(0, arc - border * 2);
 			RoundRectangle2D fillShape = new RoundRectangle2D.Float(
 				x + border, y + border, fillWidth, innerH, fillArc, fillArc);
 
@@ -2765,6 +2893,10 @@ class CustomHpBarOverlay extends Overlay
 		final Color background;
 		/** 0-100 - the whole bar shape's transparency (background/fill/border), not the label text. See drawBarShape(). */
 		final int opacity;
+		/** HP bar only, and only the fill - the trail lags the fill after a hit. See drawBarShape()/damageTrailFraction(). */
+		final boolean damageTrail;
+		final Color damageTrailColor;
+		final boolean damageTrailMatchBar;
 		final int verticalOffset;
 		final CustomHpBarConfig.FontFamily fontFamily;
 		final CustomHpBarConfig.FontStyle fontStyle;

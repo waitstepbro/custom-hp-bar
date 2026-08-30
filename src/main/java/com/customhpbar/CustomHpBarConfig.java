@@ -358,6 +358,45 @@ public interface CustomHpBarConfig extends Config
 		return 100;
 	}
 
+	@ConfigItem(
+		keyName = "targetDamageTrail",
+		name = "Damage Trail",
+		description = "Leaves a colored trail behind the bar when an NPC takes damage, draining to " +
+			"the new HP a moment later. Healing has no trail.",
+		section = TARGET_SECTION,
+		position = 22
+	)
+	default boolean targetDamageTrail()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "targetDamageTrailColor",
+		name = "Damage Trail Color",
+		description = "Color of the health an NPC just lost. Timing is shared by every bar, in " +
+			"Behavior.",
+		section = TARGET_SECTION,
+		position = 23
+	)
+	default Color targetDamageTrailColor()
+	{
+		return new Color(200, 40, 40, 220);
+	}
+
+	@ConfigItem(
+		keyName = "targetDamageTrailMatchBar",
+		name = "Match Bar Color",
+		description = "Colors the trail from the bar's own color at the health it is draining " +
+			"from, darkened. Replaces Damage Trail Color.",
+		section = TARGET_SECTION,
+		position = 24
+	)
+	default boolean targetDamageTrailMatchBar()
+	{
+		return false;
+	}
+
 	// ==================== Target bar NPC info ====================
 
 	@ConfigItem(
@@ -576,11 +615,38 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "fadeNpcBarOnDeath",
+		name = "Fade Bar On Death",
+		description = "Fades an NPC's bar and name out when it dies instead of hiding them the instant " +
+			"the killing blow lands.",
+		section = TARGET_NPC_SECTION,
+		position = 17
+	)
+	default boolean fadeNpcBarOnDeath()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "npcDeathFadeDuration",
+		name = "Death Fade Duration (ms)",
+		description = "How long an NPC's bar takes to fade out after it dies. Ends early if the corpse " +
+			"despawns first. Requires Fade Bar On Death.",
+		section = TARGET_NPC_SECTION,
+		position = 18
+	)
+	@Range(min = 0, max = 2000)
+	default int npcDeathFadeDuration()
+	{
+		return 600;
+	}
+
+	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 21
+		position = 22
 	)
 	default String npcFilter()
 	{
@@ -607,7 +673,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
 			"Nothing is drawn for an NPC with no weakness.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 19
 	)
 	default boolean showNpcWeaknessIcon()
 	{
@@ -619,7 +685,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Weakness Percent",
 		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
-		position = 19
+		position = 20
 	)
 	default boolean showNpcWeaknessPercent()
 	{
@@ -631,7 +697,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Weakness Percent Color",
 		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
 		section = TARGET_NPC_SECTION,
-		position = 20
+		position = 21
 	)
 	default Color npcWeaknessPercentColor()
 	{
@@ -935,6 +1001,45 @@ public interface CustomHpBarConfig extends Config
 	default int playerBarOpacity()
 	{
 		return 100;
+	}
+
+	@ConfigItem(
+		keyName = "playerDamageTrail",
+		name = "Damage Trail",
+		description = "Leaves a colored trail behind your HP bar when you take damage, draining to " +
+			"your new HP a moment later. Healing has no trail.",
+		section = PLAYER_SECTION,
+		position = 28
+	)
+	default boolean playerDamageTrail()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "playerDamageTrailColor",
+		name = "Damage Trail Color",
+		description = "Color of the health you just lost. Timing is shared by every bar, in " +
+			"Behavior.",
+		section = PLAYER_SECTION,
+		position = 29
+	)
+	default Color playerDamageTrailColor()
+	{
+		return new Color(200, 40, 40, 220);
+	}
+
+	@ConfigItem(
+		keyName = "playerDamageTrailMatchBar",
+		name = "Match Bar Color",
+		description = "Colors the trail from the bar's own color at the health it is draining " +
+			"from, darkened. Replaces Damage Trail Color.",
+		section = PLAYER_SECTION,
+		position = 30
+	)
+	default boolean playerDamageTrailMatchBar()
+	{
+		return false;
 	}
 
 	// ==================== Player bar player info ====================
@@ -1466,6 +1571,45 @@ public interface CustomHpBarConfig extends Config
 		return 100;
 	}
 
+	@ConfigItem(
+		keyName = "otherPlayerDamageTrail",
+		name = "Damage Trail",
+		description = "Leaves a colored trail behind another player's bar when they take damage, " +
+			"draining to their new HP a moment later. Healing has no trail.",
+		section = OTHER_PLAYER_SECTION,
+		position = 12
+	)
+	default boolean otherPlayerDamageTrail()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerDamageTrailColor",
+		name = "Damage Trail Color",
+		description = "Color of the health another player just lost. Timing is shared by every bar, " +
+			"in Behavior.",
+		section = OTHER_PLAYER_SECTION,
+		position = 13
+	)
+	default Color otherPlayerDamageTrailColor()
+	{
+		return new Color(200, 40, 40, 220);
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayerDamageTrailMatchBar",
+		name = "Match Bar Color",
+		description = "Colors the trail from the bar's own color at the health it is draining " +
+			"from, darkened. Replaces Damage Trail Color.",
+		section = OTHER_PLAYER_SECTION,
+		position = 14
+	)
+	default boolean otherPlayerDamageTrailMatchBar()
+	{
+		return false;
+	}
+
 	// ==================== Other player bar info ====================
 
 	@ConfigItem(
@@ -1608,6 +1752,34 @@ public interface CustomHpBarConfig extends Config
 	default boolean colorNamesByCombatLevel()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = "damageTrailHold",
+		name = "Damage Trail Hold (ms)",
+		description = "How long a damage trail stays put before it starts draining. Requires Damage " +
+			"Trail on at least one bar.",
+		section = BEHAVIOR_SECTION,
+		position = 5
+	)
+	@Range(min = 0, max = 2000)
+	default int damageTrailHold()
+	{
+		return 400;
+	}
+
+	@ConfigItem(
+		keyName = "damageTrailDrain",
+		name = "Damage Trail Drain (ms)",
+		description = "How long a damage trail takes to drain down to the current HP once it starts. " +
+			"Requires Damage Trail on at least one bar.",
+		section = BEHAVIOR_SECTION,
+		position = 6
+	)
+	@Range(min = 0, max = 2000)
+	default int damageTrailDrain()
+	{
+		return 250;
 	}
 
 	@ConfigItem(

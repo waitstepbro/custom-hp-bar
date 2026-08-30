@@ -82,6 +82,9 @@ public class CustomHpBarPlugin extends Plugin
 	/** OSRS game tick length, for converting the configurable persist duration to ticks. */
 	private static final double MS_PER_TICK = 600.0;
 
+	/** A damage trail with no fresh observation this recently snaps to current HP instead of animating - see damageTrailFraction(). */
+	private static final long TRAIL_STALE_MS = 2000;
+
 	/** Aggression tolerance window in ticks (10 minutes), matching core's NPC Aggression Timer. */
 	private static final int AGGRESSION_TICKS = 1000;
 
@@ -427,6 +430,16 @@ public class CustomHpBarPlugin extends Plugin
 	@Getter
 	private final Map<Actor, int[]> lastKnownHp = new ConcurrentHashMap<>();
 
+	/** Damage-trail animation state per actor, created lazily by damageTrailFraction() only while the bar's own trail toggle is on. */
+	private final Map<Actor, TrailState> damageTrails = new ConcurrentHashMap<>();
+
+	/** Damage seen by onHitsplatApplied but not yet by any trail state - seeds the trail for a bar's first observed frame. See damageTrailFraction(). */
+	private final Map<Actor, Integer> pendingTrailDamage = new ConcurrentHashMap<>();
+
+	/** NPCs mid death-fade, keyed to the wall-clock ms their death was observed - see beginDeathFade(). */
+	@Getter
+	private final Map<Actor, Long> deathFades = new ConcurrentHashMap<>();
+
 	/** Precise current HP per NPC, kept in sync between coarse ratio/scale buckets via hitsplat deltas - see updatePreciseHp(). */
 	@Getter
 	private final Map<NPC, Integer> preciseNpcHp = new ConcurrentHashMap<>();
@@ -526,6 +539,9 @@ public class CustomHpBarPlugin extends Plugin
 		keyManager.unregisterKeyListener(toggleWeaknessIconsHotkeyListener);
 		trackedActors.clear();
 		lastKnownHp.clear();
+		damageTrails.clear();
+		pendingTrailDamage.clear();
+		deathFades.clear();
 		preciseNpcHp.clear();
 		otherPlayerDamaged.clear();
 		statusEffectTicks.clear();
@@ -656,6 +672,14 @@ public class CustomHpBarPlugin extends Plugin
 			tallyToaDamage((NPC) actor, hitsplat);
 		}
 
+		// The only record of a hit landed before the bar's first drawn frame - without it a kill
+		// from full HP has no earlier fraction to trail from, which is the exact case issue #36
+		// reports as janky. Consumed once, by whichever frame draws this actor next.
+		if (hitsplat.getAmount() > 0 && anyDamageTrailEnabled())
+		{
+			pendingTrailDamage.merge(actor, hitsplat.getAmount(), Integer::sum);
+		}
+
 		// A landed hitsplat is stronger proof of a valid combat target than isAttackableNpc() -
 		// covers no-attack-option NPCs like ToB's Supporting Pillars. See CLAUDE.md.
 		boolean trackable = actor instanceof NPC ? isTrackedNpc((NPC) actor) : isTrackedType(actor);
@@ -687,6 +711,7 @@ public class CustomHpBarPlugin extends Plugin
 		if (isConfirmedDead(actor))
 		{
 			logToaDeathTally(actor);
+			beginDeathFade(actor);
 			evict(actor);
 		}
 	}
@@ -792,6 +817,14 @@ public class CustomHpBarPlugin extends Plugin
 		// left to redraw doesn't need an entry kept around; computeIfAbsent recreates it on demand.
 		overheadHitsplats.values().removeIf(List::isEmpty);
 
+		// Both animation maps are keyed by Actor, so they need a bound of their own for anything
+		// that stops being drawn without ever despawning. The overlay checks elapsed time itself
+		// rather than trusting this to have run - this only stops the maps growing.
+		long nowMs = System.currentTimeMillis();
+		int fadeMs = config.npcDeathFadeDuration();
+		deathFades.values().removeIf(start -> nowMs - start >= fadeMs || nowMs < start);
+		damageTrails.values().removeIf(trail -> nowMs - trail.lastSeenMs > TRAIL_STALE_MS || nowMs < trail.lastSeenMs);
+
 		updateAggressionArea(currentTick);
 
 		// onScriptPostFired only fires while the native HUD is actively updating, so this clears
@@ -838,17 +871,19 @@ public class CustomHpBarPlugin extends Plugin
 		// ConcurrentHashMap.forEach allows safe reads and puts/removes during iteration.
 		trackedActors.forEach((actor, lastSeen) ->
 		{
-			// A config toggle may have turned this actor's bar off since it was tracked - evict
-			// immediately rather than waiting out the persist timer.
-			if (!isTrackedType(actor))
+			// Death first: isTrackedType() already returns false for a corpse, so testing it first
+			// swallowed every death before beginDeathFade() could see one. Same eviction either
+			// way - only which branch claims it changes.
+			if (isConfirmedDead(actor))
 			{
+				beginDeathFade(actor);
 				evict(actor);
 				return;
 			}
 
-			// Safety net for onHitsplatApplied's same check - covers ratio reaching 0 without a
-			// hitsplat landing that tick (e.g. a DOT tick already folded into the ratio read).
-			if (isConfirmedDead(actor))
+			// A config toggle may have turned this actor's bar off since it was tracked - evict
+			// immediately rather than waiting out the persist timer.
+			if (!isTrackedType(actor))
 			{
 				evict(actor);
 				return;
@@ -973,6 +1008,142 @@ public class CustomHpBarPlugin extends Plugin
 		return actor.getHealthRatio() == 0;
 	}
 
+	/**
+	 * Starts an NPC's death fade, if the feature is on and its bar was actually on screen. Called
+	 * immediately before each of the two death evict() calls, never instead of one - the fade is a
+	 * separate render pass over already-evicted NPCs (see CustomHpBarOverlay.render()), so every
+	 * gate issue #22's instant-hide fix installed stays exactly as it was.
+	 *
+	 * The "was showing" test matters: without it a kill by someone else across the room would make
+	 * a bar appear purely to fade it out again.
+	 */
+	private void beginDeathFade(Actor actor)
+	{
+		if (!(actor instanceof NPC) || !config.fadeNpcBarOnDeath() || config.npcDeathFadeDuration() <= 0)
+		{
+			return;
+		}
+
+		// The "Always Show NPC Bar" half mirrors that pass's own conditions exactly - without
+		// isTrackedNpcCached() a blacklisted or non-combat NPC would qualify here despite never
+		// having had a bar to fade.
+		NPC npc = (NPC) actor;
+		if (trackedActors.containsKey(npc)
+			|| (config.alwaysShowNpcBar() && isTrackedNpcCached(npc) && isAttackableNpc(npc)))
+		{
+			deathFades.putIfAbsent(npc, System.currentTimeMillis());
+		}
+	}
+
+	/**
+	 * The fraction a bar's damage trail should draw to this frame, always >= the actor's own
+	 * current fraction. Frame-driven rather than event-driven: the overlay has already resolved
+	 * one authoritative fraction per actor (boss HUD, precise NPC HP, live ratio, or last known),
+	 * so comparing this frame's against the previous one covers every HP source at once.
+	 *
+	 * A drop starts a trail from wherever the previous frame left off; a rise (healing) snaps, as
+	 * does a first sighting or one that went TRAIL_STALE_MS without an observation - a bar that
+	 * was off screen, hotkey-hidden or stack-capped for a while must not animate down the whole
+	 * gap it missed. The one exception is pendingTrailDamage: on a first sighting with a known max
+	 * HP, the hitsplat that has landed but never been drawn seeds the trail's start, which is what
+	 * gives a one-shot kill a trail at all.
+	 *
+	 * Only called while the drawing profile's own trail toggle is on, so state is never allocated
+	 * for a bar that isn't using it. maxHp <= 0 means an unresolved max (percent-only NPCs, other
+	 * players) - the frame-to-frame half still works there, only the seed is unavailable.
+	 */
+	double damageTrailFraction(Actor actor, double fraction, int maxHp)
+	{
+		long now = System.currentTimeMillis();
+		Integer pending = pendingTrailDamage.remove(actor);
+		TrailState state = damageTrails.get(actor);
+
+		if (state == null || now - state.lastSeenMs > TRAIL_STALE_MS || now < state.lastSeenMs)
+		{
+			state = new TrailState();
+			state.reset(fraction, now);
+			damageTrails.put(actor, state);
+
+			if (pending != null && maxHp > 0)
+			{
+				state.start(Math.min(1.0, fraction + pending / (double) maxHp), fraction, now,
+					config.damageTrailHold());
+			}
+			return state.trailAt(now, config.damageTrailDrain());
+		}
+
+		double trail = state.trailAt(now, config.damageTrailDrain());
+		if (fraction < state.lastFraction)
+		{
+			state.start(Math.max(trail, state.lastFraction), fraction, now, config.damageTrailHold());
+		}
+		else if (fraction > state.lastFraction && fraction >= trail)
+		{
+			// Healing snaps: a trail below the new fill would never be visible anyway, and one
+			// above it would read as damage that never happened.
+			state.reset(fraction, now);
+		}
+
+		state.lastFraction = fraction;
+		state.lastSeenMs = now;
+		return Math.max(fraction, state.trailAt(now, config.damageTrailDrain()));
+	}
+
+	/** Whether any bar profile has its damage trail on - gates the hitsplat seed so it costs nothing with the feature off. */
+	private boolean anyDamageTrailEnabled()
+	{
+		return config.targetDamageTrail() || config.playerDamageTrail() || config.otherPlayerDamageTrail();
+	}
+
+	/** Drops trail/fade state that no bar can still be drawing - despawn is the hard end for both. */
+	private void clearAnimations(Actor actor)
+	{
+		damageTrails.remove(actor);
+		pendingTrailDamage.remove(actor);
+		deathFades.remove(actor);
+	}
+
+	/** One damage trail mid-animation: hold at trailStart, then drain to trailTarget. See damageTrailFraction(). */
+	private static final class TrailState
+	{
+		private double lastFraction;
+		private double trailStart;
+		private double trailTarget;
+		private long drainStartMs;
+		private long lastSeenMs;
+
+		private void reset(double fraction, long now)
+		{
+			lastFraction = fraction;
+			trailStart = fraction;
+			trailTarget = fraction;
+			drainStartMs = now;
+			lastSeenMs = now;
+		}
+
+		private void start(double from, double to, long now, int holdMs)
+		{
+			trailStart = from;
+			trailTarget = to;
+			drainStartMs = now + holdMs;
+		}
+
+		private double trailAt(long now, int drainMs)
+		{
+			if (now <= drainStartMs)
+			{
+				return trailStart;
+			}
+			if (drainMs <= 0)
+			{
+				return trailTarget;
+			}
+
+			double progress = Math.min(1.0, (now - drainStartMs) / (double) drainMs);
+			return trailStart + (trailTarget - trailStart) * progress;
+		}
+	}
+
 	@Subscribe
 	public void onNpcDespawned(NpcDespawned event)
 	{
@@ -984,12 +1155,14 @@ public class CustomHpBarPlugin extends Plugin
 		}
 		toaDamageTally.remove(event.getNpc());
 		toaTallyLogged.remove(event.getNpc());
+		clearAnimations(event.getNpc());
 		evict(event.getNpc());
 	}
 
 	@Subscribe
 	public void onPlayerDespawned(PlayerDespawned event)
 	{
+		clearAnimations(event.getPlayer());
 		evict(event.getPlayer());
 	}
 
