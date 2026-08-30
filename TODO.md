@@ -11,8 +11,6 @@ party-size term and the Wardens, but every one of those readings was a boss. Ope
   - **`toaPartySize()`'s varbit read**, never seen reporting a real team - every figure so far was
     read off the game rather than the plugin.
 
-  See "Team scaling settled".
-
 **2. Bar disappears with `hideNativeBar` on**
 ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different
 cause per boss, so a fix for one is not a fix for the others:
@@ -30,22 +28,11 @@ cause per boss, so a fix for one is not a fix for the others:
 ## Features
 
 - **Slayer task NPC identification.**
-- **NPC max hit in the name display**
-  ([issue #27](https://github.com/waitstepbro/custom-hp-bar/issues/27)) - the last third of the request;
-  level and the weakness icon are built. Wiki `max_hit` is free text on 12% of rows (multi-style,
-  conditional, and 103 unparsable), so it needs a which-number policy before it can ship.
-- **Per-element text color, and hiding other players' bars**
-  ([issue #32](https://github.com/waitstepbro/custom-hp-bar/issues/32)) - Prayer color and the
-  blacklist are the cheap pair; HP number vs percentage coloring is the costly one.
-- **Player bar number and percentage together**
-  ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - self already does this;
-  confirm with the requester whether they meant other players.
 - **Scale NPC bar length to the mob's tile size**
   ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.
 
 ## Ideas
 
-- **Damage-taken trail** - ghost segment lagging the fill after a hit.
 - **Phase markers** at boss HP thresholds.
 - **Dim non-target bars** to cut multi-combat clutter.
 - **Decouple bar and name from character animation** - the NPC bar shake and the player-bar bob are
