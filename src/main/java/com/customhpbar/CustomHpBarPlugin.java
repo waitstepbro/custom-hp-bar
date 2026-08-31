@@ -411,6 +411,12 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private volatile Set<Player> overheadEligiblePlayers = Collections.emptySet();
 
+	/** Whether player's native overhead UI is currently suppressed, so the overlay owes them a redrawn replacement - see updateOverheadEligiblePlayers(). */
+	boolean isOverheadEligible(Player player)
+	{
+		return overheadEligiblePlayers.contains(player);
+	}
+
 	/** Suppresses the client's native overhead UI (health bar, prayer icon, hitsplats, chat text) for the local player and overheadEligiblePlayers. */
 	private final RenderCallback renderCallback = new RenderCallback()
 	{

@@ -607,9 +607,26 @@ class CustomHpBarOverlay extends Overlay
 			{
 				// This loop bypasses trackedActors, so the Player Blacklist has to be re-checked here -
 				// same reason the NPC pass above calls isTrackedNpcCached() rather than trusting it.
-				if (other == null || other == localPlayer || !plugin.isTrackedPlayer(other)
-					|| suppressedForSelfTile(other, selfPriorityTile))
+				if (other == null || other == localPlayer || !plugin.isTrackedPlayer(other))
 				{
+					continue;
+				}
+
+				// "Prioritize Self on Same Tile" takes their bar, name and icon row - all three are
+				// stack-positioned, which is what that feature is about - but the render callback
+				// still suppresses their whole native overhead bundle, so chat text and hitsplats
+				// have to be redrawn here or they vanish outright. Both draw at their own vanilla
+				// positions (above the head, on the body), never off the stack, so neither can
+				// crowd self's tile. Eligibility re-checked because it decides whether the native
+				// versions were suppressed at all - redrawing for a player the client is still
+				// drawing natively would double them up. See CLAUDE.md.
+				if (suppressedForSelfTile(other, selfPriorityTile))
+				{
+					if (plugin.isOverheadEligible(other))
+					{
+						drawHitsplats(g, other);
+						drawOverheadChatText(g, other);
+					}
 					continue;
 				}
 
