@@ -10,20 +10,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-/** NPC IDs whose monster is aggressive, from aggressive_npcs.csv - the type, not per-location tolerance. */
+/** Pet NPC IDs, from pet_npcs.csv - by ID because several pets share a name with an attackable NPC. */
 @Slf4j
-class AggressiveNpcTable
+class PetNpcTable
 {
 	private static final Set<Integer> IDS = load();
 
 	private static Set<Integer> load()
 	{
 		Set<Integer> ids = new HashSet<>();
-		try (InputStream in = AggressiveNpcTable.class.getResourceAsStream("aggressive_npcs.csv"))
+		try (InputStream in = PetNpcTable.class.getResourceAsStream("pet_npcs.csv"))
 		{
 			if (in == null)
 			{
-				log.warn("aggressive_npcs.csv not found on classpath; aggressive-NPC coloring will be unavailable");
+				log.warn("pet_npcs.csv not found on classpath; pet names will always show");
 				return ids;
 			}
 
@@ -43,20 +43,20 @@ class AggressiveNpcTable
 					}
 					catch (NumberFormatException e)
 					{
-						log.debug("Skipping malformed aggressive_npcs.csv line: {}", line);
+						log.debug("Skipping malformed pet_npcs.csv line: {}", line);
 					}
 				}
 			}
 		}
 		catch (IOException e)
 		{
-			log.warn("Failed to load aggressive_npcs.csv; aggressive-NPC coloring will be unavailable", e);
+			log.warn("Failed to load pet_npcs.csv; pet names will always show", e);
 		}
 		return ids;
 	}
 
-	/** Whether the given NPC ID is a known-aggressive monster type. */
-	static boolean isAggressive(int npcId)
+	/** Whether the given NPC ID is a known pet, following form or house menagerie form. */
+	static boolean isPet(int npcId)
 	{
 		return IDS.contains(npcId);
 	}

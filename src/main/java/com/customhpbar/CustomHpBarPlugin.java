@@ -82,7 +82,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** OSRS game tick length, for converting the configurable persist duration to ticks. */
 	private static final double MS_PER_TICK = 600.0;
 
-	/** A damage trail with no fresh observation this recently snaps to current HP instead of animating - see damageTrailFraction(). */
+	/** A trail with no fresh observation this recently snaps to current HP instead of animating. */
 	private static final long TRAIL_STALE_MS = 2000;
 
 	/** Aggression tolerance window in ticks (10 minutes), matching core's NPC Aggression Timer. */
@@ -105,14 +105,14 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.BLOCK_ME, HitsplatID.BLOCK_OTHER
 	));
 
-	/** Hitsplats meaning another player hit the NPC - powers greyOutOtherPlayerDamage. Includes BLOCK_OTHER (a 0-damage hit). */
+	/** Hitsplats meaning another player hit the NPC - powers greyOutOtherPlayerDamage. Includes BLOCK_OTHER. */
 	private static final Set<Integer> OTHER_PLAYER_DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
 		HitsplatID.DAMAGE_OTHER, HitsplatID.DAMAGE_OTHER_CYAN, HitsplatID.DAMAGE_OTHER_ORANGE,
 		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE,
 		HitsplatID.BLOCK_OTHER
 	));
 
-	/** Hitsplat type -> the status effect it signals. Also the source of truth for which hitsplats are status-relevant. */
+	/** Hitsplat type -> the status effect it signals, and the source of truth for which are status-relevant. */
 	private static final Map<Integer, StatusEffect> STATUS_HITSPLAT_EFFECTS = buildStatusHitsplatEffects();
 
 	private static Map<Integer, StatusEffect> buildStatusHitsplatEffects()
@@ -127,7 +127,7 @@ public class CustomHpBarPlugin extends Plugin
 		return effects;
 	}
 
-	/** NPC IDs for non-real Moons of Peril mechanic entities (scrapped "Enraged" ghosts, the Blue Moon tornado hazard) - untracked entirely. */
+	/** Non-real Moons of Peril mechanic entities (scrapped ghosts, the Blue Moon tornado) - untracked. */
 	private static final Set<Integer> HIDDEN_MECHANIC_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BLOOD_BOSS_INVIS, NpcID.PMOON_BLUE_BOSS_INVIS, NpcID.PMOON_ECLIPSE_BOSS_INVIS,
 		NpcID.PMOON_BOSS_WINTER_STORM
@@ -138,19 +138,19 @@ public class CustomHpBarPlugin extends Plugin
 		"enraged blood moon", "enraged blue moon", "enraged eclipse moon"
 	));
 
-	/** NPC IDs with no drop table of their own - never greyed out by greyOutOtherPlayerDamage(), since there's no loot to taint. */
+	/** NPC IDs with no drop table of their own - never greyed out, since there's no loot to taint. */
 	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BOSS_JAGUAR
 	));
 
-	/** The trailing parenthetical the boss HP HUD appends to some encounters' names - the HUD's own annotation, not part of the NPC's name. */
+	/** The trailing parenthetical the boss HP HUD appends to some names - the HUD's annotation, not the name. */
 	private static final Pattern HUD_NAME_SUFFIX = Pattern.compile("\\s*\\([^()]*\\)$");
 
-	/** Precompiled for normalizeNpcName - it runs for every NPC in the scene every frame, so per-call Pattern.compile is too costly. */
+	/** Precompiled for normalizeNpcName, which runs for every NPC in the scene every frame. */
 	private static final Pattern NAME_SEPARATORS = Pattern.compile("[:;]");
 	private static final Pattern NAME_WHITESPACE = Pattern.compile("\\s+");
 
-	/** Normalizes tags/non-breaking-spaces/colon-semicolon/whitespace (via Text.standardize()) so name comparisons are reliable. */
+	/** Normalizes tags, non-breaking spaces, colons and whitespace so name comparisons are reliable. */
 	private static String normalizeNpcName(String name)
 	{
 		if (name == null)
@@ -164,12 +164,12 @@ public class CustomHpBarPlugin extends Plugin
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
 
-	/** Vasa's two combat-form IDs; max HP depends on the Challenge Mode varbit, not a static table - see resolveNpcMaxHp(). */
+	/** Vasa's two combat-form IDs; max HP depends on the Challenge Mode varbit, not a static table. */
 	private static final Set<Integer> VASA_NPC_IDS = new HashSet<>(Arrays.asList(7566, 7567));
 	private static final int VASA_NORMAL_HP = 300;
 	private static final int VASA_CM_HP = 450;
 
-	/** ToA's five boss encounters' combat-form NPC IDs - the only ToA NPCs allowed to read the native boss HP HUD, see nativeHudHp(). */
+	/** ToA's five boss encounters' combat forms - the only ToA NPCs allowed to read the native boss HUD. */
 	private static final Set<Integer> TOA_BOSS_NPC_IDS = new HashSet<>(Arrays.asList(
 		// Akkha
 		NpcID.AKKHA_SPAWN, NpcID.AKKHA_MELEE, NpcID.AKKHA_RANGE, NpcID.AKKHA_MAGE,
@@ -202,7 +202,7 @@ public class CustomHpBarPlugin extends Plugin
 		NpcID.GEMSTONE_CRAB, NpcID.GEMSTONE_CRAB_REMAINS
 	));
 
-	/** NPC IDs for encounters where loot is based on personal participation, not "who dealt the kill" - exempt from greyOutOtherPlayerDamage. */
+	/** Encounters where loot follows participation, not the kill - exempt from greyOutOtherPlayerDamage. */
 	private static final Set<Integer> COMMUNAL_LOOT_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.HUEY_HEAD, NpcID.HUEY_HEAD_RESPAWN_PLACEHOLDER, NpcID.HUEY_HEAD_INVULNERABLE,
 		NpcID.HUEY_HEAD_DEFEATED, NpcID.HUEY_HEAD_ENRAGED,
@@ -220,7 +220,7 @@ public class CustomHpBarPlugin extends Plugin
 		"yama", "tempoross", "wintertodt"
 	));
 
-	/** Region IDs for every room of Theatre of Blood - blanket communal-loot exemption, see isCommunalLootEncounter(). */
+	/** Region IDs for every Theatre of Blood room - blanket communal-loot exemption. */
 	private static final Set<Integer> TOB_REGION_IDS = new HashSet<>(Arrays.asList(
 		14642, 12869, 12613, 13125, 13122, 13123, 13379, 12612, 12611, 12867
 	));
@@ -230,7 +230,7 @@ public class CustomHpBarPlugin extends Plugin
 		14160, 15698, 15700, 14162, 14164, 15186, 15188, 14674, 14676, 15184, 15696, 14672
 	));
 
-	/** ToA room region -> that path's level varbit; the Wardens/Nexus/Tomb rooms are absent because no path level applies there. */
+	/** ToA room region -> that path's level varbit; Wardens/Nexus/Tomb are absent, no path level applies. */
 	private static final Map<Integer, Integer> TOA_PATH_LEVEL_VARBITS = new HashMap<>();
 
 	static
@@ -246,37 +246,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * ToA NPCs that take no raid scaling at all and return their base row untouched.
-	 *
-	 * The Apmeken wave-room baboons are wiki-stated - HP "static regardless of raid level and party
-	 * size", the room being a fixed 8-wave combat challenge rather than a scaled one - and every one
-	 * of them measured its base row exactly at raid 300 and again at raid 230 (2026-08-21 logs, see
-	 * CLAUDE.md). "Their health varies" on the wiki refers to the per-variant spread the table
-	 * already carries (Brawler 25/30, Thrower 30/35, Mage 20/25), not to scaling.
-	 *
-	 * The Scarabs, the Crocodile and Ba-Ba's Baboon are measured, not sourced: nothing on the wiki
-	 * says they scale, and logToaDeathTally() found each sitting on its base row at two different
-	 * raid levels while the formula predicted roughly double. The Egg is still assumption alone - no
-	 * kill has been logged for it.
-	 *
-	 * The Obelisk (11751) sat here on that same assumption and is now measured out of it: a 5-man raid
-	 * at raid level 305 read 2310 off the boss HUD, exactly the scaled figure, where static would have
-	 * been 260 (2026-08-27, see CLAUDE.md). It scales like anything else.
-	 *
-	 * Not here, and deliberately not in npc_hp.csv either: the scenery NPCs (Boulder 11783/11737,
-	 * Rubble 11784, Jug 11735) were measured at 25/150/12/5 and left rowless, so they resolve to -1
-	 * and show a percentage. The Wardens' phase-2 exposed core (11755/11758) is rowless for the same
-	 * reason, by choice rather than measurement - not a pool worth tracking as a number - and is out of
-	 * TOA_BOSS_NPC_IDS too, so the boss HUD cannot lend it one either.
-	 *
-	 * A row is what turns an NPC into a number, so dropping the row is how you opt one out entirely.
-	 * See CLAUDE.md.
-	 *
-	 * NOT here, though it reads like it belongs: Baboon Thrall (11718) scales normally - measured 3
-	 * at raid 230 and 4 at raid 300 off a base of 2, exactly what toaScaledMaxHp() gives.
-	 *
-	 * Only ids npc_hp.csv actually carries a row for matter here; the other Obelisk/Egg variants
-	 * resolve to -1 with or without this set.
+	 * ToA NPCs that take no raid scaling and return their base row untouched - measured in-game rather
+	 * than sourced, so see CLAUDE.md before adding or removing an id. An NPC with no npc_hp.csv row at
+	 * all resolves to -1 and shows a percentage, which is how one opts out of a number entirely.
 	 */
 	private static final Set<Integer> TOA_STATIC_HP_NPC_IDS = new HashSet<>(Arrays.asList(
 		11709, 11712,   // Baboon Brawler
@@ -294,12 +266,9 @@ public class CustomHpBarPlugin extends Plugin
 	));
 
 	/**
-	 * Het's Seal, the Path of Het challenge-room objective, by party size (index 0 = solo). The wiki
-	 * publishes these as a table rather than a formula because it has no clean one - the steps run
-	 * 106, 96, 96, 95, 96, 96, 96 - and states outright that "raid level or selected invocations have
-	 * no effect on the HP of Het's Seal. Its HP scales differently to other NPCs found within the
-	 * raid." Confirmed solo live at raid 230 / path 1: 119 on the nose, from the boss HUD and from a
-	 * damage tally both. Absent from npc_hp.csv entirely, hence the table here.
+	 * Het's Seal, the Path of Het objective, by party size (index 0 = solo). A table because the wiki has no
+	 * clean formula for it - the steps run 106, 96, 96, 95, 96, 96, 96 - and raid level and invocations do
+	 * not affect it at all. Absent from npc_hp.csv entirely, hence the table here.
 	 */
 	private static final int[] HET_SEAL_HP_BY_PARTY_SIZE = {119, 225, 321, 417, 512, 608, 704, 800};
 	private static final Set<Integer> HET_SEAL_NPC_IDS = new HashSet<>(Arrays.asList(11706, 11707));
@@ -310,17 +279,17 @@ public class CustomHpBarPlugin extends Plugin
 		VarbitID.TOA_CLIENT_P4, VarbitID.TOA_CLIENT_P5, VarbitID.TOA_CLIENT_P6, VarbitID.TOA_CLIENT_P7
 	};
 
-	/** Doom of Mokhaiotl's max HP per delve level (index 0 = level 1); deep delves (9+) use DOOM_DEEP_DELVE_HP instead. */
+	/** Doom of Mokhaiotl's max HP per delve level (index 0 = level 1); 9+ uses DOOM_DEEP_DELVE_HP. */
 	private static final int[] DOOM_DELVE_HP = {525, 550, 575, 600, 625, 650, 650, 675};
 	private static final int DOOM_DEEP_DELVE_HP = 625;
 
-	/** Invariant middle fragments of the game's two Ironman loot warnings - wording varies at the edges. Lowercase, matching Text.standardize(). */
+	/** Invariant middles of the game's two Ironman loot warnings - lowercase, matching Text.standardize(). */
 	private static final String[] NO_LOOT_MESSAGES = {
 		"not receive kill-credit",
 		"don't get loot if other players helped you"
 	};
 
-	/** Matches the "Delve level: N duration: ..." end-of-fight message (deep delves report the real level in group 2). */
+	/** Matches the "Delve level: N duration: ..." message (deep delves report the real level in group 2). */
 	private static final Pattern DOOM_DELVE_MESSAGE = Pattern.compile(
 		"^Delve level: (\\d+)(?:\\+ \\((\\d+)\\))? duration:");
 
@@ -349,13 +318,9 @@ public class CustomHpBarPlugin extends Plugin
 	private KeyManager keyManager;
 
 	/**
-	 * Runtime-only show/hide state for "Toggle Names"/"Toggle HP Bars" - flipped by the hotkey
-	 * listeners below, read by CustomHpBarOverlay's draw calls. Not config-backed (a hotkey is
-	 * meant to be an instant, temporary override, not a persisted setting) and deliberately not
-	 * reset in startUp()/shutDown() - default true (visible) matches every other bar/name toggle's
-	 * "on by default" convention, and there'd be nothing to reset to anyway since nothing persists
-	 * this across a client restart. Volatile since AWT's key-event thread writes these, not the
-	 * client thread that reads them in CustomHpBarOverlay.render().
+	 * Runtime-only show/hide state for "Toggle Names"/"Toggle HP Bars", flipped by the hotkey listeners
+	 * below. Not config-backed and not reset on startUp()/shutDown() - a hotkey is a temporary override,
+	 * not a setting. Volatile because AWT's key thread writes what the client thread reads.
 	 */
 	@Getter
 	private volatile boolean namesVisible = true;
@@ -402,16 +367,19 @@ public class CustomHpBarPlugin extends Plugin
 	private volatile boolean otherPlayersInScene;
 
 	/**
-	 * Other players currently eligible for the same overhead icon/hitsplat/chat-text replacement
-	 * self gets - tracked (a bar is showing) or "Always Show Player Name" eligible (a name is
-	 * showing) - recomputed once per tick in updateOverheadEligiblePlayers(), not per frame, since
-	 * the render callback needs an answer before the overlay's own per-frame draw decisions run.
-	 * Volatile, swapped as a whole immutable snapshot: the render callback may read this off the
-	 * client thread relative to the tick handler that writes it - see suppressSelfOverheads above.
+	 * Other players currently eligible for the overhead icon/hitsplat/chat-text replacement self gets -
+	 * tracked, or eligible for an always-show name or bar. Recomputed per tick, not per frame: the render
+	 * callback needs an answer first. Volatile, swapped as a whole snapshot, since it reads off-thread.
 	 */
 	private volatile Set<Player> overheadEligiblePlayers = Collections.emptySet();
 
-	/** Suppresses the client's native overhead UI (health bar, prayer icon, hitsplats, chat text) for the local player and overheadEligiblePlayers. */
+	/** Whether player's native overhead UI is suppressed, so the overlay owes them a redrawn replacement. */
+	boolean isOverheadEligible(Player player)
+	{
+		return overheadEligiblePlayers.contains(player);
+	}
+
+	/** Suppresses the native overhead UI (bar, icon, hitsplats, chat) for self and eligible players. */
 	private final RenderCallback renderCallback = new RenderCallback()
 	{
 		@Override
@@ -445,50 +413,50 @@ public class CustomHpBarPlugin extends Plugin
 	@Getter
 	private final Map<Actor, int[]> lastKnownHp = new ConcurrentHashMap<>();
 
-	/** Damage-trail animation state per actor, created lazily by damageTrailFraction() only while the bar's own trail toggle is on. */
+	/** Damage-trail state per actor, created lazily only while the bar's own trail toggle is on. */
 	private final Map<Actor, TrailState> damageTrails = new ConcurrentHashMap<>();
 
-	/** Damage seen by onHitsplatApplied but not yet by any trail state - seeds the trail for a bar's first observed frame. See damageTrailFraction(). */
+	/** Damage seen by onHitsplatApplied but not yet by any trail state - seeds a bar's first observed frame. */
 	private final Map<Actor, Integer> pendingTrailDamage = new ConcurrentHashMap<>();
 
 	/** NPCs mid death-fade, keyed to the wall-clock ms their death was observed - see beginDeathFade(). */
 	@Getter
 	private final Map<Actor, Long> deathFades = new ConcurrentHashMap<>();
 
-	/** Precise current HP per NPC, kept in sync between coarse ratio/scale buckets via hitsplat deltas - see updatePreciseHp(). */
+	/** Precise current HP per NPC, kept in sync between coarse ratio/scale buckets via hitsplat deltas. */
 	@Getter
 	private final Map<NPC, Integer> preciseNpcHp = new ConcurrentHashMap<>();
 
 	/** NPCs damaged by someone other than the local player since last evicted - powers greyOutOtherPlayerDamage. */
 	private final Set<NPC> otherPlayerDamaged = ConcurrentHashMap.newKeySet();
 
-	/** Tick of the most recent status-effect hitsplat, per effect per actor - the only signal for NPCs/other players (see activeStatusEffects()). */
+	/** Tick of the most recent status hitsplat, per effect per actor - the only signal for NPCs and players. */
 	private final Map<Actor, Map<StatusEffect, Integer>> statusEffectTicks = new ConcurrentHashMap<>();
 
 	/** Cached compiled filter patterns to avoid regex compilation on every tracking check. */
 	private String cachedFilterString = "";
 	private List<Pattern> cachedPatterns = new ArrayList<>();
 
-	/** Same, for the other-player blacklist - kept separate so one filter's edits don't invalidate the other's cache. */
+	/** Same, for the other-player blacklist - separate so one filter's edits don't invalidate the other. */
 	private String cachedPlayerFilterString = "";
 	private List<Pattern> cachedPlayerPatterns = new ArrayList<>();
 
-	/** isTrackedNpc() result per NPC, cached for one game tick rather than recomputed every frame - see isTrackedNpcCached(). CLAUDE.md. */
+	/** isTrackedNpc() result per NPC, cached for one game tick rather than recomputed every frame. */
 	private int trackedNpcCacheTick = Integer.MIN_VALUE;
 	private final Map<NPC, Boolean> trackedNpcCache = new ConcurrentHashMap<>();
 	private int trackedNpcCacheHits;
 	private int trackedNpcCacheMisses;
 	private int trackedNpcCacheLastLogTick;
 
-	/** Debug-only: ToA NPC ids already logged for the current room, so logToaScaling() reports each once per room. TODO bug 1. */
+	/** Debug-only: ToA NPC ids already logged this room, so logToaScaling() reports each once. TODO bug 1. */
 	private final Set<Integer> toaLoggedNpcIds = new HashSet<>();
 	private int toaLoggedRegion = -1;
 
-	/** Debug-only: last boss-HUD reading already logged, so logToaBossHud() reports each boss and phase once. TODO bug 1. */
+	/** Debug-only: last boss-HUD reading logged, so logToaBossHud() reports each boss and phase once. */
 	private int loggedHudMaxHp = -1;
 	private String loggedHudName;
 
-	/** Debug-only: damage dealt to each live ToA NPC as {total, lastHit, hits}, dumped on death by logToaDeathTally(). TODO bug 1. */
+	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits}, dumped on death. TODO bug 1. */
 	private final Map<NPC, int[]> toaDamageTally = new ConcurrentHashMap<>();
 	private final Set<NPC> toaTallyLogged = ConcurrentHashMap.newKeySet();
 
@@ -496,7 +464,7 @@ public class CustomHpBarPlugin extends Plugin
 	private Actor pendingClickActor;
 	private boolean pendingClickIsAttack;
 
-	/** Tick the aggression tolerance window expires; aggressionSafeCenters holds the two anchor positions it's relative to. */
+	/** Tick the aggression tolerance window expires; aggressionSafeCenters holds its two anchors. */
 	private int aggressionEndTick;
 	private final WorldPoint[] aggressionSafeCenters = new WorldPoint[2];
 
@@ -509,10 +477,10 @@ public class CustomHpBarPlugin extends Plugin
 	/** Wall-clock ms the last GameTick was observed - powers tickProgress(), the Prayer bar's sweeping tick timer. */
 	private long lastTickTimeMs = System.currentTimeMillis();
 
-	/** Run energy last seen by trackRunEnergyChange(), for detecting the next decrease - see isRunEnergyBarTimedOut(). -1 = never sampled. */
+	/** Run energy last seen by trackRunEnergyChange(), for detecting the next decrease. -1 = never sampled. */
 	private int lastRunEnergyValue = -1;
 
-	/** Wall-clock ms run energy last actively decreased (not tick-based - server ticks aren't continuous across instances). See CLAUDE.md. */
+	/** Wall-clock ms run energy last actively decreased; ticks aren't continuous across instances. */
 	private long lastRunEnergyDrainMs = Long.MIN_VALUE;
 
 	/** Whether a BLEED_END_VARCS entry was still counting down last time it was read - see isSelfBleeding(). */
@@ -521,14 +489,13 @@ public class CustomHpBarPlugin extends Plugin
 	/** Tick a varc-timed bleed was last seen to end; bleed hitsplats at or before it belong to that finished bleed. */
 	private int bleedEndedTick = Integer.MIN_VALUE;
 
-	/** Live HP/boss name from the game's own native boss HP HUD - preferred over every other HP source, see nativeHudHp(). */
+	/** Live HP/boss name from the native boss HP HUD - preferred over every other HP source. */
 	private String nativeHudBossName;
 
 	/**
-	 * nativeHudBossName with HUD_NAME_SUFFIX removed, or null when there was nothing to remove.
-	 * Only ever consulted after the exact comparison fails, and only the HUD side is stripped:
-	 * stripping the actor's side too would let "Great Olm (Left claw)" answer to Olm's own HUD
-	 * figure. A field rather than a per-call strip because nativeHudHp() runs per actor per frame.
+	 * nativeHudBossName with HUD_NAME_SUFFIX removed, or null when there was nothing to remove. Consulted
+	 * only after the exact comparison fails, and only the HUD side is stripped - stripping the actor's too
+	 * would let "Great Olm (Left claw)" answer to Olm's own HUD figure. A field since nativeHudHp() is hot.
 	 */
 	private String nativeHudBossBaseName;
 	private int nativeHudCurrentHp;
@@ -614,10 +581,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Scene reloads (walking far enough to shift the loaded area, not just world-hops) can rebuild the
-	 * client's health-bar render cache without re-consulting our sprite overrides, letting the native bar
-	 * flash through until something else touches it again. Re-assert on every LOADING -> LOGGED_IN
-	 * transition, not just config changes.
+	 * Scene reloads can rebuild the client's health-bar render cache without re-consulting our sprite
+	 * overrides, letting the native bar flash through. Re-assert on every LOADING -> LOGGED_IN transition,
+	 * not just on config changes.
 	 */
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
@@ -628,7 +594,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** Recomputes native-sprite overrides from hideNativeBar + showPrayerBar together, rather than each toggle its own set. */
+	/** Recomputes native-sprite overrides from hideNativeBar and showPrayerBar together, not per toggle. */
 	private void syncNativeBarOverrides()
 	{
 		// Removal still spans ALL, not HEALTH_ONLY: whatever the last sync applied has to come back
@@ -670,11 +636,9 @@ public class CustomHpBarPlugin extends Plugin
 		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
 
-		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat
-		// should show for anything the native client would show one for, e.g. PRAYER_DRAIN.
-		// overheadEligiblePlayers is tick-granular (see its own doc), so a player who only just
-		// became eligible this exact tick may miss their very first hitsplat - accepted, matches
-		// the same "risk is asymmetric, not worth chasing exactly" tradeoff used elsewhere here.
+		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat should show for
+		// anything the native client would, e.g. PRAYER_DRAIN. overheadEligiblePlayers being tick-granular, a
+		// player who just became eligible can miss their first splat; accepted.
 		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor)))
 		{
 			overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>())
@@ -714,11 +678,9 @@ public class CustomHpBarPlugin extends Plugin
 			track(actor, client.getTickCount());
 		}
 
-		// A hit you dealt to someone else - Hitsplat.isMine(), which includes BLOCK_ME (a 0-damage
-		// hit you landed) - keeps your own bar's tracked clock refreshed even while you're not
-		// taking damage yourself. Without this, isInCombat(localPlayer) (native health ratio, taking
-		// damage only) is the sole thing keeping self tracked, so the bar could expire mid-fight
-		// just from attacking something that isn't hitting back. See CLAUDE.md.
+		// A hit you dealt to someone else - Hitsplat.isMine(), which includes BLOCK_ME - keeps your own bar's
+		// clock refreshed while you take no damage yourself. Without it the bar can expire mid-fight against
+		// something that never hits back.
 		Player localPlayer = client.getLocalPlayer();
 		if (actor != localPlayer && hitsplat.isMine() && isTrackedType(localPlayer))
 		{
@@ -727,11 +689,9 @@ public class CustomHpBarPlugin extends Plugin
 
 		trackStatusEffect(actor, hitsplat.getHitsplatType());
 
-		// otherPlayersInScene is the whole point: the client types an NPC's own mechanic damage
-		// (a Doom larva exploding, and anything else shaped like it) as DAMAGE_OTHER, exactly as it
-		// types another player's hit, so the splat alone cannot tell them apart. Nobody else being
-		// in the scene can - it makes "another player did this" impossible rather than unlikely.
-		// The chat-message path stays untouched; it's the game's own verdict, not an inference.
+		// otherPlayersInScene is the whole point: the client types an NPC's own mechanic damage as
+		// DAMAGE_OTHER exactly as it types another player's hit, so the splat alone can't tell them apart.
+		// An empty scene can. The chat-message path stays untouched - that's the game's verdict, not ours.
 		if (actor instanceof NPC && otherPlayersInScene
 			&& OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
 		{
@@ -789,7 +749,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** Whether actor is a genuine attack target - combat level plus the last Attack-click override, see pendingClickActor. */
+	/** Whether actor is a genuine attack target - combat level plus the last Attack-click override. */
 	private boolean isGenuineAttackTarget(Actor actor)
 	{
 		if (actor.getCombatLevel() <= 0)
@@ -939,20 +899,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Recomputes overheadEligiblePlayers: tracked other players (a bar is showing) union "Always
-	 * Show Player Name" eligible other players (a name is showing) union "Always Show Player HP
-	 * Bar" eligible other players (a bar is showing) union any other player currently showing a
-	 * skull or overhead (prayer) icon - the same conditions CustomHpBarOverlay's own render()
-	 * passes use to decide whether a player gets anything drawn at all (see its "Always Show
-	 * Player Bar"/"Always Show Player Name" loop, and its iconOnly branch specifically for the
-	 * last case). Tick-granular, not per-frame - see the field's own doc for why.
-	 *
-	 * The skull/icon union exists so a player with neither a bar nor a name showing (not tracked,
-	 * neither "Always Show" toggle on) still gets their native skull/prayer icon suppressed - and
-	 * therefore needs CustomHpBarOverlay to actually redraw a replacement, or it would just
-	 * vanish instead of showing at its own default position. Requires scanning every player
-	 * unconditionally now, not just when an always-show toggle is on, since a skulled/praying
-	 * player can appear regardless of those toggles.
+	 * Recomputes overheadEligiblePlayers: tracked players, always-show name/bar players, and anyone with
+	 * a skull or prayer icon - mirroring what CustomHpBarOverlay actually draws, since every player in
+	 * here has their native overhead bundle suppressed and needs a replacement drawn for it.
 	 */
 	private void updateOverheadEligiblePlayers()
 	{
@@ -1000,20 +949,20 @@ public class CustomHpBarPlugin extends Plugin
 		otherPlayersInScene = anyOtherPlayer;
 	}
 
-	/** Ends active tracking on persist-timeout without clearing lastKnownHp/preciseNpcHp - still needed by "Always Show NPC Bar". */
+	/** Ends active tracking on persist-timeout without clearing lastKnownHp/preciseNpcHp. */
 	private void stopTracking(Actor actor)
 	{
 		trackedActors.remove(actor);
 	}
 
-	/** (Re-)marks actor as tracked as of tick and caches its current HP - the pair every discovery/resync path performs together. */
+	/** (Re-)marks actor tracked as of tick and caches its HP - what every discovery path does together. */
 	private void track(Actor actor, int tick)
 	{
 		trackedActors.put(actor, tick);
 		cacheHp(actor);
 	}
 
-	/** NPCs and players persist independently - see targetPersistDuration/playerPersistDuration's config descriptions. */
+	/** NPCs and players persist independently - see the two persist-duration config descriptions. */
 	private int persistTicks(Actor actor)
 	{
 		int seconds = actor instanceof NPC ? config.targetPersistDuration() : config.playerPersistDuration();
@@ -1039,12 +988,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * True once an actor (NPC or player, self included) is confirmed dead (0 HP) - its bar should
-	 * vanish immediately, not after persistTicks(), and not after the death animation. Ratio 0
-	 * unambiguously means dead in OSRS's ratio/scale scheme, but the animation keeps reporting it
-	 * for several more ticks before the actor actually despawns - persist duration is for actors
-	 * that are still alive but out of combat, not for this. Originally NPC-only; widened to cover
-	 * players too - see CLAUDE.md.
+	 * True once an actor (NPC or player, self included) is confirmed dead - ratio 0 unambiguously means dead,
+	 * and its bar should vanish immediately rather than after persistTicks() or the death animation. The
+	 * animation keeps reporting 0 for several ticks; persist duration is for actors still alive.
 	 */
 	static boolean isConfirmedDead(Actor actor)
 	{
@@ -1052,13 +998,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Starts an NPC's death fade, if the feature is on and its bar was actually on screen. Called
-	 * immediately before each of the two death evict() calls, never instead of one - the fade is a
-	 * separate render pass over already-evicted NPCs (see CustomHpBarOverlay.render()), so every
-	 * gate issue #22's instant-hide fix installed stays exactly as it was.
-	 *
-	 * The "was showing" test matters: without it a kill by someone else across the room would make
-	 * a bar appear purely to fade it out again.
+	 * Starts an NPC's death fade, if the feature is on and its bar was actually on screen. Called just
+	 * before each death evict(), never instead of one, so issue #22's instant-hide gates all still hold.
+	 * The "was showing" test stops a kill across the room making a bar appear purely to fade it out.
 	 */
 	private void beginDeathFade(Actor actor)
 	{
@@ -1079,21 +1021,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * The fraction a bar's damage trail should draw to this frame, always >= the actor's own
-	 * current fraction. Frame-driven rather than event-driven: the overlay has already resolved
-	 * one authoritative fraction per actor (boss HUD, precise NPC HP, live ratio, or last known),
-	 * so comparing this frame's against the previous one covers every HP source at once.
-	 *
-	 * A drop starts a trail from wherever the previous frame left off; a rise (healing) snaps, as
-	 * does a first sighting or one that went TRAIL_STALE_MS without an observation - a bar that
-	 * was off screen, hotkey-hidden or stack-capped for a while must not animate down the whole
-	 * gap it missed. The one exception is pendingTrailDamage: on a first sighting with a known max
-	 * HP, the hitsplat that has landed but never been drawn seeds the trail's start, which is what
-	 * gives a one-shot kill a trail at all.
-	 *
-	 * Only called while the drawing profile's own trail toggle is on, so state is never allocated
-	 * for a bar that isn't using it. maxHp <= 0 means an unresolved max (percent-only NPCs, other
-	 * players) - the frame-to-frame half still works there, only the seed is unavailable.
+	 * The fraction a bar's damage trail should draw to this frame, always >= the actor's current one.
+	 * Frame-driven, so one comparison covers every HP source at once. A drop trails from the previous
+	 * frame; a rise, a first sighting, or a gap over TRAIL_STALE_MS snaps rather than animating the miss.
 	 */
 	double damageTrailFraction(Actor actor, double fraction, int maxHp)
 	{
@@ -1132,7 +1062,7 @@ public class CustomHpBarPlugin extends Plugin
 		return Math.max(fraction, state.trailAt(now, config.damageTrailDrain()));
 	}
 
-	/** Whether any bar profile has its damage trail on - gates the hitsplat seed so it costs nothing with the feature off. */
+	/** Whether any bar profile has its damage trail on - gates the hitsplat seed when it's all off. */
 	private boolean anyDamageTrailEnabled()
 	{
 		return config.targetDamageTrail() || config.playerDamageTrail() || config.otherPlayerDamageTrail();
@@ -1239,7 +1169,7 @@ public class CustomHpBarPlugin extends Plugin
 		doomDelveLevel = completedLevel + 1;
 	}
 
-	/** The game's Ironman no-loot chat warning - an extra source into otherPlayerDamaged, not a replacement for the hitsplat heuristic. */
+	/** The game's Ironman no-loot warning - an extra source into otherPlayerDamaged, not a replacement. */
 	private void markLootTaintedFromMessage(String message)
 	{
 		if (message == null || !isNoLootMessage(Text.standardize(message)))
@@ -1267,7 +1197,7 @@ public class CustomHpBarPlugin extends Plugin
 		return false;
 	}
 
-	/** Refreshes nativeHudBossName/Current/MaxHp from the native boss HP HUD widget - fires on ScriptID.HP_HUD_UPDATE. */
+	/** Refreshes nativeHudBossName/Current/MaxHp from the boss HP HUD widget, on ScriptID.HP_HUD_UPDATE. */
 	@Subscribe
 	public void onScriptPostFired(ScriptPostFired event)
 	{
@@ -1361,7 +1291,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** Single chokepoint for an NPC's max HP - Doom/Vasa special-cased first, then ToA's own raid scaling (see CLAUDE.md). */
+	/** Single chokepoint for an NPC's max HP - Doom/Vasa first, then ToA's own raid scaling. */
 	int resolveNpcMaxHp(int npcId)
 	{
 		if (DOOM_NPC_IDS.contains(npcId))
@@ -1468,17 +1398,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): the boss HP HUD's own numbers, which are the server's, not ours.
-	 * VarbitID.HPBAR_HUD_HP / HPBAR_HUD_BASEHP drive the bar core's OpponentInfoPlugin rewrites, and
-	 * its comment names the content: "used in CoX, ToA, Gauntlet, quest bosses ... not ToB". So
-	 * BASEHP is the true scaled max for whatever the bar is showing - exact, and free of the two
-	 * things that make logToaDeathTally() useless on a boss: Akkha restarting the tally at every
-	 * elemental phase, and Tumeken's Warden carrying one across a phase change.
-	 *
-	 * Logged once per (name, max) pair, so each boss and each phase reports once rather than every
-	 * tick. Also prints what the local player is fighting and what our own formula predicts for it,
-	 * which is the actual comparison; the HUD names its target but doesn't give an NPC id, so
-	 * attribution is by interaction and by the name the HUD itself draws.
+	 * Debug-only (TODO bug 1): the boss HP HUD's own numbers, which are the server's -
+	 * VarbitID.HPBAR_HUD_HP / HPBAR_HUD_BASEHP, exact where logToaDeathTally() is not. Logged once per
+	 * (name, max) pair, alongside what our own formula predicts for the same target.
 	 */
 	private void logToaBossHud(int region, int raidLevel, int pathLevel, int partySize)
 	{
@@ -1576,7 +1498,7 @@ public class CustomHpBarPlugin extends Plugin
 		return Math.max(1, size);
 	}
 
-	/** Local player's region ID, translated through WorldPoint.fromLocalInstance() - raw getWorldLocation() breaks inside raids. See CLAUDE.md. */
+	/** Local player's region ID via WorldPoint.fromLocalInstance() - raw getWorldLocation() breaks in raids. */
 	private int localPlayerRegion()
 	{
 		Player localPlayer = client.getLocalPlayer();
@@ -1595,7 +1517,7 @@ public class CustomHpBarPlugin extends Plugin
 		return TOA_REGION_IDS.contains(localPlayerRegion());
 	}
 
-	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact [minHealth, maxHealth] bound. */
+	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact bound. */
 	private void updatePreciseHp(NPC npc, int ratio, int scale, boolean freshRead)
 	{
 		int maxHp = resolveNpcMaxHp(npc.getId());
@@ -1688,19 +1610,19 @@ public class CustomHpBarPlugin extends Plugin
 		preciseNpcHp.put(npc, updated);
 	}
 
-	/** Ticks a Poison/Venom/Disease tint stays active, matching PoisonPlugin's cadence. Not used for Burn/Bleed - they tick far faster. */
+	/** Ticks a Poison/Venom/Disease tint stays active, matching PoisonPlugin. Burn/Bleed tick far faster. */
 	private static final int STATUS_EFFECT_TICKS = 31;
 
 	/** Ticks a Burn hitsplat's tint/icon stays active - short, since Burn applies instantly and fades fast. */
 	private static final int BURN_STATUS_TICKS = 8;
 
-	/** Same idea for Bleed, tuned a notch shorter than Burn by in-game testing - 8 still outlasted the real bleed slightly. */
+	/** Same for Bleed, a notch shorter than Burn by testing - 8 still outlasted the real bleed slightly. */
 	private static final int BLEED_STATUS_TICKS = 6;
 
-	/** VarPlayerID.POISON value at and above which the player is envenomed rather than poisoned - matches PoisonPlugin's own VENOM_THRESHOLD. */
+	/** POISON varp value at and above which the player is envenomed - matches PoisonPlugin's threshold. */
 	private static final int VENOM_THRESHOLD = 1_000_000;
 
-	/** Game cycle each of the player's bleed debuffs ends on - the only signal that reacts to a haemostatic dressing, see isSelfBleeding(). */
+	/** Game cycle each bleed debuff ends on - the only signal that reacts to a haemostatic dressing. */
 	private static final int[] BLEED_END_VARCS = {VarClientID.BUFF_BLEED_END, VarClientID.BUFF_ZEBAK_BLEED_END};
 
 	enum StatusEffect
@@ -1708,7 +1630,7 @@ public class CustomHpBarPlugin extends Plugin
 		VENOM, POISON, BURN, BLEED, DISEASE, CORRUPTION
 	}
 
-	/** Every status effect currently active for actor; local player uses the exact Poison/Venom/Disease varps, others use hitsplat timing. */
+	/** Every status effect active for actor; self uses the Poison/Venom/Disease varps, others hitsplat timing. */
 	Set<StatusEffect> activeStatusEffects(Actor actor)
 	{
 		int currentTick = client.getTickCount();
@@ -1755,7 +1677,7 @@ public class CustomHpBarPlugin extends Plugin
 		return active;
 	}
 
-	/** Whether the local player is bleeding - prefers the bleed-end varc, falls back to the hitsplat window for bleeds with no varc. See CLAUDE.md. */
+	/** Whether the local player is bleeding - the bleed-end varc first, then the hitsplat window. */
 	private boolean isSelfBleeding(Map<StatusEffect, Integer> ticks, int currentTick)
 	{
 		int cycle = client.getGameCycle();
@@ -1825,7 +1747,7 @@ public class CustomHpBarPlugin extends Plugin
 	private static final Color SELF_DISEASE_COLOR = new Color(207, 149, 9);
 	private static final Color SELF_CORRUPTION_COLOR = new Color(127, 61, 205);
 
-	/** Bar fill color for actor's current status effect, or null if none/disabled. Color profile follows actor type, not "is local player". */
+	/** Bar fill color for actor's status effect, or null if none. The color profile follows actor type. */
 	Color statusEffectColor(Actor actor)
 	{
 		boolean isPlayer = actor instanceof Player;
@@ -1861,7 +1783,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** Live [current, max] HP for actor; local player reads the Hitpoints skill directly, not the combat-only ratio/scale. */
+	/** Live [current, max] HP for actor; self reads the Hitpoints skill, not the combat-only ratio/scale. */
 	static int[] readHp(Client client, Actor actor)
 	{
 		if (actor == client.getLocalPlayer())
@@ -1878,22 +1800,16 @@ public class CustomHpBarPlugin extends Plugin
 		return null;
 	}
 
-	/** Reads the once-per-tick latch, mirroring core PrayerPlugin's prayersActive - so the bar can only change on a tick boundary. */
+	/** Reads the once-per-tick latch, mirroring core's prayersActive - the bar changes only on a tick. */
 	boolean isPrayerActive()
 	{
 		return prayerActive;
 	}
 
 	/**
-	 * Progress through the current game tick, in radians [0, PI) - powers the Prayer bar's
-	 * sweeping tick timer (see CustomHpBarOverlay.drawPrayerTickTimer()). Deliberately matches
-	 * core's own `PrayerPlugin.getTickProgress()` exactly (verified against the decompiled
-	 * client-1.12.35-sources.jar, package net.runelite.client.plugins.prayer) rather than a
-	 * simpler [0, 1) fraction: elapsed time since the last GameTick is taken modulo the nominal
-	 * 600ms tick length (not clamped - stays a wrapping sawtooth instead of sticking at the
-	 * endpoint if a frame renders late), then scaled to [0, PI) so callers can drive the same
-	 * `-cos(t)` easing curve core's PrayerBarOverlay/PrayerFlickOverlay use for their own flick
-	 * indicators - the sweep should feel identical to theirs, not just exist independently.
+	 * Progress through the current game tick, in radians [0, PI) - drives the Prayer bar's sweeping tick
+	 * timer. Matches core PrayerPlugin.getTickProgress() exactly, so the sweep eases identically to core's
+	 * own flick indicators: elapsed time modulo 600ms, wrapping rather than clamping if a frame runs late.
 	 */
 	double tickProgress()
 	{
@@ -1902,7 +1818,7 @@ public class CustomHpBarPlugin extends Plugin
 		return fraction * Math.PI;
 	}
 
-	/** Special attack energy as a 0-100 percentage - SA_ENERGY counts in tenths of a percent, same read as core's StatusBarsOverlay. */
+	/** Special attack energy as 0-100 - SA_ENERGY counts in tenths of a percent. */
 	int specialAttackEnergy()
 	{
 		return client.getVarpValue(VarPlayerID.SA_ENERGY) / 10;
@@ -1917,13 +1833,13 @@ public class CustomHpBarPlugin extends Plugin
 		return client.getEnergy() / 100;
 	}
 
-	/** Whether a Stamina potion's drain-reduction buff is active - same varbit core's StatusBarsOverlay swaps its run bar color on. */
+	/** Whether a Stamina potion's drain-reduction buff is active - core's own run-bar varbit. */
 	boolean isStaminaActive()
 	{
 		return client.getVarbitValue(VarbitID.STAMINA_ACTIVE) != 0;
 	}
 
-	/** Latches lastRunEnergyValue/lastRunEnergyDrainMs whenever run energy actually decreases - sampled once per tick from onGameTick. */
+	/** Latches lastRunEnergyValue/lastRunEnergyDrainMs whenever run energy actually decreases. */
 	private void trackRunEnergyChange()
 	{
 		int current = runEnergy();
@@ -1934,7 +1850,7 @@ public class CustomHpBarPlugin extends Plugin
 		lastRunEnergyValue = current;
 	}
 
-	/** Whether the run bar's timeout has elapsed since energy was last actually draining (decreases only, not regen). See CLAUDE.md. */
+	/** Whether the run bar's timeout has elapsed since energy last drained - decreases only, not regen. */
 	boolean isRunEnergyBarTimedOut()
 	{
 		int timeoutSeconds = config.runEnergyBarTimeout();
@@ -1964,7 +1880,7 @@ public class CustomHpBarPlugin extends Plugin
 		return false;
 	}
 
-	/** Advances the aggression tolerance window, porting core's real two-safe-tile mechanic rather than an "is a monster nearby" heuristic. */
+	/** Advances the aggression tolerance window, porting core's real two-safe-tile mechanic. */
 	private void updateAggressionArea(int currentTick)
 	{
 		Player localPlayer = client.getLocalPlayer();
@@ -1984,13 +1900,13 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** The NPC's elemental weakness, or null if it has none. Static per ID - no live client source exists, see CLAUDE.md. */
+	/** The NPC's elemental weakness, or null. Static per ID - no live client source exists. */
 	NpcWeaknessTable.Weakness npcWeakness(NPC npc)
 	{
 		return NpcWeaknessTable.getWeakness(npc.getId());
 	}
 
-	/** Whether npc would attack the local player if still aggressive (type + the OSRS 2x-combat-level rule). Doesn't check the tolerance window. */
+	/** Whether npc would attack you if aggressive (type plus the 2x-combat-level rule), tolerance aside. */
 	private boolean wouldBeAggressive(Player localPlayer, NPC npc)
 	{
 		int npcLevel = npc.getCombatLevel();
@@ -1999,7 +1915,7 @@ public class CustomHpBarPlugin extends Plugin
 			&& AggressiveNpcTable.isAggressive(npc.getId());
 	}
 
-	/** Whether npc is currently aggressive: would attack, and the tolerance window hasn't expired near its own location. */
+	/** Whether npc is aggressive now: would attack, and the tolerance window hasn't expired near it. */
 	boolean isNpcAggressive(NPC npc)
 	{
 		Player localPlayer = client.getLocalPlayer();
@@ -2023,7 +1939,7 @@ public class CustomHpBarPlugin extends Plugin
 		return client.getVarbitValue(VarbitID.IRONMAN) > 0;
 	}
 
-	/** Whether another player's damage has cost npc its exclusive loot (Ironman-only). Callers apply their own grey-out toggle. */
+	/** Whether another player's damage has cost npc its exclusive loot (Ironman only). */
 	boolean isLootTainted(NPC npc)
 	{
 		return isIronman() && otherPlayerDamaged.contains(npc)
@@ -2031,7 +1947,7 @@ public class CustomHpBarPlugin extends Plugin
 			&& !isCommunalLootEncounter(npc);
 	}
 
-	/** Whether npc belongs to a confirmed Ironman group-loot exemption (CoX/ToB/ToA by location, the Gemstone Crab, or COMMUNAL_LOOT_NPC_IDS/NAMES). */
+	/** Whether npc is a confirmed Ironman group-loot exemption: raids by location, or the name/ID lists. */
 	private boolean isCommunalLootEncounter(NPC npc)
 	{
 		if (COMMUNAL_LOOT_NPC_IDS.contains(npc.getId()) || GEMSTONE_CRAB_NPC_IDS.contains(npc.getId()))
@@ -2049,9 +1965,8 @@ public class CustomHpBarPlugin extends Plugin
 			return true;
 		}
 
-		// normalizeNpcName, not removeTags+toLowerCase: NPC names commonly carry U+00A0 non-breaking
-		// spaces, which the latter leaves intact - so "Blood<nbsp>Moon" silently missed this set and
-		// greyed the boss out anyway. Same root cause b5c04b9 fixed for HIDDEN_MECHANIC_NPC_NAMES.
+		// normalizeNpcName, not removeTags+toLowerCase: NPC names commonly carry U+00A0 non-breaking spaces,
+		// which the latter leaves intact, so "Blood<nbsp>Moon" silently missed this set.
 		String normalized = normalizeNpcName(npc.getName());
 		return normalized != null && COMMUNAL_LOOT_NAMES.contains(normalized);
 	}
@@ -2060,12 +1975,9 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		if (actor instanceof NPC)
 		{
-			// Tracking exists to drive bars, so it takes the stricter attackable test - talking to a
-			// guard makes it interact with you, which would otherwise track it via onGameTick.
-			// isConfirmedDead excluded here too - a corpse mid-death-animation still has an Attack
-			// option (hasAttackOption doesn't know it just died), so without this the onGameTick
-			// discovery loops below re-track it the moment isConfirmedDead's evict() removes it,
-			// since getInteracting() == localPlayer is still true for several more ticks. See CLAUDE.md.
+			// Tracking drives bars, so it takes the stricter attackable test - talking to a guard makes it
+			// interact with you. isConfirmedDead too: a corpse mid-animation still has an Attack option, so the
+			// onGameTick discovery loops would re-track it the moment evict() removes it.
 			NPC npc = (NPC) actor;
 			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isConfirmedDead(npc);
 		}
@@ -2073,15 +1985,14 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			return false;
 		}
-		// isConfirmedDead excluded for the same reason as the NPC branch above - a dying player's
-		// getInteracting() reference doesn't clear until despawn either, so without this the
-		// discovery loops below would re-track them the moment evict() removes them.
+		// isConfirmedDead for the same reason as the NPC branch above - a dying player's getInteracting()
+		// reference doesn't clear until despawn either.
 		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers())
 			&& isTrackedPlayer((Player) actor)
 			&& !isConfirmedDead(actor);
 	}
 
-	/** Whether npc is eligible for a bar or a name at all - isAttackableNpc() is the stricter bar-only gate on top of this. Cheap checks first. */
+	/** Whether npc is eligible for a bar or a name at all - isAttackableNpc() is the stricter bar-only gate. */
 	boolean isTrackedNpc(NPC npc)
 	{
 		// Widening-only: level 0 but attackable still counts as combat (CoX scaled trash), so nothing
@@ -2103,7 +2014,7 @@ public class CustomHpBarPlugin extends Plugin
 			&& matchesFilter(name);
 	}
 
-	/** Same as isTrackedNpc(), memoized per game tick for the overlay's per-frame "Always Show" pass - see trackedNpcCache. */
+	/** Same as isTrackedNpc(), memoized per game tick for the overlay's per-frame "Always Show" pass. */
 	boolean isTrackedNpcCached(NPC npc)
 	{
 		int tick = client.getTickCount();
@@ -2127,7 +2038,7 @@ public class CustomHpBarPlugin extends Plugin
 		return result;
 	}
 
-	/** Debug-only: reports the cache's hit rate roughly every 30s so the always-show pass's per-frame savings can be checked live. */
+	/** Debug-only: reports the cache's hit rate every ~30s so the per-frame savings can be checked live. */
 	private void logTrackedNpcCacheStats(int tick)
 	{
 		if (!log.isDebugEnabled() || tick - trackedNpcCacheLastLogTick < 50)
@@ -2144,13 +2055,23 @@ public class CustomHpBarPlugin extends Plugin
 		trackedNpcCacheMisses = 0;
 	}
 
-	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. Combat level deliberately not required. */
+	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. */
 	boolean isAttackableNpc(NPC npc)
 	{
 		return npc.getHealthRatio() != -1 || hasAttackOption(npc);
 	}
 
-	/** Whether npc offers an Attack option - same signal core's NpcUtil/IdleNotifier/MenuEntrySwapper use. Unknown composition keeps the bar. */
+	/**
+	 * Whether npc's name is suppressed by "Show Pet Names". Keyed by NPC ID rather than name or the
+	 * client's follower flag: several pets share a name with an attackable NPC, and the flag also
+	 * covers quest companions - see CLAUDE.md.
+	 */
+	boolean isPetNameHidden(NPC npc)
+	{
+		return !config.showPetNames() && PetNpcTable.isPet(npc.getId());
+	}
+
+	/** Whether npc offers an Attack option - core's own signal. Unknown composition keeps the bar. */
 	private static boolean hasAttackOption(NPC npc)
 	{
 		NPCComposition composition = npc.getTransformedComposition();
@@ -2158,7 +2079,7 @@ public class CustomHpBarPlugin extends Plugin
 			|| Arrays.stream(composition.getActions()).anyMatch(ATTACK_ACTION::equalsIgnoreCase);
 	}
 
-	/** Pure blacklist: empty filter shows all, any matching entry hides that NPC. Patterns are comma-separated, case-insensitive, '*' wildcards. */
+	/** Pure blacklist: empty shows all, any match hides. Comma-separated, case-insensitive, '*' wildcards. */
 	private boolean matchesFilter(String npcName)
 	{
 		String filterStr = config.npcFilter().trim();
@@ -2167,7 +2088,6 @@ public class CustomHpBarPlugin extends Plugin
 			return true;
 		}
 
-		// Recompile patterns only when the filter string changes.
 		if (!filterStr.equals(cachedFilterString))
 		{
 			cachedFilterString = filterStr;
@@ -2215,7 +2135,7 @@ public class CustomHpBarPlugin extends Plugin
 		return true;
 	}
 
-	/** Whether player is eligible for a bar, a name, or a redrawn overhead icon at all. The local player is never filtered. */
+	/** Whether player is eligible for a bar, a name, or a redrawn overhead icon. Self is never filtered. */
 	boolean isTrackedPlayer(Player player)
 	{
 		return player == client.getLocalPlayer() || matchesPlayerFilter(player.getName());
