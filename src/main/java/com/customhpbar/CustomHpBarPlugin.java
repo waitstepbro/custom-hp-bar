@@ -284,6 +284,7 @@ public class CustomHpBarPlugin extends Plugin
 		11717,          // Cursed Baboon
 		11697,          // Scarab - Scabaras puzzle room
 		11723,          // Scarab - Kephri's room
+		11727,          // Agile Scarab - Kephri's room, measured 30 on the nose
 		11705,          // Crocodile - Crondis
 		11781,          // Baboon - Ba-Ba's room, not the wave room
 		11728, 11729    // Egg - Kephri
@@ -418,9 +419,13 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	};
 
-	/** Overhead hitsplats per player, redrawn since renderCallback suppresses the native ones - self plus overheadEligiblePlayers. */
+	/**
+	 * Overhead hitsplats per player, redrawn since renderCallback suppresses the native ones - self
+	 * plus overheadEligiblePlayers. Copies, not the client's own Hitsplat objects, which it pools and
+	 * reuses - see CLAUDE.md.
+	 */
 	@Getter
-	private final Map<Player, List<Hitsplat>> overheadHitsplats = new ConcurrentHashMap<>();
+	private final Map<Player, List<OverheadHitsplat>> overheadHitsplats = new ConcurrentHashMap<>();
 
 	/** Actors whose bars are active; value = tick of last valid health-ratio read. */
 	@Getter
@@ -651,8 +656,9 @@ public class CustomHpBarPlugin extends Plugin
 		// the same "risk is asymmetric, not worth chasing exactly" tradeoff used elsewhere here.
 		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor)))
 		{
-			List<Hitsplat> splats = overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>());
-			splats.add(hitsplat);
+			List<OverheadHitsplat> splats = overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>());
+			splats.add(new OverheadHitsplat(hitsplat.getHitsplatType(), hitsplat.getAmount(),
+				hitsplat.getDisappearsOnGameCycle()));
 			logSelfHitsplat(actor, hitsplat, splats);
 		}
 
@@ -809,7 +815,7 @@ public class CustomHpBarPlugin extends Plugin
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
 		// controls when a hitsplat stops drawing; this just bounds each list's size between prunes.
 		int currentCycle = client.getGameCycle();
-		for (List<Hitsplat> hitsplats : overheadHitsplats.values())
+		for (List<OverheadHitsplat> hitsplats : overheadHitsplats.values())
 		{
 			hitsplats.removeIf(h -> currentCycle >= h.getDisappearsOnGameCycle());
 		}
@@ -1325,6 +1331,13 @@ public class CustomHpBarPlugin extends Plugin
 		int baseHp = NpcMaxHpTable.getMaxHp(npcId);
 		if (isInsideToa() && !TOA_STATIC_HP_NPC_IDS.contains(npcId))
 		{
+			// The party term has never been measured and the wiki only claims it for bosses, so a
+			// minion number in a team would be a guess - percent instead. Bosses keep their number:
+			// the HUD carries the server's own figure for them.
+			if (toaPartySize() > 1 && !TOA_BOSS_NPC_IDS.contains(npcId))
+			{
+				return -1;
+			}
 			return baseHp > 0 ? toaScaledMaxHp(baseHp) : -1;
 		}
 		return baseHp;
@@ -1403,14 +1416,12 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only: every hitsplat landing on self, with the cycle window the client itself gave it.
-	 * Chasing "one hit draws several hitsplats" - drawHitsplats() draws one slot per unexpired entry
-	 * in this list, so the report is either more HitsplatApplied events than the player counts as one
-	 * hit (types and amounts here say which), or entries outstaying the native ones (disappearsOn
-	 * versus cycle says that). Prints the whole live list each time so a pile-up is visible as it
-	 * builds. Remove once the cause is known.
+	 * Debug-only: every hitsplat landing on self, alongside the copies we hold. srcId is the client
+	 * object's identity - it repeats across ticks because the client pools those objects, which is
+	 * what used to fill all four slots with one splat. The list is what the overlay draws, so a
+	 * repeat within one live[] line would mean the copies are wrong. Remove once confirmed live.
 	 */
-	private void logSelfHitsplat(Actor actor, Hitsplat hitsplat, List<Hitsplat> splats)
+	private void logSelfHitsplat(Actor actor, Hitsplat hitsplat, List<OverheadHitsplat> splats)
 	{
 		if (!log.isDebugEnabled() || actor != client.getLocalPlayer())
 		{
@@ -1419,17 +1430,16 @@ public class CustomHpBarPlugin extends Plugin
 
 		int cycle = client.getGameCycle();
 		StringBuilder live = new StringBuilder();
-		for (Hitsplat h : splats)
+		for (OverheadHitsplat h : splats)
 		{
 			live.append(live.length() == 0 ? "" : ", ")
-				.append("id=").append(System.identityHashCode(h))
-				.append(" type=").append(h.getHitsplatType())
+				.append("type=").append(h.getType())
 				.append(" amount=").append(h.getAmount())
 				.append(" expiresIn=").append(h.getDisappearsOnGameCycle() - cycle);
 		}
 
 		Actor interacting = client.getLocalPlayer() == null ? null : client.getLocalPlayer().getInteracting();
-		log.debug("Self hitsplat: tick={} cycle={} applied[id={} type={} amount={} disappearsOn={}] listSize={}"
+		log.debug("Self hitsplat: tick={} cycle={} applied[srcId={} type={} amount={} disappearsOn={}] listSize={}"
 				+ " attackers={} fighting={} live[{}]",
 			client.getTickCount(), cycle, System.identityHashCode(hitsplat), hitsplat.getHitsplatType(),
 			hitsplat.getAmount(), hitsplat.getDisappearsOnGameCycle(), splats.size(),
