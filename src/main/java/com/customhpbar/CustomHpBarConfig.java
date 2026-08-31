@@ -1706,7 +1706,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "hideNativeBar",
 		name = "Hide Native Health Bar",
 		description = "Hides the game's own overhead health bar client-wide, so only this plugin's " +
-			"bar shows.",
+			"bar shows. Bars that track a mechanic rather than hitpoints stay visible.",
 		section = BEHAVIOR_SECTION,
 		position = 1
 	)
