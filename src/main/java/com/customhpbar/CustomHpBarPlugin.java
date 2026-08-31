@@ -143,6 +143,9 @@ public class CustomHpBarPlugin extends Plugin
 		NpcID.PMOON_BOSS_JAGUAR
 	));
 
+	/** The trailing parenthetical the boss HP HUD appends to some encounters' names - the HUD's own annotation, not part of the NPC's name. */
+	private static final Pattern HUD_NAME_SUFFIX = Pattern.compile("\\s*\\([^()]*\\)$");
+
 	/** Precompiled for normalizeNpcName - it runs for every NPC in the scene every frame, so per-call Pattern.compile is too costly. */
 	private static final Pattern NAME_SEPARATORS = Pattern.compile("[:;]");
 	private static final Pattern NAME_WHITESPACE = Pattern.compile("\\s+");
@@ -392,6 +395,13 @@ public class CustomHpBarPlugin extends Plugin
 	private volatile boolean suppressSelfOverheads;
 
 	/**
+	 * Whether anyone but the local player is in the scene, sampled once per tick - the guard on
+	 * DAMAGE_OTHER meaning what greyOutOtherPlayerDamage assumes it means. Volatile and
+	 * tick-granular for the same reason overheadEligiblePlayers is: hitsplats arrive off the tick.
+	 */
+	private volatile boolean otherPlayersInScene;
+
+	/**
 	 * Other players currently eligible for the same overhead icon/hitsplat/chat-text replacement
 	 * self gets - tracked (a bar is showing) or "Always Show Player Name" eligible (a name is
 	 * showing) - recomputed once per tick in updateOverheadEligiblePlayers(), not per frame, since
@@ -513,6 +523,14 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Live HP/boss name from the game's own native boss HP HUD - preferred over every other HP source, see nativeHudHp(). */
 	private String nativeHudBossName;
+
+	/**
+	 * nativeHudBossName with HUD_NAME_SUFFIX removed, or null when there was nothing to remove.
+	 * Only ever consulted after the exact comparison fails, and only the HUD side is stripped:
+	 * stripping the actor's side too would let "Great Olm (Left claw)" answer to Olm's own HUD
+	 * figure. A field rather than a per-call strip because nativeHudHp() runs per actor per frame.
+	 */
+	private String nativeHudBossBaseName;
 	private int nativeHudCurrentHp;
 	private int nativeHudMaxHp;
 
@@ -552,11 +570,12 @@ public class CustomHpBarPlugin extends Plugin
 		statusEffectTicks.clear();
 		overheadHitsplats.clear();
 		overheadEligiblePlayers = Collections.emptySet();
+		otherPlayersInScene = false;
 		pendingClickActor = null;
 		aggressionEndTick = 0;
 		Arrays.fill(aggressionSafeCenters, null);
 		doomDelveLevel = 1;
-		nativeHudBossName = null;
+		setNativeHudBossName(null);
 		prayerActive = false;
 		lastTickTimeMs = System.currentTimeMillis();
 		bleedEndVarcCounting = false;
@@ -612,10 +631,12 @@ public class CustomHpBarPlugin extends Plugin
 	/** Recomputes native-sprite overrides from hideNativeBar + showPrayerBar together, rather than each toggle its own set. */
 	private void syncNativeBarOverrides()
 	{
+		// Removal still spans ALL, not HEALTH_ONLY: whatever the last sync applied has to come back
+		// off, including the mechanic bars an older build of this method blanked.
 		removeSpriteOverride(NativeHealthBarSprites.ALL);
 		if (config.hideNativeBar())
 		{
-			applySpriteOverride(NativeHealthBarSprites.ALL);
+			applySpriteOverride(NativeHealthBarSprites.HEALTH_ONLY);
 		}
 		else if (config.showPrayerBar())
 		{
@@ -656,10 +677,9 @@ public class CustomHpBarPlugin extends Plugin
 		// the same "risk is asymmetric, not worth chasing exactly" tradeoff used elsewhere here.
 		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor)))
 		{
-			List<OverheadHitsplat> splats = overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>());
-			splats.add(new OverheadHitsplat(hitsplat.getHitsplatType(), hitsplat.getAmount(),
-				hitsplat.getDisappearsOnGameCycle()));
-			logSelfHitsplat(actor, hitsplat, splats);
+			overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>())
+				.add(new OverheadHitsplat(hitsplat.getHitsplatType(), hitsplat.getAmount(),
+					hitsplat.getDisappearsOnGameCycle()));
 		}
 
 		// A hitsplat existing at all doesn't mean HP changed (e.g. PRAYER_DRAIN), so only
@@ -707,7 +727,13 @@ public class CustomHpBarPlugin extends Plugin
 
 		trackStatusEffect(actor, hitsplat.getHitsplatType());
 
-		if (actor instanceof NPC && OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
+		// otherPlayersInScene is the whole point: the client types an NPC's own mechanic damage
+		// (a Doom larva exploding, and anything else shaped like it) as DAMAGE_OTHER, exactly as it
+		// types another player's hit, so the splat alone cannot tell them apart. Nobody else being
+		// in the scene can - it makes "another player did this" impossible rather than unlikely.
+		// The chat-message path stays untouched; it's the game's own verdict, not an inference.
+		if (actor instanceof NPC && otherPlayersInScene
+			&& OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
 		{
 			otherPlayerDamaged.add((NPC) actor);
 		}
@@ -840,7 +866,7 @@ public class CustomHpBarPlugin extends Plugin
 			Widget hudWidget = client.getWidget(InterfaceID.HpbarHud.HP);
 			if (hudWidget == null || hudWidget.isHidden())
 			{
-				nativeHudBossName = null;
+				setNativeHudBossName(null);
 			}
 		}
 
@@ -931,6 +957,7 @@ public class CustomHpBarPlugin extends Plugin
 	private void updateOverheadEligiblePlayers()
 	{
 		Player localPlayer = client.getLocalPlayer();
+		boolean anyOtherPlayer = false;
 		Set<Player> eligible = new HashSet<>();
 		for (Actor actor : trackedActors.keySet())
 		{
@@ -944,9 +971,18 @@ public class CustomHpBarPlugin extends Plugin
 			|| (config.showForPlayers() && config.alwaysShowPlayerBar());
 		for (Player player : client.getTopLevelWorldView().players())
 		{
+			if (player == null || player == localPlayer)
+			{
+				continue;
+			}
+
+			// Set before the blacklist gate below: a blacklisted player still damages things, so
+			// hiding their bar must not also make their hits read as the NPC's own mechanic.
+			anyOtherPlayer = true;
+
 			// Player Blacklist excludes them here as well as from trackedActors: without this a filtered
 			// player's native overhead icon would still be suppressed, with nothing redrawing it.
-			if (player == null || player == localPlayer || !isTrackedPlayer(player))
+			if (!isTrackedPlayer(player))
 			{
 				continue;
 			}
@@ -961,6 +997,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		overheadEligiblePlayers = eligible.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(eligible);
+		otherPlayersInScene = anyOtherPlayer;
 	}
 
 	/** Ends active tracking on persist-timeout without clearing lastKnownHp/preciseNpcHp - still needed by "Always Show NPC Bar". */
@@ -1242,7 +1279,7 @@ public class CustomHpBarPlugin extends Plugin
 		int maxHp = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
 		if (maxHp <= 0)
 		{
-			nativeHudBossName = null;
+			setNativeHudBossName(null);
 			return;
 		}
 
@@ -1251,13 +1288,21 @@ public class CustomHpBarPlugin extends Plugin
 		String name = rawName != null ? Text.removeTags(rawName) : null;
 		if (name == null || name.isEmpty())
 		{
-			nativeHudBossName = null;
+			setNativeHudBossName(null);
 			return;
 		}
 
-		nativeHudBossName = name;
+		setNativeHudBossName(name);
 		nativeHudCurrentHp = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
 		nativeHudMaxHp = maxHp;
+	}
+
+	/** The one write point for the HUD boss name, so its stripped form can't drift out of step with it. */
+	private void setNativeHudBossName(String name)
+	{
+		nativeHudBossName = name;
+		String base = name == null ? null : HUD_NAME_SUFFIX.matcher(name).replaceAll("").trim();
+		nativeHudBossBaseName = base == null || base.isEmpty() || base.equals(name) ? null : base;
 	}
 
 	/** [currentHp, maxHp] from the native boss HP HUD if it's showing this actor (matched by name), else null. */
@@ -1276,7 +1321,14 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		String actorName = actor.getName();
-		if (actorName == null || !nativeHudBossName.equalsIgnoreCase(Text.removeTags(actorName)))
+		if (actorName == null)
+		{
+			return null;
+		}
+
+		String plainName = Text.removeTags(actorName);
+		if (!nativeHudBossName.equalsIgnoreCase(plainName)
+			&& (nativeHudBossBaseName == null || !nativeHudBossBaseName.equalsIgnoreCase(plainName)))
 		{
 			return null;
 		}
@@ -1413,57 +1465,6 @@ public class CustomHpBarPlugin extends Plugin
 				region, npc.getId(), npc.getName(), baseHp, raidLevel, pathLevel, partySize,
 				resolveNpcMaxHp(npc.getId()), npc.getHealthRatio(), npc.getHealthScale());
 		}
-	}
-
-	/**
-	 * Debug-only: every hitsplat landing on self, alongside the copies we hold. srcId is the client
-	 * object's identity - it repeats across ticks because the client pools those objects, which is
-	 * what used to fill all four slots with one splat. The list is what the overlay draws, so a
-	 * repeat within one live[] line would mean the copies are wrong. Remove once confirmed live.
-	 */
-	private void logSelfHitsplat(Actor actor, Hitsplat hitsplat, List<OverheadHitsplat> splats)
-	{
-		if (!log.isDebugEnabled() || actor != client.getLocalPlayer())
-		{
-			return;
-		}
-
-		int cycle = client.getGameCycle();
-		StringBuilder live = new StringBuilder();
-		for (OverheadHitsplat h : splats)
-		{
-			live.append(live.length() == 0 ? "" : ", ")
-				.append("type=").append(h.getType())
-				.append(" amount=").append(h.getAmount())
-				.append(" expiresIn=").append(h.getDisappearsOnGameCycle() - cycle);
-		}
-
-		Actor interacting = client.getLocalPlayer() == null ? null : client.getLocalPlayer().getInteracting();
-		log.debug("Self hitsplat: tick={} cycle={} applied[srcId={} type={} amount={} disappearsOn={}] listSize={}"
-				+ " attackers={} fighting={} live[{}]",
-			client.getTickCount(), cycle, System.identityHashCode(hitsplat), hitsplat.getHitsplatType(),
-			hitsplat.getAmount(), hitsplat.getDisappearsOnGameCycle(), splats.size(),
-			countAttackersOnSelf(), interacting == null ? null : interacting.getName(), live);
-	}
-
-	/** Debug-only: NPCs currently interacting with self, i.e. how many separate sources could splat on one tick. */
-	private int countAttackersOnSelf()
-	{
-		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer == null)
-		{
-			return -1;
-		}
-
-		int attackers = 0;
-		for (NPC npc : client.getTopLevelWorldView().npcs())
-		{
-			if (npc != null && npc.getInteracting() == localPlayer)
-			{
-				attackers++;
-			}
-		}
-		return attackers;
 	}
 
 	/**

@@ -90,12 +90,8 @@ final class NativeHealthBarSprites
 		SpriteID.StandardPoison160.FRONT, SpriteID.StandardPoison160.BACK,
 	};
 
-	private static final int[] HEADBAR = {
-		SpriteID.HeadbarShootingStar50.FRONT, SpriteID.HeadbarShootingStar50.BACK,
-
-		SpriteID.HeadbarShield100.COX_GREEN, SpriteID.HeadbarShield100.COX_BLUE,
-		SpriteID.HeadbarOlmtimer100.YELLOW, SpriteID.HeadbarOlmtimer100.RED,
-
+	/** Themed headbars that are still an actor's own hitpoints, just skinned per encounter. */
+	private static final int[] THEMED_HEALTH = {
 		SpriteID.HeadbarBlood120.FRONT, SpriteID.HeadbarBlood120.BACK,
 		SpriteID.HeadbarIce120.FRONT, SpriteID.HeadbarIce120.BACK,
 		SpriteID.HeadbarHeat120.FRONT, SpriteID.HeadbarHeat120.BACK,
@@ -107,8 +103,23 @@ final class NativeHealthBarSprites
 		SpriteID.HeadbarBlood30.FRONT, SpriteID.HeadbarBlood30.BACK,
 	};
 
-	/** Every category combined; SHIELD omitted since PRAYER already includes it. */
-	static final int[] ALL = concat(HEALTH, ARMOUR, CHARGE, PRAYER, POISON, HEADBAR);
+	/** Headbars carrying a mechanic rather than hitpoints - a progress readout, a shield state, a timer. */
+	private static final int[] INDICATOR_HEADBAR = {
+		SpriteID.HeadbarShootingStar50.FRONT, SpriteID.HeadbarShootingStar50.BACK,
+
+		SpriteID.HeadbarShield100.COX_GREEN, SpriteID.HeadbarShield100.COX_BLUE,
+		SpriteID.HeadbarOlmtimer100.YELLOW, SpriteID.HeadbarOlmtimer100.RED,
+	};
+
+	/**
+	 * What hideNativeBar blanks: hitpoints only. ARMOUR/CHARGE/SHIELD and INDICATOR_HEADBAR are
+	 * deliberately out - this plugin draws no replacement for a mechanic bar, so blanking one
+	 * destroys information instead of moving it. See CLAUDE.md.
+	 */
+	static final int[] HEALTH_ONLY = concat(HEALTH, POISON, THEMED_HEALTH);
+
+	/** Every category combined; SHIELD omitted since PRAYER already includes it. Removal only - nothing applies this. */
+	static final int[] ALL = concat(HEALTH, ARMOUR, CHARGE, PRAYER, POISON, THEMED_HEALTH, INDICATOR_HEADBAR);
 
 	private static int[] concat(int[]... arrays)
 	{
