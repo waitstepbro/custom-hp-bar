@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.HeadIcon;
-import net.runelite.api.Hitsplat;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
@@ -2222,7 +2221,7 @@ class CustomHpBarOverlay extends Overlay
 	/** Redraws hitsplats on player (real sprite + amount), replacing the ones the render callback suppresses - self or any other eligible player. */
 	private void drawHitsplats(Graphics2D g, Player player)
 	{
-		List<Hitsplat> hitsplats = plugin.getOverheadHitsplats().get(player);
+		List<OverheadHitsplat> hitsplats = plugin.getOverheadHitsplats().get(player);
 		if (hitsplats == null || hitsplats.isEmpty())
 		{
 			return;
@@ -2237,15 +2236,15 @@ class CustomHpBarOverlay extends Overlay
 
 		// Hitsplats with no confirmed sprite mapping, or still loading, are simply skipped.
 		int currentCycle = client.getGameCycle();
-		List<Hitsplat> visible = new ArrayList<>();
+		List<OverheadHitsplat> visible = new ArrayList<>();
 		List<BufferedImage> images = new ArrayList<>();
-		for (Hitsplat hitsplat : hitsplats)
+		for (OverheadHitsplat hitsplat : hitsplats)
 		{
 			if (currentCycle >= hitsplat.getDisappearsOnGameCycle())
 			{
 				continue;
 			}
-			BufferedImage image = hitsplatImage(hitsplat.getHitsplatType());
+			BufferedImage image = hitsplatImage(hitsplat.getType());
 			if (image != null)
 			{
 				visible.add(hitsplat);
