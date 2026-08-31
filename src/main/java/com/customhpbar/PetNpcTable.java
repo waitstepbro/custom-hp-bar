@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-/** NPC IDs that are pets, from pet_npcs.csv. Keyed by ID because several pets share a name with an attackable NPC - see CLAUDE.md. */
+/** Pet NPC IDs, from pet_npcs.csv - by ID because several pets share a name with an attackable NPC. */
 @Slf4j
 class PetNpcTable
 {

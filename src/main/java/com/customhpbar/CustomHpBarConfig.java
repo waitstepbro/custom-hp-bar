@@ -1960,7 +1960,7 @@ public interface CustomHpBarConfig extends Config
 		}
 	}
 
-	/** One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP. See CustomHpBarOverlay.playerBarStack(). */
+	/** One bar in the local player's vertical stack. Only the player stacks - NPCs only ever get HP. */
 	enum BarKind
 	{
 		HP("HP"),

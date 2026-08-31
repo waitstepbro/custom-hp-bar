@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-/** NPC IDs whose monster is aggressive, from aggressive_npcs.csv. Answers "is this type aggressive at all", not per-location tolerance. */
+/** NPC IDs whose monster is aggressive, from aggressive_npcs.csv - the type, not per-location tolerance. */
 @Slf4j
 class AggressiveNpcTable
 {

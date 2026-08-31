@@ -2,7 +2,7 @@ package com.customhpbar;
 
 import net.runelite.api.gameval.SpriteID;
 
-/** Catalog of every known health/shield/armour/charge/prayer/poison bar sprite ID, for swapping native bars to a transparent sprite. */
+/** Catalog of known bar sprite IDs (health/shield/armour/charge/prayer/poison), for swapping in a blank one. */
 final class NativeHealthBarSprites
 {
 	private static final int[] HEALTH = {
@@ -61,7 +61,7 @@ final class NativeHealthBarSprites
 		SpriteID.StandardCharge160.FRONT, SpriteID.StandardCharge160.BACK,
 	};
 
-	/** The native Prayer bar actually uses StandardShield sprites, not StandardPrayer - both included anyway, cost nothing. */
+	/** The native Prayer bar uses StandardShield sprites, not StandardPrayer - both included anyway. */
 	static final int[] PRAYER = concat(SHIELD, new int[] {
 		SpriteID.StandardPrayer30.FRONT, SpriteID.StandardPrayer30.BACK,
 		SpriteID.StandardPrayer40.FRONT, SpriteID.StandardPrayer40.BACK,
@@ -118,7 +118,7 @@ final class NativeHealthBarSprites
 	 */
 	static final int[] HEALTH_ONLY = concat(HEALTH, POISON, THEMED_HEALTH);
 
-	/** Every category combined; SHIELD omitted since PRAYER already includes it. Removal only - nothing applies this. */
+	/** Every category combined; SHIELD omitted since PRAYER already includes it. Removal only. */
 	static final int[] ALL = concat(HEALTH, ARMOUR, CHARGE, PRAYER, POISON, THEMED_HEALTH, INDICATOR_HEADBAR);
 
 	private static int[] concat(int[]... arrays)

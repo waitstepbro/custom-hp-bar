@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Maps NPC IDs to max HP, from npc_hp.csv - keyed by ID since the same name can map to several HP values across variants. */
+/** Maps NPC IDs to max HP, from npc_hp.csv - by ID, since one name can span several HP values. */
 @Slf4j
 class NpcMaxHpTable
 {
