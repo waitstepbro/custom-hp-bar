@@ -486,11 +486,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showPetNames",
+		name = "Show Pet Names",
+		description = "Draws names above pets. Requires 'Show NPC Name'.",
+		section = TARGET_NPC_SECTION,
+		position = 7
+	)
+	default boolean showPetNames()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "npcNameColor",
 		name = "NPC Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_NPC_SECTION,
-		position = 7
+		position = 8
 	)
 	default Color npcNameColor()
 	{
@@ -503,7 +515,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
 			"timer expires.",
 		section = TARGET_NPC_SECTION,
-		position = 8
+		position = 9
 	)
 	default boolean colorAggressiveNpcNames()
 	{
@@ -515,7 +527,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Aggressive NPC Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_NPC_SECTION,
-		position = 9
+		position = 10
 	)
 	default boolean showAggressiveNpcIcon()
 	{
@@ -528,7 +540,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
 			"A status effect tint takes precedence.",
 		section = TARGET_NPC_SECTION,
-		position = 10
+		position = 11
 	)
 	default boolean colorAggressiveNpcBars()
 	{
@@ -542,7 +554,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
 			"you. Applies to whichever of the options above are on.",
 		section = TARGET_NPC_SECTION,
-		position = 11
+		position = 12
 	)
 	default Color aggressiveNpcColor()
 	{
@@ -554,7 +566,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color By Status Effect",
 		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 12
+		position = 13
 	)
 	default boolean targetColorByStatusEffect()
 	{
@@ -567,7 +579,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
 			"or corrupted.",
 		section = TARGET_NPC_SECTION,
-		position = 13
+		position = 14
 	)
 	default boolean targetShowStatusIcon()
 	{
@@ -580,7 +592,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
 			"(0 = hide immediately).",
 		section = TARGET_NPC_SECTION,
-		position = 14
+		position = 15
 	)
 	@Range(min = 0, max = 300)
 	default int targetPersistDuration()
@@ -594,7 +606,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's bar once another player damages it. Ironman accounts only; " +
 			"bosses with shared or personal loot are exempt.",
 		section = TARGET_NPC_SECTION,
-		position = 15
+		position = 16
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -607,7 +619,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Greys out an NPC's name on the same terms as 'Grey Out Health Bars'. " +
 			"Independent of that setting, and overrides the aggressive name color.",
 		section = TARGET_NPC_SECTION,
-		position = 16
+		position = 17
 	)
 	default boolean greyOutOtherPlayerDamageNames()
 	{
@@ -620,7 +632,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fades an NPC's bar and name out when it dies instead of hiding them the instant " +
 			"the killing blow lands.",
 		section = TARGET_NPC_SECTION,
-		position = 17
+		position = 18
 	)
 	default boolean fadeNpcBarOnDeath()
 	{
@@ -633,7 +645,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long an NPC's bar takes to fade out after it dies. Ends early if the corpse " +
 			"despawns first. Requires Fade Bar On Death.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 19
 	)
 	@Range(min = 0, max = 2000)
 	default int npcDeathFadeDuration()
@@ -646,7 +658,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 22
+		position = 23
 	)
 	default String npcFilter()
 	{
@@ -659,7 +671,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
 			"ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = TARGET_NPC_SECTION,
-		position = 17
+		position = 18
 	)
 	@Range(min = 0, max = 30)
 	default int npcStackLimit()
@@ -673,7 +685,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
 			"Nothing is drawn for an NPC with no weakness.",
 		section = TARGET_NPC_SECTION,
-		position = 19
+		position = 20
 	)
 	default boolean showNpcWeaknessIcon()
 	{
@@ -685,7 +697,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Weakness Percent",
 		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
-		position = 20
+		position = 21
 	)
 	default boolean showNpcWeaknessPercent()
 	{
@@ -697,7 +709,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Weakness Percent Color",
 		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
 		section = TARGET_NPC_SECTION,
-		position = 21
+		position = 22
 	)
 	default Color npcWeaknessPercentColor()
 	{

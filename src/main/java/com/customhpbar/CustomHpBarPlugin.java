@@ -2150,6 +2150,16 @@ public class CustomHpBarPlugin extends Plugin
 		return npc.getHealthRatio() != -1 || hasAttackOption(npc);
 	}
 
+	/**
+	 * Whether npc's name is suppressed by "Show Pet Names". Keyed by NPC ID rather than name or the
+	 * client's follower flag: several pets share a name with an attackable NPC, and the flag also
+	 * covers quest companions - see CLAUDE.md.
+	 */
+	boolean isPetNameHidden(NPC npc)
+	{
+		return !config.showPetNames() && PetNpcTable.isPet(npc.getId());
+	}
+
 	/** Whether npc offers an Attack option - same signal core's NpcUtil/IdleNotifier/MenuEntrySwapper use. Unknown composition keeps the bar. */
 	private static boolean hasAttackOption(NPC npc)
 	{

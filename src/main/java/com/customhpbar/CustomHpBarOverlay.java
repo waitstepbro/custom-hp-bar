@@ -536,7 +536,8 @@ class CustomHpBarOverlay extends Overlay
 				// lingering until the animation finishes and the NPC actually despawns.
 				boolean confirmedDead = CustomHpBarPlugin.isConfirmedDead(npc);
 				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc) && !confirmedDead;
-				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName()) && !confirmedDead;
+				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName()) && !confirmedDead
+					&& !plugin.isPetNameHidden(npc);
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
 				// would shift every other bar on its tile upwards for no visible reason.
@@ -1357,13 +1358,13 @@ class CustomHpBarOverlay extends Overlay
 	 * and the "Always Show NPC Name" pass (untracked). npcStackLimit() is enforced by both call
 	 * sites' npcStackAllowed() check before they ever get here, not by this method itself - it
 	 * gates the NPC's whole entry (bar and name together), not the name alone. The single choke
-	 * point for "Toggle Names" - purely visual (space is still reserved by claimBarStackSlot()'s
-	 * own showNpcName()-only reservation, so a same-tile neighbor doesn't reflow every time the
-	 * hotkey is pressed) - see CLAUDE.md.
+	 * point for "Show Pet Names", and for "Toggle Names" - purely visual (space is still reserved
+	 * by claimBarStackSlot()'s own showNpcName()-only reservation, so a same-tile neighbor doesn't
+	 * reflow every time the hotkey is pressed) - see CLAUDE.md.
 	 */
 	private void drawNpcNameOnly(Graphics2D g, NPC npc, Point anchor, BarStyle style, double zoom)
 	{
-		if (!plugin.isNamesVisible())
+		if (!plugin.isNamesVisible() || plugin.isPetNameHidden(npc))
 		{
 			return;
 		}

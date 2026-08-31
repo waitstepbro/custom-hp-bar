@@ -39,7 +39,7 @@ If you would like to support in some way, please consider joining the
   burn, disease, and corruption. Multiple effects show side by side.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
   optionally with the NPC's combat level. Long names can be truncated to a character limit.
-  Non-attackable NPCs are excluded by default.
+  Non-attackable NPCs are excluded by default, and pet names have their own toggle.
 - **Other players' names** — optionally drawn above their bar, at all times or only while it's
   tracked, and optionally with their combat level. Requires Show for Other Players.
 - **Combat level coloring** — combat levels shown on NPCs and other players can be colored by
@@ -146,6 +146,7 @@ in Other Player Bar — Style.
 | NPC Name Length Limit | Characters to keep before the period (1-50). Requires Truncate Long NPC Names. | 16 |
 | Always Show NPC Bar | Shows the HP bar on every attackable NPC, not just once engaged. | Off |
 | Only Show Combat NPC Names | Excludes non-attackable NPCs from bars and names | On |
+| Show Pet Names | Draws names above pets. Requires Show NPC Name. | On |
 | NPC Name Color | Color of the NPC name text, separate from the HP number's color | Yellow |
 | Color Aggressive NPC Names | Colors an NPC's name while it's aggressive toward you, reverting once the tolerance timer expires. | Off |
 | Show Aggressive NPC Icon | Shows an icon next to the bar while an NPC is aggressive | Off |
