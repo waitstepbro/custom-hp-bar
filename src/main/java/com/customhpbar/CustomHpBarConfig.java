@@ -636,7 +636,7 @@ public interface CustomHpBarConfig extends Config
 	)
 	default boolean fadeNpcBarOnDeath()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(

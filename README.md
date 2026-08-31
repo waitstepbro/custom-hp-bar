@@ -157,7 +157,7 @@ in Other Player Bar — Style.
 | Persist Duration (seconds) | How long the bar keeps showing the last known HP after the native bar fades. 0 = hide immediately. | 5 |
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
-| Fade Bar On Death | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | Off |
+| Fade Bar On Death | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | On |
 | Death Fade Duration (ms) | How long an NPC's bar takes to fade out after it dies. Ends early if the corpse despawns first. Requires Fade Bar On Death. | 600 |
 | NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 | Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. Nothing is drawn for an NPC with no weakness. | Off |
