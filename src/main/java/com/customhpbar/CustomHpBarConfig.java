@@ -659,7 +659,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a shield's remaining strength on the bar while an NPC is shielded. "
 			+ "Supports Doom of Mokhaiotl and Kephri.",
 		section = TARGET_NPC_SECTION,
-		position = 23
+		position = 24
 	)
 	default boolean showNpcShieldBar()
 	{
@@ -671,7 +671,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Shield Bar Color",
 		description = "Fill color for the bar while an NPC is shielded.",
 		section = TARGET_NPC_SECTION,
-		position = 24
+		position = 25
 	)
 	default Color npcShieldBarColor()
 	{
@@ -684,7 +684,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows a second bar beneath an NPC's while it charges a special attack. "
 			+ "Supports Doom of Mokhaiotl and Yama's void flares.",
 		section = TARGET_NPC_SECTION,
-		position = 25
+		position = 26
 	)
 	default boolean showNpcChargeBar()
 	{
@@ -696,7 +696,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Charge Bar Color",
 		description = "Fill color for the charge bar.",
 		section = TARGET_NPC_SECTION,
-		position = 26
+		position = 27
 	)
 	default Color npcChargeBarColor()
 	{
@@ -708,7 +708,7 @@ public interface CustomHpBarConfig extends Config
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 27
+		position = 28
 	)
 	default String npcFilter()
 	{
@@ -721,7 +721,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
 			"ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 20
 	)
 	@Range(min = 0, max = 30)
 	default int npcStackLimit()
@@ -735,7 +735,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
 			"Nothing is drawn for an NPC with no weakness.",
 		section = TARGET_NPC_SECTION,
-		position = 20
+		position = 21
 	)
 	default boolean showNpcWeaknessIcon()
 	{
@@ -747,7 +747,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Weakness Percent",
 		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
-		position = 21
+		position = 22
 	)
 	default boolean showNpcWeaknessPercent()
 	{
@@ -759,7 +759,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Weakness Percent Color",
 		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
 		section = TARGET_NPC_SECTION,
-		position = 22
+		position = 23
 	)
 	default Color npcWeaknessPercentColor()
 	{

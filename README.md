@@ -22,29 +22,27 @@ If you would like to support in some way, please consider joining the
 ## Features
 
 - **Custom-drawn HP bars** — replaces the native health bar for NPCs and players, each with fully
-  independent size, shape, color, and font settings. Your own bar can persist outside combat
-  instead of only showing while tracked.
+  independent size, shape, color, and font settings. Your own can persist outside combat.
 - **Precise NPC HP** — tracks exact current HP instead of the native bar's coarse ratio bucket,
   falling back to a percentage where max HP isn't known.
+- **Shield and charge bars** — a shielded NPC's bar shows the shield's remaining strength in its own
+  color, and a second bar beneath fills while an NPC charges a special attack.
 - **HP color gradient** — optionally blend the bar from full-HP color through a mid color at a
   configurable midpoint to a low color at empty, per bar type.
 - **Bar opacity** — an optional transparency slider for the bar's background, fill, and border,
   configurable separately per bar type.
 - **Damage trail** — optionally leaves a colored trail behind the bar when an actor takes damage,
-  holding briefly before draining down to the new HP. The trail can use its own color or take a
-  darkened copy of the bar's. Configurable separately per bar type.
+  holding briefly before it drains to the new HP. Its color can be a darkened copy of the bar's.
 - **Fade out on death** — optionally fades an NPC's bar and name out when it dies instead of
   hiding them the instant the killing blow lands.
 - **Status effect tinting and icons** — tints the bar and shows a debuff icon for poison, venom,
-  burn, disease, and corruption. Multiple effects show side by side.
+  burn, bleed, disease, and corruption. Multiple effects show side by side.
 - **NPC names** — drawn above the bar, optionally at all times rather than only in combat, and
-  optionally with the NPC's combat level. Long names can be truncated to a character limit.
-  Non-attackable NPCs are excluded by default, and pet names have their own toggle.
+  optionally with the combat level. Long names can be truncated; pets have their own toggle.
 - **Other players' names** — optionally drawn above their bar, at all times or only while it's
   tracked, and optionally with their combat level. Requires Show for Other Players.
-- **Combat level coloring** — combat levels shown on NPCs and other players can be colored by
-  how far each is from your own, using the game's own red-to-green scale. Their names can
-  optionally take the same color.
+- **Combat level coloring** — combat levels on NPCs and other players can be colored by how far
+  each is from your own, on the game's red-to-green scale. Names can optionally take that color.
 - **Always show other players' HP bars** — optionally show the bar on every visible player, not
   just once tracked in combat.
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
@@ -56,28 +54,26 @@ If you would like to support in some way, please consider joining the
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
   show an icon by its bar, reverting once the game's tolerance timer expires.
 - **Elemental weakness icon** — optionally show the matching surge spell icon beside an NPC's bar,
-  with its weakness percentage above it.
+  with the weakness percentage next to it.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar, its name, or both once another
   player damages it. Bosses with shared or personal loot are exempt.
-- **Prayer bar** — an optional Prayer points bar below your HP bar, or on its own outside combat.
-  Can persist outside combat, be limited to while a prayer is active (flicking keeps it up), and
-  show a per-tick flick-timing indicator that sweeps across it. Color configurable.
+- **Prayer bar** — an optional Prayer points bar below your HP bar. It can persist outside combat,
+  be limited to while a prayer is active, and show a per-tick indicator for timing flicks.
 - **Special attack bar** — an optional special attack energy bar, shown in combat alongside your HP
   bar, or persistently outside combat. Color configurable.
-- **Run energy bar** — an optional run energy bar, shown regardless of combat state. Switches to a
-  distinct color while a Stamina potion's drain-reduction effect is active, can time out after a
-  configurable period of not running, or always stay up regardless of that timeout.
+- **Run energy bar** — an optional run energy bar, shown regardless of combat state. It takes a
+  distinct color while a Stamina potion is active, and can time out after a period of not running.
 - **Bar order** — four independent pickers choose which bar (HP, Prayer, Special Attack, or Run
   Energy) goes in each of the four stack positions.
 - **Restore previews** — hovering a food/potion, Prayer-restoring item, or Stamina potion extends
   the matching HP, Prayer, or Run Energy bar with a preview of where it'll land.
-- **Replaced overhead icon** — redraws your overhead prayer icon, hitsplats, and chat text above
-  your HP bar.
+- **Replaced overhead icon** — redraws overhead prayer icons, hitsplats, and chat text above the
+  bar, for you and other players.
 - **Hide the native health bar** — replaces the game's own overhead bar client-wide, so only this
-  plugin's bar shows.
+  plugin's bar shows. Native bars tracking a mechanic rather than hitpoints stay visible.
 - **Zoom scaling** — bars and text grow and shrink with camera zoom.
-- **Hotkeys** — optional keybinds to instantly show/hide names, HP bars, or weakness icons (independent of each
-  other), for a quick declutter without changing any setting.
+- **Hotkeys** — optional keybinds to instantly show/hide names, HP bars, or weakness icons,
+  independently of each other and without changing any setting.
 - **Independent persist duration** — NPCs and players each keep showing their last known HP for
   their own configurable duration after combat.
 - **NPC and player blacklists** — hide specific NPCs or other players by name, wildcards supported.
@@ -112,19 +108,19 @@ in Other Player Bar — Style.
 | Bar Color | Fill color of the bar, and the full-HP color when HP Color Gradient is on. | Green |
 | HP Color Gradient | Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels. | Off |
 | Mid HP Color | Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient. | Yellow |
-| Midpoint | HP percentage at which the bar is exactly Mid HP Color. NPC allows 0-100, player 1-99. | 50 |
+| Midpoint | HP percentage at which the bar is exactly Mid HP Color. | 50 |
 | Low HP Color | Color reached at 0% HP. Requires HP Color Gradient. | Red |
 | Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
 | Vertical Offset | Pixels to shift the bar up (positive) or down (negative) from center | NPC: 5 · Player: 15 |
 | Font | Typeface for the HP text | System Default |
 | Font Style | Applied on top of the chosen font | Bold |
 | Font Size | Size of the HP number text | 11 |
-| HP Text Color | Color of the HP number. On the player bar, the Prayer, special attack, and run energy numbers have their own colors. | White |
+| HP Text Color | Color of the HP number. Prayer, special attack, and run energy have their own colors. | White |
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Vertical Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
-| Text Alignment | Where the bar's text sits horizontally within it. On the player bar, applies to all stacked bars (HP, Prayer, Special, Run). | Center |
+| Text Alignment | Where each bar's text sits horizontally within it. | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
-| Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; the HP text itself is unaffected. On the player bar this covers every bar in the stack. | 100 |
+| Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; text is unaffected. | 100 |
 | Damage Trail | Leaves a colored trail behind the bar when the actor takes damage, draining to the new HP a moment later. Healing has no trail. | Off |
 | Damage Trail Color | Color of the health just lost. Timing is shared by every bar, in Behavior. | Red |
 | Match Bar Color | Colors the trail from the bar's own color at the health it is draining from, darkened. Replaces Damage Trail Color. | Off |
@@ -158,11 +154,15 @@ in Other Player Bar — Style.
 | Grey Out Health Bars | Greys out an NPC's bar once another player damages it. Ironman accounts only; bosses with shared or personal loot are exempt. | On |
 | Grey Out Names | Greys out an NPC's name on the same terms. Independent of Grey Out Health Bars, and overrides the aggressive name color. | On |
 | Fade Bar On Death | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | On |
-| Death Fade Duration (ms) | How long an NPC's bar takes to fade out after it dies. Ends early if the corpse despawns first. Requires Fade Bar On Death. | 600 |
-| NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
-| Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. Nothing is drawn for an NPC with no weakness. | Off |
+| Death Fade Duration (ms) | How long an NPC's bar takes to fade out after it dies. Requires Fade Bar On Death. | 600 |
+| NPC Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
+| Show Weakness Icon | Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. | Off |
 | Show Weakness Percent | Draws the weakness percentage beside the icon. Requires Show Weakness Icon. | On |
 | Weakness Percent Color | Color of the weakness percentage text. Requires Show Weakness Percent. | White |
+| Show Shield Bar | Shows a shield's remaining strength on the bar while an NPC is shielded. Supports Doom of Mokhaiotl and Kephri. | On |
+| Shield Bar Color | Fill color for the bar while an NPC is shielded. | Blue |
+| Show Charge Bar | Shows a second bar beneath an NPC's while it charges a special attack. Supports Doom of Mokhaiotl and Yama's void flares. | On |
+| Charge Bar Color | Fill color for the charge bar. | Gold |
 | NPC Blacklist | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
 ### Player Bar — Style (in addition to the shared options)
@@ -240,14 +240,14 @@ of your own.
 | Show Combat Level | Appends the player's combat level to their name. Requires Show Player Name. | Off |
 | Player Name Color | Color of the player name text, separate from the HP number's color | White |
 | Player Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
-| Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
+| Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
 
 ### Behavior
 
 | Setting | Description | Default |
 |---|---|---|
 | Scale With Zoom | Grows and shrinks bars and text with camera zoom. | Off |
-| Hide Native Health Bar | Hides the game's own overhead health bar client-wide, so only this plugin's bar shows. | On |
+| Hide Native Health Bar | Hides the game's own overhead health bar client-wide, so only this plugin's bar shows. Bars that track a mechanic rather than hitpoints stay visible. | On |
 | Prioritize Self on Same Tile | When an NPC or another player shares your tile, hides their bar and name instead of stacking it with yours. | On |
 | Color Combat Levels | Colors a combat level by how far it is from your own, red through yellow to green. Requires a combat level to be showing on the NPC or player. | On |
 | Color Names By Combat Level | Colors an NPC or player's name by how far their combat level is from your own. Replaces the configured name color. | Off |
