@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1553,13 +1554,24 @@ class CustomHpBarOverlay extends Overlay
 
 		int bottomY = y + h;
 
+		// Resolved before the charge bar draws: the icon row owns the space under the bar, and the
+		// charge bar has to clear whatever it takes. Icons are square at the bar's height.
+		Set<CustomHpBarPlugin.StatusEffect> statusEffects = showStatusIcons(actor)
+			? plugin.activeStatusEffects(actor) : Collections.emptySet();
+		int statusRowH = statusEffects.isEmpty() ? 0 : h;
+
 		// Beneath the HP bar rather than in the player stack: it is transient, and nothing else on the
-		// target profile is ordered, so it only has to push what already sits below the bar.
+		// target profile is ordered, so it only has to clear what already sits below the bar.
 		double charge = plugin.chargeFraction(actor);
 		if (charge >= 0 && plugin.isHpBarsVisible())
 		{
-			drawBarShape(g, style, x, bottomY, w, h, border, arc, charge, config.npcChargeBarColor());
-			bottomY += h;
+			// Its own size, because the native charge bar is usually wider than the health bar it sits
+			// under. 0 on either falls back to the HP bar's, which is what every existing profile has.
+			int chargeW = config.npcChargeBarWidth() > 0 ? scaled(config.npcChargeBarWidth(), zoom) : w;
+			int chargeH = config.npcChargeBarHeight() > 0 ? scaled(config.npcChargeBarHeight(), zoom) : h;
+			int chargeY = bottomY + Math.max(scaled(config.npcChargeBarGap(), zoom), statusRowH);
+			drawBarShape(g, style, x + (w - chargeW) / 2, chargeY, chargeW, chargeH, border, arc, charge,
+				config.npcChargeBarColor());
 		}
 
 		if (stack != null)
@@ -1570,10 +1582,10 @@ class CustomHpBarOverlay extends Overlay
 			bottomY = y + h * stack.size();
 		}
 
-		if (showStatusIcons(actor))
+		if (!statusEffects.isEmpty())
 		{
 			// Below whichever bar is currently lowest, so it doesn't overlap the stack.
-			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
+			drawStatusIcons(g, statusEffects, x, bottomY, h);
 		}
 
 		// With "Always Show Name" on, render()'s dedicated pass is the sole name source. trackedNow is the

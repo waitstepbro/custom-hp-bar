@@ -704,11 +704,53 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "npcChargeBarWidth",
+		name = "Charge Bar Width",
+		description = "Width of the charge bar in pixels. 0 matches the NPC bar's width. "
+			+ "Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 28
+	)
+	@Range(min = 0, max = 200)
+	default int npcChargeBarWidth()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarHeight",
+		name = "Charge Bar Height",
+		description = "Height of the charge bar in pixels. 0 matches the NPC bar's height. "
+			+ "Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 29
+	)
+	@Range(min = 0, max = 30)
+	default int npcChargeBarHeight()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarGap",
+		name = "Charge Bar Gap",
+		description = "Pixels between the NPC's bar and the charge bar beneath it. The charge bar drops "
+			+ "further when status icons need the room. Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 30
+	)
+	@Range(min = 0, max = 20)
+	default int npcChargeBarGap()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 28
+		position = 31
 	)
 	default String npcFilter()
 	{

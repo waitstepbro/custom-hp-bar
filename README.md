@@ -165,6 +165,9 @@ in Other Player Bar — Style.
 | Shield Bar Color | Fill color for the bar while an NPC is shielded. | Blue |
 | Show Charge Bar | Shows a second bar beneath an NPC's while it charges a special attack. Supports Doom of Mokhaiotl and Yama's void flares. | On |
 | Charge Bar Color | Fill color for the charge bar. | Gold |
+| Charge Bar Width | Width of the charge bar in pixels. 0 matches the NPC bar's width. Requires Show Charge Bar. | 0 |
+| Charge Bar Height | Height of the charge bar in pixels. 0 matches the NPC bar's height. Requires Show Charge Bar. | 0 |
+| Charge Bar Gap | Pixels between the NPC's bar and the charge bar beneath it. The charge bar drops further when status icons need the room. Requires Show Charge Bar. | 0 |
 | NPC Blacklist | Comma-separated NPC names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
 ### Player Bar — Style (in addition to the shared options)
