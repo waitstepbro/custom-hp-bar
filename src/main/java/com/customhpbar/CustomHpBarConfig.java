@@ -654,11 +654,61 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showNpcShieldBar",
+		name = "Show Shield Bar",
+		description = "Shows a shield's remaining strength on the bar while an NPC is shielded. "
+			+ "Supports Doom of Mokhaiotl and Kephri.",
+		section = TARGET_NPC_SECTION,
+		position = 23
+	)
+	default boolean showNpcShieldBar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "npcShieldBarColor",
+		name = "Shield Bar Color",
+		description = "Fill color for the bar while an NPC is shielded.",
+		section = TARGET_NPC_SECTION,
+		position = 24
+	)
+	default Color npcShieldBarColor()
+	{
+		return new Color(60, 130, 220);
+	}
+
+	@ConfigItem(
+		keyName = "showNpcChargeBar",
+		name = "Show Charge Bar",
+		description = "Shows a second bar beneath an NPC's while it charges a special attack. "
+			+ "Supports Doom of Mokhaiotl.",
+		section = TARGET_NPC_SECTION,
+		position = 25
+	)
+	default boolean showNpcChargeBar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarColor",
+		name = "Charge Bar Color",
+		description = "Fill color for the charge bar.",
+		section = TARGET_NPC_SECTION,
+		position = 26
+	)
+	default Color npcChargeBarColor()
+	{
+		return new Color(235, 195, 40);
+	}
+
+	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 23
+		position = 27
 	)
 	default String npcFilter()
 	{

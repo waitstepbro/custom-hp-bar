@@ -772,6 +772,14 @@ class CustomHpBarOverlay extends Overlay
 	/** [current, max] HP for display: native boss HUD, then precise hitsplat tracking, then live/last-known. */
 	private int[] resolveHp(Actor actor, int maxHp)
 	{
+		// Ahead of every other source: while shielded the HUD and the hitsplat tally both describe
+		// Doom's hitpoints, which is a different pool than the one being drawn.
+		int[] shield = plugin.doomShieldHp(actor);
+		if (shield != null)
+		{
+			return shield;
+		}
+
 		int[] hud = plugin.nativeHudHp(actor);
 		if (hud != null)
 		{
@@ -1483,8 +1491,12 @@ class CustomHpBarOverlay extends Overlay
 			&& plugin.isNpcAggressive((NPC) actor);
 		// Held separately from fillColor: null means the gradient is driving the fill, which is
 		// what lets a matched trail resolve its own color per HP level below.
-		Color overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
-			&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
+		Color overrideColor = plugin.isShieldedNpc(actor) ? config.npcShieldBarColor() : null;
+		if (overrideColor == null)
+		{
+			overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
+				&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
+		}
 		if (overrideColor == null)
 		{
 			overrideColor = plugin.statusEffectColor(actor);
@@ -1540,6 +1552,16 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		int bottomY = y + h;
+
+		// Beneath the HP bar rather than in the player stack: it is transient, and nothing else on the
+		// target profile is ordered, so it only has to push what already sits below the bar.
+		double charge = plugin.chargeFraction(actor);
+		if (charge >= 0 && plugin.isHpBarsVisible())
+		{
+			drawBarShape(g, style, x, bottomY, w, h, border, arc, charge, config.npcChargeBarColor());
+			bottomY += h;
+		}
+
 		if (stack != null)
 		{
 			// Flush against each other, mirroring the Player Bar profile rather than each bar
@@ -2598,6 +2620,12 @@ class CustomHpBarOverlay extends Overlay
 	/** Actor's max HP, or -1 if unknown (percent then). Native HUD first, then resolveNpcMaxHp()/skill. */
 	private int resolveMaxHp(Actor actor)
 	{
+		int[] shield = plugin.doomShieldHp(actor);
+		if (shield != null)
+		{
+			return shield[1];
+		}
+
 		// Percent-only NPCs suppress the number without losing the HUD's own fraction: resolveHp()
 		// still reads the HUD, only the max is withheld so buildLabel() falls through to a percentage.
 		if (actor instanceof NPC && plugin.isPercentOnlyNpc((NPC) actor))
