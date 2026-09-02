@@ -682,7 +682,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "showNpcChargeBar",
 		name = "Show Charge Bar",
 		description = "Shows a second bar beneath an NPC's while it charges a special attack. "
-			+ "Supports Doom of Mokhaiotl.",
+			+ "Supports Doom of Mokhaiotl and Yama's void flares.",
 		section = TARGET_NPC_SECTION,
 		position = 25
 	)

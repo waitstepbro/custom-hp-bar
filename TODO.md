@@ -24,9 +24,6 @@ also strip the full bar every never-hit NPC deliberately gets.
 
 ## Features
 
-- **Draw our own charge bar for Yama's void flares** - built for Doom and Kephri, not Yama. The
-  probe is written but never run; see CLAUDE.md for what it captures and why 3412/12408 worked
-  for Doom.
 - **Slayer task NPC identification.**
 - **Scale NPC bar length to the mob's tile size**
   ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.

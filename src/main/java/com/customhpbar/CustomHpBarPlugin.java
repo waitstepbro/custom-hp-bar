@@ -203,6 +203,13 @@ public class CustomHpBarPlugin extends Plugin
 	/** Ticks a window survives without the spotanim before being dropped - it trails the wind-up by one. */
 	private static final int DOOM_CHARGE_GRACE_TICKS = 2;
 
+	/**
+	 * A void flare charges from the tick it spawns until it detonates 26 ticks later, on animation 12136.
+	 * Nothing marks the fill - no wind-up, no spotanim - and the bar is on a head bar getHealthRatio()
+	 * cannot reach, so the spawn is the only anchor. Two untouched flares gave spawn+26 exactly.
+	 */
+	private static final int YAMA_FLARE_CHARGE_TICKS = 26;
+
 	/** Backstop only: the settle window normally ends the moment a real ratio comes back, not on this. */
 	private static final int SHIELD_SETTLE_TICKS = 15;
 
@@ -753,6 +760,8 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
+
+		logYamaHitsplat(actor, hitsplat);
 
 		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat should show for
 		// anything the native client would, e.g. PRAYER_DRAIN. overheadEligiblePlayers being tick-granular, a
@@ -1600,8 +1609,8 @@ public class CustomHpBarPlugin extends Plugin
 
 		if (log.isDebugEnabled() && YAMA_PROBE_IDS.contains(npc.getId()))
 		{
-			log.debug("Yama anim: tick={} id={} animation={} ratio={} scale={} spots={}",
-				client.getTickCount(), npc.getId(), npc.getAnimation(),
+			log.debug("Yama anim: tick={} npc={} id={} animation={} ratio={} scale={} spots={}",
+				client.getTickCount(), npcToken(npc), npc.getId(), npc.getAnimation(),
 				npc.getHealthRatio(), npc.getHealthScale(), spotAnimIds(npc));
 		}
 	}
@@ -1646,13 +1655,16 @@ public class CustomHpBarPlugin extends Plugin
 		}
 	}
 
-	/** Debug-only: the spotanim ids on an actor, comma-separated. */
+	/**
+	 * Debug-only: the spotanim ids on an actor, each with its start cycle. A charge that re-creates its
+	 * spotanim every tick instead of clearing it is invisible to a presence check but changes this.
+	 */
 	private static String spotAnimIds(NPC npc)
 	{
 		StringBuilder ids = new StringBuilder();
 		for (ActorSpotAnim spot : npc.getSpotAnims())
 		{
-			ids.append(ids.length() == 0 ? "" : ",").append(spot.getId());
+			ids.append(ids.length() == 0 ? "" : ",").append(spot.getId()).append('@').append(spot.getStartCycle());
 		}
 		return ids.length() == 0 ? "-" : ids.toString();
 	}
@@ -1689,14 +1701,43 @@ public class CustomHpBarPlugin extends Plugin
 				continue;
 			}
 
-			log.debug("Yama probe: tick={} id={} ratio={} scale={} resolvedMax={} anim={} spots={} tracked={}",
-				tick, npc.getId(), npc.getHealthRatio(), npc.getHealthScale(),
-				resolveNpcMaxHp(npc.getId()), npc.getAnimation(), spots, trackedActors.containsKey(npc));
+			log.debug("Yama probe: tick={} npc={} id={} ratio={} scale={} resolvedMax={} anim={} spots={}"
+					+ " chargeStart={} chargeFrac={} tracked={}",
+				tick, npcToken(npc), npc.getId(), npc.getHealthRatio(), npc.getHealthScale(),
+				resolveNpcMaxHp(npc.getId()), npc.getAnimation(), spots, chargeStart.get(npc),
+				String.format("%.2f", chargeFraction(npc)), trackedActors.containsKey(npc));
 		}
 
 		yamaProbeLast.keySet().retainAll(seen);
 		yamaSpotStart.keySet().retainAll(seen);
 		yamaSpotStartHp.keySet().retainAll(seen);
+	}
+
+	/** Debug-only: a stable short handle per NPC, so concurrent flares can be told apart in the log. */
+	private static String npcToken(NPC npc)
+	{
+		return Integer.toHexString(System.identityHashCode(npc));
+	}
+
+	/**
+	 * Debug-only: hits on Yama and his flares. Pairs with logYama() - a flare's first ratio reading
+	 * arriving only here would confirm why the always-show pass draws a full bar, and a charge that
+	 * restarts on damage shows as its spotanim's start cycle jumping against these ticks.
+	 */
+	private void logYamaHitsplat(Actor actor, Hitsplat hitsplat)
+	{
+		if (!log.isDebugEnabled() || !(actor instanceof NPC)
+			|| !YAMA_PROBE_IDS.contains(((NPC) actor).getId()))
+		{
+			return;
+		}
+
+		NPC npc = (NPC) actor;
+		log.debug("Yama hit: tick={} npc={} id={} type={} amount={} mine={} ratio={} scale={} resolvedMax={}"
+				+ " anim={} spots={}",
+			client.getTickCount(), npcToken(npc), npc.getId(), hitsplat.getHitsplatType(), hitsplat.getAmount(),
+			hitsplat.isMine(), npc.getHealthRatio(), npc.getHealthScale(), resolveNpcMaxHp(npc.getId()),
+			npc.getAnimation(), spotAnimIds(npc));
 	}
 
 	/** Debug-only: one spotanim window, with the player HP lost across it - an explosion should show. */
@@ -1720,8 +1761,9 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		log.debug("Yama window: id={} startTick={} endTick={} ticks={} playerHpLost={} ratio={} scale={}",
-			npc.getId(), start, tick, tick - start, yamaSpotStartHp.getOrDefault(npc, playerHp) - playerHp,
+		log.debug("Yama window: npc={} id={} startTick={} endTick={} ticks={} playerHpLost={} ratio={} scale={}",
+			npcToken(npc), npc.getId(), start, tick, tick - start,
+			yamaSpotStartHp.getOrDefault(npc, playerHp) - playerHp,
 			npc.getHealthRatio(), npc.getHealthScale());
 		yamaSpotStart.remove(npc);
 		yamaSpotStartHp.remove(npc);
@@ -1958,8 +2000,8 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Samples the charge spotanim for every watched NPC. The value behind the bar is never transmitted,
-	 * so its fill is timed from the tick the spotanim appears - see CLAUDE.md.
+	 * Opens and closes a charge window per watched NPC. The value behind the bar is never transmitted, so
+	 * every fill here is timed - off the spotanim for Doom, off the spawn for a flare. See CLAUDE.md.
 	 */
 	private void trackSecondaryBars()
 	{
@@ -1981,6 +2023,14 @@ public class CustomHpBarPlugin extends Plugin
 			shielded |= SHIELDED_NPC_IDS.contains(npc.getId());
 			if (!chargeEnabled)
 			{
+				continue;
+			}
+
+			// No spotanim rides a flare's charge, so first sight opens the window and only despawning
+			// closes it - the grace below would drop it on the very next tick.
+			if (npc.getId() == NpcID.YAMA_VOIDFLARE)
+			{
+				chargeStart.putIfAbsent(npc, tick);
 				continue;
 			}
 
@@ -2058,7 +2108,14 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		double elapsed = client.getTickCount() - start + tickFraction();
-		return Math.min(1.0, Math.max(0.0, elapsed / DOOM_CHARGE_TICKS));
+		return Math.min(1.0, Math.max(0.0, elapsed / chargeTicks(actor)));
+	}
+
+	/** Fill length, which differs per encounter - Doom's beam is far quicker than a flare's. */
+	private static int chargeTicks(Actor actor)
+	{
+		return actor instanceof NPC && ((NPC) actor).getId() == NpcID.YAMA_VOIDFLARE
+			? YAMA_FLARE_CHARGE_TICKS : DOOM_CHARGE_TICKS;
 	}
 
 	/** Progress through the current tick, 0-1. Clamped, not wrapped like tickProgress() - a bar must not run backwards. */
