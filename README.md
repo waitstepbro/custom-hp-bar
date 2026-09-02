@@ -4,8 +4,7 @@ A RuneLite plugin that replaces the native health bar with a fully custom overla
 drawn directly on the bar, independent styling for NPCs vs. players, precise HP
 tracking, and status-effect debuffs.
 
-The [wiki](https://github.com/waitstepbro/custom-hp-bar/wiki) covers setup, troubleshooting, FAQs,
-and how the shield and charge bars work. Every setting and its default is below.
+The [wiki](https://github.com/waitstepbro/custom-hp-bar/wiki) covers setup, troubleshooting, how it works, and known limitations. Every setting and its default is below.
 
 <p align="center">
   <img src="images/burn-example.png" width="49%">
