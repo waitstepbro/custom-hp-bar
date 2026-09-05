@@ -16,11 +16,12 @@ none rechecked since:
   - **ToB Nylocas "Support" pillars** - game objects, out of reach of the Verzik fix, and not
     confirmed broken at all.
 
-**3. Yama's void flares show a full bar until hit**
-([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - they spawn at part health,
-but "Always Show NPC Bar" has no read before the first hitsplat, so the pass draws `{1, 1}`. Doom's
-Demonic larva too. Any fix has to stay narrower than "draw nothing until a real read", which would
-also strip the full bar every never-hit NPC deliberately gets.
+**3. Never-hit NPCs show a full bar**
+([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - "Always Show NPC Bar" has no
+read before the first hitsplat, so the pass draws `{1, 1}`. Yama's flares are seeded from first sight
+now; Doom's Demonic larva still reads full. Any fix has to stay narrower than "draw
+nothing until a real read", which would also strip the full bar every never-hit NPC deliberately
+gets.
 
 ## Features
 

@@ -143,7 +143,10 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** NPC IDs with no drop table of their own - never greyed out, since there's no loot to taint. */
 	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
-		NpcID.PMOON_BOSS_JAGUAR
+		NpcID.PMOON_BOSS_JAGUAR,
+		// Yama's minions. The "yama" entry in COMMUNAL_LOOT_NAMES is name-matched, so it exempts him
+		// and nothing else - a duo partner's hits greyed every flare.
+		NpcID.YAMA_VOIDFLARE, NpcID.YAMA_JUDGE_OF_YAMA, NpcID.YAMA_IMP, NpcID.YAMA_METEOR_NPC
 	));
 
 	/** The trailing parenthetical the boss HP HUD appends to some names - the HUD's annotation, not the name. */
@@ -209,6 +212,13 @@ public class CustomHpBarPlugin extends Plugin
 	 * cannot reach, so the spawn is the only anchor. Two untouched flares gave spawn+26 exactly.
 	 */
 	private static final int YAMA_FLARE_CHARGE_TICKS = 26;
+
+	/**
+	 * A flare spawned in Yama's last phase starts at half health. Measured: every flare before the second
+	 * transition died to exactly 140, every one after it to a single 71, with no reading to tell them apart.
+	 */
+	private static final int YAMA_FLARE_LATE_HP = 71;
+	private static final int YAMA_FINAL_PHASE_TRANSITIONS = 2;
 
 	/** Backstop only: the settle window normally ends the moment a real ratio comes back, not on this. */
 	private static final int SHIELD_SETTLE_TICKS = 15;
@@ -535,6 +545,13 @@ public class CustomHpBarPlugin extends Plugin
 	private final Map<NPC, Integer> yamaSpotStart = new ConcurrentHashMap<>();
 	private final Map<NPC, Integer> yamaSpotStartHp = new ConcurrentHashMap<>();
 
+	/** Flares whose HP is seeded and then tracked by hitsplat alone - their reported bar is a different one. */
+	private final Set<NPC> seededFlares = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+	/** Phase transitions Yama has finished this fight, counted off YAMA_TRANSITION_PHASE's rising edge. */
+	private int yamaTransitions;
+	private boolean yamaTransitioning;
+
 	/** Tick each NPC last left Doom's shielded form - see isDeadNotSettling(). */
 	private final Map<NPC, Integer> doomShieldEndedTick = new ConcurrentHashMap<>();
 
@@ -618,6 +635,7 @@ public class CustomHpBarPlugin extends Plugin
 		doomShielded.clear();
 		chargeStart.clear();
 		chargeClosedTick.clear();
+		seededFlares.clear();
 		doomFormChangedTick.clear();
 		doomShieldEndedTick.clear();
 		otherPlayerDamaged.clear();
@@ -1287,6 +1305,7 @@ public class CustomHpBarPlugin extends Plugin
 			syncNativeBarOverrides();
 		}
 		doomShieldEndedTick.remove(event.getNpc());
+		seededFlares.remove(event.getNpc());
 		chargeStart.remove(event.getNpc());
 		chargeClosedTick.remove(event.getNpc());
 		doomFormChangedTick.remove(event.getNpc());
@@ -1901,6 +1920,13 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
+		// Same reasoning for a flare: its ratio is pinned full for its whole life, so re-anchoring would
+		// clamp the tally straight back to max after every hit - see seedFlareHp().
+		if (seededFlares.contains(npc))
+		{
+			return;
+		}
+
 		int maxHp = resolveNpcMaxHp(npc.getId());
 		if (maxHp <= 0)
 		{
@@ -2008,6 +2034,16 @@ public class CustomHpBarPlugin extends Plugin
 		int tick = client.getTickCount();
 		boolean chargeEnabled = config.showNpcChargeBar();
 		boolean shielded = false;
+		boolean yamaPresent = false;
+
+		// The varbit is a transition flag, not a phase number: it pulses to 1 for the few ticks a
+		// transition runs and sits at 0 otherwise, so the edge count is the phase.
+		boolean transitioning = client.getVarbitValue(VarbitID.YAMA_TRANSITION_PHASE) == 1;
+		if (transitioning && !yamaTransitioning)
+		{
+			yamaTransitions++;
+		}
+		yamaTransitioning = transitioning;
 		if (!chargeEnabled)
 		{
 			chargeStart.clear();
@@ -2021,6 +2057,8 @@ public class CustomHpBarPlugin extends Plugin
 			}
 
 			shielded |= SHIELDED_NPC_IDS.contains(npc.getId());
+			yamaPresent |= npc.getId() == NpcID.YAMA;
+			seedFlareHp(npc);
 			if (!chargeEnabled)
 			{
 				continue;
@@ -2051,7 +2089,36 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		shieldedNpcPresent = shielded;
+		if (!yamaPresent)
+		{
+			yamaTransitions = 0;
+			seededFlares.clear();
+		}
 		syncSecondaryOverrides();
+	}
+
+	/**
+	 * Seeds a flare's HP on first sight - half in the last phase, full before it. Every flare needs one:
+	 * the bar it reports is not its hitpoints, so without a baseline the first hitsplat is discarded and
+	 * no later reading ever puts it back. Returns the seeded value, or the existing one.
+	 */
+	private Integer seedFlareHp(NPC npc)
+	{
+		if (npc.getId() != NpcID.YAMA_VOIDFLARE || !seededFlares.add(npc))
+		{
+			return preciseNpcHp.get(npc);
+		}
+
+		int maxHp = resolveNpcMaxHp(npc.getId());
+		int seeded = yamaTransitions >= YAMA_FINAL_PHASE_TRANSITIONS ? YAMA_FLARE_LATE_HP : maxHp;
+		if (seeded <= 0)
+		{
+			seededFlares.remove(npc);
+			return null;
+		}
+
+		preciseNpcHp.put(npc, seeded);
+		return seeded;
 	}
 
 	/**
@@ -2141,6 +2208,11 @@ public class CustomHpBarPlugin extends Plugin
 	private void applyHitsplatDamage(NPC npc, Hitsplat hitsplat)
 	{
 		Integer current = preciseNpcHp.get(npc);
+		if (current == null)
+		{
+			// Covers a flare hit on the tick it spawns, before the scene walk reaches it.
+			current = seedFlareHp(npc);
+		}
 		if (current == null || doomShielded.containsKey(npc))
 		{
 			return;
