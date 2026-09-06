@@ -192,8 +192,11 @@ public class CustomHpBarPlugin extends Plugin
 		// Wardens' obelisk - the phase 1 target, and what the HUD bar shows for that phase
 		NpcID.TOA_WARDENS_P1_OBELISK_NPC_INACTIVE, NpcID.TOA_WARDENS_P1_OBELISK_NPC,
 		NpcID.TOA_WARDENS_P2_OBELISK_NPC,
-		// Not a boss, but it drives a HUD of its own, which outranks HET_SEAL_HP_BY_PARTY_SIZE.
-		11706, 11707
+		// Not bosses, but each drives a HUD of its own. The palm's five ids share one name and only
+		// one is in the room at a time, so nativeHudHp()'s name match can't cross them.
+		11706, 11707,
+		NpcID.TOA_CRONDIS_TREE_1, NpcID.TOA_CRONDIS_TREE_2, NpcID.TOA_CRONDIS_TREE_3,
+		NpcID.TOA_CRONDIS_TREE_4, NpcID.TOA_CRONDIS_TREE_5
 	));
 
 	/**
