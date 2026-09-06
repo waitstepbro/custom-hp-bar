@@ -191,7 +191,9 @@ public class CustomHpBarPlugin extends Plugin
 		NpcID.TOA_WARDEN_ELIDINIS_PHASE3_CHARGING, NpcID.TOA_WARDEN_TUMEKEN_PHASE3_CHARGING,
 		// Wardens' obelisk - the phase 1 target, and what the HUD bar shows for that phase
 		NpcID.TOA_WARDENS_P1_OBELISK_NPC_INACTIVE, NpcID.TOA_WARDENS_P1_OBELISK_NPC,
-		NpcID.TOA_WARDENS_P2_OBELISK_NPC
+		NpcID.TOA_WARDENS_P2_OBELISK_NPC,
+		// Not a boss, but it drives a HUD of its own, which outranks HET_SEAL_HP_BY_PARTY_SIZE.
+		11706, 11707
 	));
 
 	/**
@@ -270,7 +272,7 @@ public class CustomHpBarPlugin extends Plugin
 	 * clean formula for it - the steps run 106, 96, 96, 95, 96, 96, 96 - and raid level and invocations do
 	 * not affect it at all. Absent from npc_hp.csv entirely, hence the table here.
 	 */
-	private static final int[] HET_SEAL_HP_BY_PARTY_SIZE = {119, 225, 321, 417, 512, 608, 704, 800};
+	private static final int[] HET_SEAL_HP_BY_PARTY_SIZE = {119, 225, 313, 417, 512, 608, 704, 800};
 	private static final Set<Integer> HET_SEAL_NPC_IDS = new HashSet<>(Arrays.asList(11706, 11707));
 
 	/** ToA party slot varbits - a nonzero slot is an occupied one, same set core's own LootTrackerPlugin counts. */
@@ -454,6 +456,9 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Debug-only: last boss-HUD reading logged, so logToaBossHud() reports each boss and phase once. */
 	private int loggedHudMaxHp = -1;
+
+	/** Debug-only: last reported party slot line, so logToaParty() reports a change once. TODO bug 1. */
+	private String loggedToaParty;
 	private String loggedHudName;
 
 	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits}, dumped on death. TODO bug 1. */
@@ -555,6 +560,7 @@ public class CustomHpBarPlugin extends Plugin
 		toaLoggedNpcIds.clear();
 		toaLoggedRegion = -1;
 		loggedHudMaxHp = -1;
+		loggedToaParty = null;
 		loggedHudName = null;
 		toaDamageTally.clear();
 		toaTallyLogged.clear();
@@ -1313,13 +1319,8 @@ public class CustomHpBarPlugin extends Plugin
 		int baseHp = NpcMaxHpTable.getMaxHp(npcId);
 		if (isInsideToa() && !TOA_STATIC_HP_NPC_IDS.contains(npcId))
 		{
-			// The party term has never been measured and the wiki only claims it for bosses, so a
-			// minion number in a team would be a guess - percent instead. Bosses keep their number:
-			// the HUD carries the server's own figure for them.
-			if (toaPartySize() > 1 && !TOA_BOSS_NPC_IDS.contains(npcId))
-			{
-				return -1;
-			}
+			// Minions scale on the party term the same way bosses do, measured against their own
+			// deaths in a team - see CLAUDE.md before restoring a percent fallback here.
 			return baseHp > 0 ? toaScaledMaxHp(baseHp) : -1;
 		}
 		return baseHp;
@@ -1327,18 +1328,20 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * npc_hp.csv's ToA rows are base (raid level 0, path 0, solo) HP - ToA scales that by raid level,
-	 * path level and party size. Integer division and rounding mirror the game's own, see CLAUDE.md.
+	 * path level and party size, then rounds once - see CLAUDE.md.
 	 */
 	private int toaScaledMaxHp(int baseHp)
 	{
-		int hp = baseHp;
-		hp += hp * (4 * client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL) / 10) / 100;
+		// Exact arithmetic, rounded once at the end. Truncating each term instead lost up to a whole
+		// rounding step, which showed as Kephri reading 810 against the HUD's own 820.
+		double hp = baseHp;
+		hp += hp * (4 * client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL)) / 1000.0;
 
 		int pathLevel = toaPathLevel();
 		if (pathLevel > 0)
 		{
 			// Level 1 is +8%, each level after +5%.
-			hp += hp * (3 + 5 * pathLevel) / 100;
+			hp += hp * (3 + 5 * pathLevel) / 100.0;
 		}
 
 		int partySize = toaPartySize();
@@ -1346,15 +1349,16 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			// 2nd and 3rd member add 90% of base each, 4th and beyond 60% each.
 			int partyFactor = 9 * Math.min(partySize - 1, 2) + 6 * Math.max(partySize - 3, 0);
-			hp += hp * partyFactor / 10;
+			hp += hp * partyFactor / 10.0;
 		}
 
-		if (hp > 100)
+		if (hp <= 100)
 		{
-			int roundTo = hp > 300 ? 10 : 5;
-			hp = (hp + roundTo / 2) / roundTo * roundTo;
+			return (int) Math.round(hp);
 		}
-		return hp;
+
+		int roundTo = hp > 300 ? 10 : 5;
+		return (int) (Math.round(hp / roundTo) * roundTo);
 	}
 
 	/**
@@ -1380,6 +1384,7 @@ public class CustomHpBarPlugin extends Plugin
 		int pathLevel = toaPathLevel();
 		int partySize = toaPartySize();
 
+		logToaParty(region, raidLevel, partySize);
 		logToaBossHud(region, raidLevel, pathLevel, partySize);
 
 		for (NPC npc : client.getTopLevelWorldView().npcs())
@@ -1395,6 +1400,30 @@ public class CustomHpBarPlugin extends Plugin
 				region, npc.getId(), npc.getName(), baseHp, raidLevel, pathLevel, partySize,
 				resolveNpcMaxHp(npc.getId()), npc.getHealthRatio(), npc.getHealthScale());
 		}
+	}
+
+	/**
+	 * Debug-only (TODO bug 1): the raw party slots behind toaPartySize(), which has only ever been
+	 * exercised solo. A miscount there shifts every scaled max in the raid by a constant.
+	 */
+	private void logToaParty(int region, int raidLevel, int partySize)
+	{
+		StringBuilder slots = new StringBuilder();
+		for (int varbit : TOA_PARTY_SLOT_VARBITS)
+		{
+			slots.append(slots.length() == 0 ? "" : ",").append(client.getVarbitValue(varbit));
+		}
+
+		String line = region + "/" + raidLevel + "/" + partySize + "/" + slots;
+		if (line.equals(loggedToaParty))
+		{
+			return;
+		}
+		loggedToaParty = line;
+
+		log.debug("ToA party: region={} raidLevel={} partySize={} partyFactor={} slots={}",
+			region, raidLevel, partySize, 9 * Math.min(partySize - 1, 2) + 6 * Math.max(partySize - 3, 0),
+			slots);
 	}
 
 	/**
@@ -1470,10 +1499,11 @@ public class CustomHpBarPlugin extends Plugin
 		}
 		toaTallyLogged.add(npc);
 
-		log.debug("ToA death: region={} id={} name={} baseRow={} predictedMax={} damageTotal={}"
-				+ " lastHit={} hits={} trueMaxRange=({}..{}]",
+		log.debug("ToA death: region={} id={} name={} baseRow={} predictedMax={} raidLevel={} pathLevel={}"
+				+ " partySize={} damageTotal={} lastHit={} hits={} trueMaxRange=({}..{}]",
 			localPlayerRegion(), npc.getId(), npc.getName(), NpcMaxHpTable.getMaxHp(npc.getId()),
-			resolveNpcMaxHp(npc.getId()),
+			resolveNpcMaxHp(npc.getId()), client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL),
+			toaPathLevel(), toaPartySize(),
 			tally[0], tally[1], tally[2], tally[0] - tally[1], tally[0]);
 	}
 

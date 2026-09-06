@@ -1,8 +1,8 @@
 ## Bugs
 
-**1. ToA in a team.** Solo is settled; a team never has been, so minions outside a solo fall back to
-a percentage. `toaPartySize()`'s varbit read has never been seen reporting a real team and it picks
-which of the two shows, so a misread invents numbers in a team or drops them in a solo, silently.
+**1. ToA rooms with no HP rows.** The Wardens' statue forms, Zebak's Tail, Osmumten and the puzzle
+scenery (Boulder, Rubble, Jug, Wave, Blood Cloud, the orbs) have no `npc_hp.csv` rows, so they draw
+a percentage. The HUD covers the Wardens and the Palms; the rest would need rows.
 
 **2. Bar disappears with `hideNativeBar` on**
 ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different
