@@ -19,19 +19,17 @@ none rechecked since:
 
 ## Features
 
-- **Friend names should appear green.**
-- **Slayer task NPC identification.**
-- **Scale NPC bar length to the mob's tile size**
-  ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.
-
 ## Functional Changes
 
 - **Move the NPC name and bar up when NPC chat appears**, so overhead text doesn't sit on top of
   them.
 
-## Ideas
+## Backlog
 
 - **Phase markers** at boss HP thresholds.
 - **Dim non-target bars** to cut multi-combat clutter.
 - **Decouple bar and name from character animation** - the NPC bar shake and the player-bar bob are
   the same problem.
+- **Slayer task NPC identification.**
+- **Scale NPC bar length to the mob's tile size**
+  ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.

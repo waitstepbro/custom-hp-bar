@@ -1288,13 +1288,18 @@ class CustomHpBarOverlay extends Overlay
 		int w = rect[2];
 		int h = rect[3];
 		int nameGap = scaled(NAME_GAP, zoom);
-		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s. No grey or
-		// aggressive tint to outrank the by-level one here - neither concept exists for players.
+		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s.
 		int level = player.getCombatLevel();
 		String levelSuffix = config.showPlayerCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
 		Color byLevel = levelNameColor(level);
+		Color nameColor = byLevel != null ? byLevel : config.playerNameColor();
+		if (config.highlightFriends() && player.isFriend())
+		{
+			// Identity outranks the by-level tint, which is a threat read a friend doesn't need.
+			nameColor = config.friendNameColor();
+		}
 		drawNameLabel(g, style, Text.removeTags(playerName), levelSuffix, x, y - h - nameGap, w, h, zoom,
-			byLevel != null ? byLevel : config.playerNameColor(), levelSuffixColor(level));
+			nameColor, levelSuffixColor(level));
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */

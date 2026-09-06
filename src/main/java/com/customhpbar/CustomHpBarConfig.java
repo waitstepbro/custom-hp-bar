@@ -1675,11 +1675,36 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "highlightFriends",
+		name = "Highlight Friends",
+		description = "Draws a friend's name in the friend color instead of the normal one. Overrides " +
+			"'Color Names By Combat Level'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 4
+	)
+	default boolean highlightFriends()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "friendNameColor",
+		name = "Friend Name Color",
+		description = "Color of a friend's name. Requires 'Highlight Friends'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 5
+	)
+	default Color friendNameColor()
+	{
+		return Color.GREEN;
+	}
+
+	@ConfigItem(
 		keyName = "playerFilter",
 		name = "Player Blacklist",
 		description = "Comma-separated player names to hide. Supports * wildcards; leave blank to show all.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 4
+		position = 6
 	)
 	default String playerFilter()
 	{
@@ -1692,7 +1717,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
 			"which ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 5
+		position = 7
 	)
 	@Range(min = 0, max = 30)
 	default int playerNameStackLimit()

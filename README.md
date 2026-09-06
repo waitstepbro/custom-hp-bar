@@ -239,6 +239,8 @@ of your own.
 | Always Show Player Name | Shows the name at all times, not just when the bar is tracked. Requires Show Player Name. | Off |
 | Show Combat Level | Appends the player's combat level to their name. Requires Show Player Name. | Off |
 | Player Name Color | Color of the player name text, separate from the HP number's color | White |
+| Highlight Friends | Draws a friend's name in the friend color instead of the normal one. Overrides "Color Names By Combat Level". | On |
+| Friend Name Color | Color of a friend's name. Requires "Highlight Friends". | Green |
 | Player Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 | Player Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once - which ones is arbitrary, not distance-based. 0 = unlimited. | 0 |
 
