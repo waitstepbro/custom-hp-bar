@@ -1,10 +1,10 @@
 ## Summary
 
-<!-- What changed, from a user's point of view. One or two lines. -->
+<!-- What changed, from a user's point of view. Link any related issue. -->
 
 ## Why
 
-<!-- The behaviour that was wrong, or the request behind it. Use "Closes #N" to link an issue. -->
+<!-- The behaviour that was wrong, or the request behind it. Use "Closes #N" if it closes one. -->
 
 ## Confirmed in game
 
