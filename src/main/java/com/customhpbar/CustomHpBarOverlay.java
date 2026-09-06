@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -772,6 +773,14 @@ class CustomHpBarOverlay extends Overlay
 	/** [current, max] HP for display: native boss HUD, then precise hitsplat tracking, then live/last-known. */
 	private int[] resolveHp(Actor actor, int maxHp)
 	{
+		// Ahead of every other source: while shielded the HUD and the hitsplat tally both describe
+		// Doom's hitpoints, which is a different pool than the one being drawn.
+		int[] shield = plugin.doomShieldHp(actor);
+		if (shield != null)
+		{
+			return shield;
+		}
+
 		int[] hud = plugin.nativeHudHp(actor);
 		if (hud != null)
 		{
@@ -1483,8 +1492,12 @@ class CustomHpBarOverlay extends Overlay
 			&& plugin.isNpcAggressive((NPC) actor);
 		// Held separately from fillColor: null means the gradient is driving the fill, which is
 		// what lets a matched trail resolve its own color per HP level below.
-		Color overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
-			&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
+		Color overrideColor = plugin.isShieldedNpc(actor) ? config.npcShieldBarColor() : null;
+		if (overrideColor == null)
+		{
+			overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
+				&& plugin.isLootTainted((NPC) actor) ? LOOT_TAINTED_COLOR : null;
+		}
 		if (overrideColor == null)
 		{
 			overrideColor = plugin.statusEffectColor(actor);
@@ -1540,6 +1553,27 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		int bottomY = y + h;
+
+		// Resolved before the charge bar draws: the icon row owns the space under the bar, and the
+		// charge bar has to clear whatever it takes. Icons are square at the bar's height.
+		Set<CustomHpBarPlugin.StatusEffect> statusEffects = showStatusIcons(actor)
+			? plugin.activeStatusEffects(actor) : Collections.emptySet();
+		int statusRowH = statusEffects.isEmpty() ? 0 : h;
+
+		// Beneath the HP bar rather than in the player stack: it is transient, and nothing else on the
+		// target profile is ordered, so it only has to clear what already sits below the bar.
+		double charge = plugin.chargeFraction(actor);
+		if (charge >= 0 && plugin.isHpBarsVisible())
+		{
+			// Its own size, because the native charge bar is usually wider than the health bar it sits
+			// under. 0 on either falls back to the HP bar's, which is what every existing profile has.
+			int chargeW = config.npcChargeBarWidth() > 0 ? scaled(config.npcChargeBarWidth(), zoom) : w;
+			int chargeH = config.npcChargeBarHeight() > 0 ? scaled(config.npcChargeBarHeight(), zoom) : h;
+			int chargeY = bottomY + Math.max(scaled(config.npcChargeBarGap(), zoom), statusRowH);
+			drawBarShape(g, style, x + (w - chargeW) / 2, chargeY, chargeW, chargeH, border, arc, charge,
+				config.npcChargeBarColor());
+		}
+
 		if (stack != null)
 		{
 			// Flush against each other, mirroring the Player Bar profile rather than each bar
@@ -1548,10 +1582,10 @@ class CustomHpBarOverlay extends Overlay
 			bottomY = y + h * stack.size();
 		}
 
-		if (showStatusIcons(actor))
+		if (!statusEffects.isEmpty())
 		{
 			// Below whichever bar is currently lowest, so it doesn't overlap the stack.
-			drawStatusIcons(g, plugin.activeStatusEffects(actor), x, bottomY, h);
+			drawStatusIcons(g, statusEffects, x, bottomY, h);
 		}
 
 		// With "Always Show Name" on, render()'s dedicated pass is the sole name source. trackedNow is the
@@ -2598,6 +2632,12 @@ class CustomHpBarOverlay extends Overlay
 	/** Actor's max HP, or -1 if unknown (percent then). Native HUD first, then resolveNpcMaxHp()/skill. */
 	private int resolveMaxHp(Actor actor)
 	{
+		int[] shield = plugin.doomShieldHp(actor);
+		if (shield != null)
+		{
+			return shield[1];
+		}
+
 		// Percent-only NPCs suppress the number without losing the HUD's own fraction: resolveHp()
 		// still reads the HUD, only the max is withheld so buildLabel() falls through to a percentage.
 		if (actor instanceof NPC && plugin.isPercentOnlyNpc((NPC) actor))

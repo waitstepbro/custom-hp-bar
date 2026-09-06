@@ -25,12 +25,14 @@ import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.ScriptPostFired;
@@ -140,7 +142,9 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** NPC IDs with no drop table of their own - never greyed out, since there's no loot to taint. */
 	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
-		NpcID.PMOON_BOSS_JAGUAR
+		NpcID.PMOON_BOSS_JAGUAR,
+		// COMMUNAL_LOOT_NAMES matches "yama" by name, which exempts him and none of his minions.
+		NpcID.YAMA_VOIDFLARE, NpcID.YAMA_JUDGE_OF_YAMA, NpcID.YAMA_IMP, NpcID.YAMA_METEOR_NPC
 	));
 
 	/** The trailing parenthetical the boss HP HUD appends to some names - the HUD's annotation, not the name. */
@@ -163,6 +167,52 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
+
+	/**
+	 * Forms whose bar is a shield rather than hitpoints. Doom's value has to be derived; Kephri's is
+	 * already the pool the HUD and npc_hp.csv report for that form, so only its colour changes.
+	 */
+	private static final Set<Integer> SHIELDED_NPC_IDS = new HashSet<>(Arrays.asList(
+		NpcID.DOM_BOSS_SHIELDED, NpcID.TOA_KEPHRI_BOSS_SHIELDED, NpcID.TOA_KEPHRI_BOSS_WEAK));
+
+	/** Doom's shield pool: a flat 500 at every delve, unlike his own HP. See CLAUDE.md. */
+	static final int DOOM_SHIELD_HP = 500;
+
+	/**
+	 * Doom's charge. The native bar goes up on the 12408 wind-up, one tick before the spotanim appears, and
+	 * completes a tick after the beam animation starts - hence 14, not the 12 the beam itself takes. 3412
+	 * rides the standing and shielded forms, 3414 the burrowed one.
+	 */
+	private static final Set<Integer> DOOM_CHARGE_SPOTANIMS = new HashSet<>(Arrays.asList(3412, 3414));
+	private static final int DOOM_CHARGE_WINDUP_ANIM = 12408;
+
+	/**
+	 * Forms whose native bar is a charge or shield pool, not hitpoints - it reads a constant full there.
+	 * Doom charges through both, so a swap into one carries the wind-up rather than ending it, and their
+	 * ratio must never reach precise HP. Damage still lands on his real HP while burrowed, unlike shielded.
+	 */
+	private static final Set<Integer> DOOM_ALT_BAR_FORMS = new HashSet<>(Arrays.asList(
+		NpcID.DOM_BOSS_SHIELDED, NpcID.DOM_BOSS_BURROWED));
+
+	private static final int DOOM_CHARGE_INTERRUPT_ANIM = 12410;
+	private static final int DOOM_CHARGE_TICKS = 14;
+
+	/** Ticks a window survives without the spotanim before being dropped - it trails the wind-up by one. */
+	private static final int DOOM_CHARGE_GRACE_TICKS = 2;
+
+	/**
+	 * A void flare charges from the tick it spawns until it detonates 26 ticks later, on animation 12136.
+	 * Nothing marks the fill - no wind-up, no spotanim - and the bar is on a head bar getHealthRatio()
+	 * cannot reach, so the spawn is the only anchor.
+	 */
+	private static final int YAMA_FLARE_CHARGE_TICKS = 26;
+
+	/** A flare spawned in Yama's last phase starts at half health - nothing it reports says so. */
+	private static final int YAMA_FLARE_LATE_HP = 71;
+	private static final int YAMA_FINAL_PHASE_TRANSITIONS = 2;
+
+	/** Backstop only: the settle window normally ends the moment a real ratio comes back, not on this. */
+	private static final int SHIELD_SETTLE_TICKS = 15;
 
 	/** Vasa's two combat-form IDs; max HP depends on the Challenge Mode varbit, not a static table. */
 	private static final Set<Integer> VASA_NPC_IDS = new HashSet<>(Arrays.asList(7566, 7567));
@@ -444,9 +494,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** isTrackedNpc() result per NPC, cached for one game tick rather than recomputed every frame. */
 	private int trackedNpcCacheTick = Integer.MIN_VALUE;
 	private final Map<NPC, Boolean> trackedNpcCache = new ConcurrentHashMap<>();
-	private int trackedNpcCacheHits;
-	private int trackedNpcCacheMisses;
-	private int trackedNpcCacheLastLogTick;
 
 	/** Debug-only: ToA NPC ids already logged this room, so logToaScaling() reports each once. TODO bug 1. */
 	private final Set<Integer> toaLoggedNpcIds = new HashSet<>();
@@ -455,6 +502,41 @@ public class CustomHpBarPlugin extends Plugin
 	/** Debug-only: last boss-HUD reading logged, so logToaBossHud() reports each boss and phase once. */
 	private int loggedHudMaxHp = -1;
 	private String loggedHudName;
+
+	/** Shield remaining per shielded Doom. Derived: the pool is never transmitted - see CLAUDE.md. */
+	private final Map<NPC, Integer> doomShielded = new ConcurrentHashMap<>();
+
+	/** Tick the current charge started, per NPC; absent means nothing is charging. */
+	private final Map<NPC, Integer> chargeStart = new ConcurrentHashMap<>();
+
+	/** Tick a charge was force-closed, per NPC. Its spotanim outlives that by a tick - see closeCharge(). */
+	private final Map<NPC, Integer> chargeClosedTick = new ConcurrentHashMap<>();
+
+	/** Tick each Doom form last changed - the native bar trails the swap by one. See updatePreciseHp(). */
+	private final Map<NPC, Integer> doomFormChangedTick = new ConcurrentHashMap<>();
+
+	/** Whether each sprite override is currently applied, so a sync only runs when one actually flips. */
+	private boolean chargeOverrideApplied;
+	private boolean shieldOverrideApplied;
+
+	/** Whether any shielded form is in the scene; Kephri spawns shielded, so no transform announces her. */
+	private boolean shieldedNpcPresent;
+
+	/** Tick a shield window last closed. The native bar lingers at 0 briefly, so the override outlasts it. */
+	private int shieldEndedTick = Integer.MIN_VALUE;
+
+	/** Same for the charge window - a native bar that outlives ours must not flash through behind it. */
+	private int chargeEndedTick = Integer.MIN_VALUE;
+
+	/** Flares whose HP is seeded and then tracked by hitsplat alone - their reported bar is a different one. */
+	private final Set<NPC> seededFlares = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+	/** Phase transitions Yama has finished this fight, counted off YAMA_TRANSITION_PHASE's rising edge. */
+	private int yamaTransitions;
+	private boolean yamaTransitioning;
+
+	/** Tick each NPC last left Doom's shielded form - see isDeadNotSettling(). */
+	private final Map<NPC, Integer> doomShieldEndedTick = new ConcurrentHashMap<>();
 
 	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits}, dumped on death. TODO bug 1. */
 	private final Map<NPC, int[]> toaDamageTally = new ConcurrentHashMap<>();
@@ -533,6 +615,12 @@ public class CustomHpBarPlugin extends Plugin
 		pendingTrailDamage.clear();
 		deathFades.clear();
 		preciseNpcHp.clear();
+		doomShielded.clear();
+		chargeStart.clear();
+		chargeClosedTick.clear();
+		seededFlares.clear();
+		doomFormChangedTick.clear();
+		doomShieldEndedTick.clear();
 		otherPlayerDamaged.clear();
 		statusEffectTicks.clear();
 		overheadHitsplats.clear();
@@ -549,9 +637,6 @@ public class CustomHpBarPlugin extends Plugin
 		bleedEndedTick = Integer.MIN_VALUE;
 		trackedNpcCache.clear();
 		trackedNpcCacheTick = Integer.MIN_VALUE;
-		trackedNpcCacheHits = 0;
-		trackedNpcCacheMisses = 0;
-		trackedNpcCacheLastLogTick = 0;
 		toaLoggedNpcIds.clear();
 		toaLoggedRegion = -1;
 		loggedHudMaxHp = -1;
@@ -569,7 +654,8 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		if ("hideNativeBar".equals(event.getKey()) || "showPrayerBar".equals(event.getKey()))
+		if ("hideNativeBar".equals(event.getKey()) || "showPrayerBar".equals(event.getKey())
+			|| "showNpcShieldBar".equals(event.getKey()) || "showNpcChargeBar".equals(event.getKey()))
 		{
 			clientThread.invokeLater(this::syncNativeBarOverrides);
 		}
@@ -607,6 +693,43 @@ public class CustomHpBarPlugin extends Plugin
 		else if (config.showPrayerBar())
 		{
 			applySpriteOverride(NativeHealthBarSprites.PRAYER);
+		}
+
+		// Our shield bar replaces the native one, but only for as long as the window is open - SHIELD is
+		// the native Prayer bar's sprite set too, so a standing override would cost that bar entirely.
+		shieldOverrideApplied = shieldOverrideWanted();
+		if (shieldOverrideApplied)
+		{
+			applySpriteOverride(NativeHealthBarSprites.SHIELD);
+		}
+
+		// Same rule for the charge bar: only while ours is drawing, so nothing we draw no replacement
+		// for loses its own bar. See CLAUDE.md.
+		chargeOverrideApplied = chargeOverrideWanted();
+		if (chargeOverrideApplied)
+		{
+			applySpriteOverride(NativeHealthBarSprites.CHARGE);
+		}
+	}
+
+	private boolean chargeOverrideWanted()
+	{
+		return config.showNpcChargeBar()
+			&& (!chargeStart.isEmpty() || client.getTickCount() - chargeEndedTick <= SHIELD_SETTLE_TICKS);
+	}
+
+	private boolean shieldOverrideWanted()
+	{
+		return config.showNpcShieldBar()
+			&& (shieldedNpcPresent || client.getTickCount() - shieldEndedTick <= SHIELD_SETTLE_TICKS);
+	}
+
+	/** Re-syncs only when an override actually flips - a charge window opens and closes several times a fight. */
+	private void syncSecondaryOverrides()
+	{
+		if (chargeOverrideWanted() != chargeOverrideApplied || shieldOverrideWanted() != shieldOverrideApplied)
+		{
+			syncNativeBarOverrides();
 		}
 	}
 
@@ -658,6 +781,8 @@ public class CustomHpBarPlugin extends Plugin
 		// the hitsplat whenever getHealthRatio() has already caught up with it.
 		if (actor instanceof NPC)
 		{
+			restartBurrowedCharge((NPC) actor, hitsplat);
+			applyShieldDamage((NPC) actor, hitsplat);
 			applyHitsplatDamage((NPC) actor, hitsplat);
 			tallyToaDamage((NPC) actor, hitsplat);
 		}
@@ -700,7 +825,7 @@ public class CustomHpBarPlugin extends Plugin
 
 		// Hide the bar the instant the killing blow lands, rather than waiting out
 		// persistTicks()/the death animation - see isConfirmedDead().
-		if (isConfirmedDead(actor))
+		if (isDeadNotSettling(actor))
 		{
 			logToaDeathTally(actor);
 			beginDeathFade(actor);
@@ -866,7 +991,7 @@ public class CustomHpBarPlugin extends Plugin
 			// Death first: isTrackedType() already returns false for a corpse, so testing it first
 			// swallowed every death before beginDeathFade() could see one. Same eviction either
 			// way - only which branch claims it changes.
-			if (isConfirmedDead(actor))
+			if (isDeadNotSettling(actor))
 			{
 				beginDeathFade(actor);
 				evict(actor);
@@ -894,6 +1019,8 @@ public class CustomHpBarPlugin extends Plugin
 		// Last, so this tick's tracking additions/evictions above are reflected immediately rather
 		// than lagging a further tick behind.
 		updateOverheadEligiblePlayers();
+
+		trackSecondaryBars();
 
 		logToaScaling();
 	}
@@ -995,6 +1122,30 @@ public class CustomHpBarPlugin extends Plugin
 	static boolean isConfirmedDead(Actor actor)
 	{
 		return actor.getHealthRatio() == 0;
+	}
+
+	/**
+	 * The death test every tracking path uses: ratio 0, except while a shield bar is still unwinding.
+	 * Guarding only the evict branches is not enough - isTrackedType() evicts off the same reading.
+	 */
+	private boolean isDeadNotSettling(Actor actor)
+	{
+		// A 0 on a charge or shield pool is that pool spent, never death - it is not Doom's hitpoints. Without
+		// this the sweep evicted him mid-burrow, and evict() drops the precise HP the guarded reads preserve.
+		if (actor instanceof NPC && DOOM_ALT_BAR_FORMS.contains(((NPC) actor).getId()))
+		{
+			return false;
+		}
+
+		if (!isConfirmedDead(actor))
+		{
+			// A real reading is back, so whatever the shield left behind has finished unwinding.
+			doomShieldEndedTick.remove(actor);
+			return false;
+		}
+
+		Integer endedTick = doomShieldEndedTick.get(actor);
+		return endedTick == null || client.getTickCount() - endedTick > SHIELD_SETTLE_TICKS;
 	}
 
 	/**
@@ -1126,6 +1277,15 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			logToaDeathTally(event.getNpc());
 		}
+		if (doomShielded.remove(event.getNpc()) != null)
+		{
+			syncNativeBarOverrides();
+		}
+		doomShieldEndedTick.remove(event.getNpc());
+		seededFlares.remove(event.getNpc());
+		chargeStart.remove(event.getNpc());
+		chargeClosedTick.remove(event.getNpc());
+		doomFormChangedTick.remove(event.getNpc());
 		toaDamageTally.remove(event.getNpc());
 		toaTallyLogged.remove(event.getNpc());
 		clearAnimations(event.getNpc());
@@ -1263,6 +1423,8 @@ public class CustomHpBarPlugin extends Plugin
 			return null;
 		}
 
+		// Not clamped to max: a shield can overheal past it, and the native HUD reports that verbatim
+		// (256/245). drawBarShape() caps the drawn width, so only the number goes above.
 		return new int[]{nativeHudCurrentHp, nativeHudMaxHp};
 	}
 
@@ -1355,6 +1517,91 @@ public class CustomHpBarPlugin extends Plugin
 			hp = (hp + roundTo / 2) / roundTo * roundTo;
 		}
 		return hp;
+	}
+
+	/**
+	 * A form swap is how Doom implements his shield, and the only signal it exists - the pool itself is
+	 * never transmitted. Opens and closes the derived shield window.
+	 */
+	@Subscribe
+	public void onNpcChanged(NpcChanged event)
+	{
+		NPC npc = event.getNpc();
+		int oldId = event.getOld() == null ? -1 : event.getOld().getId();
+
+		if (DOOM_NPC_IDS.contains(npc.getId()) || DOOM_NPC_IDS.contains(oldId))
+		{
+			doomFormChangedTick.put(npc, client.getTickCount());
+		}
+
+		// A form change ends whatever the old form was charging - except the swaps into a charging form,
+		// which Doom enters partway through a wind-up already in progress.
+		if (!DOOM_ALT_BAR_FORMS.contains(npc.getId()))
+		{
+			closeCharge(npc);
+		}
+
+		// The transform is the only signal the shield exists at all, in either direction.
+		// The spent pool reads 0 for a tick or two after the swap back, which is the death test's problem
+		// as much as the shield's - hence either form, not just the shielded one.
+		if (DOOM_ALT_BAR_FORMS.contains(oldId))
+		{
+			doomShieldEndedTick.put(npc, client.getTickCount());
+		}
+
+		if (npc.getId() == NpcID.DOM_BOSS_SHIELDED)
+		{
+			doomShielded.put(npc, DOOM_SHIELD_HP);
+			syncNativeBarOverrides();
+		}
+		else if (oldId == NpcID.DOM_BOSS_SHIELDED)
+		{
+			doomShielded.remove(npc);
+			shieldEndedTick = client.getTickCount();
+			syncNativeBarOverrides();
+		}
+		else
+		{
+			syncSecondaryOverrides();
+		}
+	}
+
+	/**
+	 * Opens the charge window on the wind-up, which is a tick ahead of the spotanim that rides the bar.
+	 * getHealthRatio() never reports that bar, so its fill is timed rather than read - see CLAUDE.md.
+	 */
+	@Subscribe
+	public void onAnimationChanged(AnimationChanged event)
+	{
+		if (!(event.getActor() instanceof NPC))
+		{
+			return;
+		}
+
+		NPC npc = (NPC) event.getActor();
+
+		// The wind-up is when the native bar appears - a tick before the spotanim that rides it.
+		if (npc.getAnimation() == DOOM_CHARGE_WINDUP_ANIM && config.showNpcChargeBar())
+		{
+			chargeStart.putIfAbsent(npc, client.getTickCount());
+			syncSecondaryOverrides();
+		}
+
+		// A hit ends the charge outright, except while shielded, where he resumes it immediately. Closing
+		// it here rather than waiting for the spotanim to clear is what stops the bar rebuilding for a tick.
+		if (npc.getAnimation() == DOOM_CHARGE_INTERRUPT_ANIM && chargeStart.containsKey(npc))
+		{
+			if (DOOM_ALT_BAR_FORMS.contains(npc.getId()))
+			{
+				chargeStart.put(npc, client.getTickCount());
+			}
+			else
+			{
+				chargeStart.remove(npc);
+				chargeEndedTick = client.getTickCount();
+				syncSecondaryOverrides();
+			}
+		}
 	}
 
 	/**
@@ -1520,6 +1767,22 @@ public class CustomHpBarPlugin extends Plugin
 	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact bound. */
 	private void updatePreciseHp(NPC npc, int ratio, int scale, boolean freshRead)
 	{
+		// Shielded and burrowed report a pool that is not hitpoints, and the bar still reports the old
+		// form's for a tick after a swap. Taken as real readings these refilled Doom to max mid-burrow and
+		// zeroed him leaving it; hitsplats carry his HP through instead - see applyHitsplatDamage().
+		if (DOOM_ALT_BAR_FORMS.contains(npc.getId())
+			|| Integer.valueOf(client.getTickCount()).equals(doomFormChangedTick.get(npc)))
+		{
+			return;
+		}
+
+		// Same reasoning for a flare: its ratio is pinned full for its whole life, so re-anchoring would
+		// clamp the tally straight back to max after every hit - see seedFlareHp().
+		if (seededFlares.contains(npc))
+		{
+			return;
+		}
+
 		int maxHp = resolveNpcMaxHp(npc.getId());
 		if (maxHp <= 0)
 		{
@@ -1580,10 +1843,232 @@ public class CustomHpBarPlugin extends Plugin
 	 * Adjusts an NPC's precise HP estimate by a hitsplat's damage/heal amount. No-ops if there's
 	 * no baseline yet (set by updatePreciseHp on the next ratio read).
 	 */
+	/**
+	 * Tracks the shield pool across the window. Doom's own HP is frozen while shielded, so every splat
+	 * here is the shield's - including the larvae, which damage it exploding and heal it arriving.
+	 */
+	private void applyShieldDamage(NPC npc, Hitsplat hitsplat)
+	{
+		Integer remaining = doomShielded.get(npc);
+		if (remaining == null)
+		{
+			return;
+		}
+
+		int type = hitsplat.getHitsplatType();
+		int delta;
+		if (type == HitsplatID.HEAL)
+		{
+			delta = hitsplat.getAmount();
+		}
+		else if (DAMAGE_HITSPLATS.contains(type))
+		{
+			delta = -hitsplat.getAmount();
+		}
+		else
+		{
+			return;
+		}
+
+		int updated = Math.max(0, Math.min(DOOM_SHIELD_HP, remaining + delta));
+		doomShielded.put(npc, updated);
+
+		// An empty shield ends the phase, and the charge with it - a tick before the form change does.
+		if (updated == 0)
+		{
+			closeCharge(npc);
+			syncSecondaryOverrides();
+		}
+	}
+
+	/**
+	 * Opens and closes a charge window per watched NPC. The value behind the bar is never transmitted, so
+	 * every fill here is timed - off the spotanim for Doom, off the spawn for a flare. See CLAUDE.md.
+	 */
+	private void trackSecondaryBars()
+	{
+		int tick = client.getTickCount();
+		boolean chargeEnabled = config.showNpcChargeBar();
+		boolean shielded = false;
+		boolean yamaPresent = false;
+
+		// The varbit is a transition flag, not a phase number: it pulses to 1 for the few ticks a
+		// transition runs and sits at 0 otherwise, so the edge count is the phase.
+		boolean transitioning = client.getVarbitValue(VarbitID.YAMA_TRANSITION_PHASE) == 1;
+		if (transitioning && !yamaTransitioning)
+		{
+			yamaTransitions++;
+		}
+		yamaTransitioning = transitioning;
+		if (!chargeEnabled)
+		{
+			chargeStart.clear();
+		}
+
+		for (NPC npc : client.getTopLevelWorldView().npcs())
+		{
+			if (npc == null)
+			{
+				continue;
+			}
+
+			shielded |= SHIELDED_NPC_IDS.contains(npc.getId());
+			yamaPresent |= npc.getId() == NpcID.YAMA;
+			seedFlareHp(npc);
+			if (!chargeEnabled)
+			{
+				continue;
+			}
+
+			// No spotanim rides a flare's charge, so first sight opens the window and only despawning
+			// closes it - the grace below would drop it on the very next tick.
+			if (npc.getId() == NpcID.YAMA_VOIDFLARE)
+			{
+				chargeStart.putIfAbsent(npc, tick);
+				continue;
+			}
+
+			if (hasChargeSpotAnim(npc) && !Integer.valueOf(tick).equals(chargeClosedTick.get(npc)))
+			{
+				// Backdated: a window opened here rather than on the wind-up missed the animation.
+				chargeStart.putIfAbsent(npc, tick - 1);
+				continue;
+			}
+
+			// Not cleared immediately: the wind-up opens the window a tick before the spotanim exists.
+			Integer start = chargeStart.get(npc);
+			if (start != null && tick - start >= DOOM_CHARGE_GRACE_TICKS)
+			{
+				chargeStart.remove(npc);
+				chargeEndedTick = tick;
+			}
+		}
+
+		shieldedNpcPresent = shielded;
+		if (!yamaPresent)
+		{
+			yamaTransitions = 0;
+			seededFlares.clear();
+		}
+		syncSecondaryOverrides();
+	}
+
+	/**
+	 * Seeds a flare's HP on first sight - half in the last phase, full before it. The bar it reports is
+	 * not its hitpoints, so without a baseline applyHitsplatDamage() discards the first hit for good.
+	 */
+	private Integer seedFlareHp(NPC npc)
+	{
+		if (npc.getId() != NpcID.YAMA_VOIDFLARE || !seededFlares.add(npc))
+		{
+			return preciseNpcHp.get(npc);
+		}
+
+		int maxHp = resolveNpcMaxHp(npc.getId());
+		int seeded = yamaTransitions >= YAMA_FINAL_PHASE_TRANSITIONS ? YAMA_FLARE_LATE_HP : maxHp;
+		if (seeded <= 0)
+		{
+			seededFlares.remove(npc);
+			return null;
+		}
+
+		preciseNpcHp.put(npc, seeded);
+		return seeded;
+	}
+
+	/**
+	 * Ends a charge window. The spotanim behind it outlives its cause by a tick, so the close is stamped
+	 * to stop trackSecondaryBars() reopening the window from that leftover on the same tick.
+	 */
+	/**
+	 * Damage restarts the burrowed charge, as it does the shielded one. Driven off the hitsplat because the
+	 * burrowed form never sends the 12410 interrupt the shielded one does - it has no other reset signal.
+	 * Amount is checked because a 0 is never a miss here: attacks cannot miss Doom while he is charging.
+	 */
+	private void restartBurrowedCharge(NPC npc, Hitsplat hitsplat)
+	{
+		if (npc.getId() == NpcID.DOM_BOSS_BURROWED
+			&& hitsplat.getAmount() > 0
+			&& DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType())
+			&& chargeStart.containsKey(npc))
+		{
+			chargeStart.put(npc, client.getTickCount());
+		}
+	}
+
+	private static boolean hasChargeSpotAnim(NPC npc)
+	{
+		for (int id : DOOM_CHARGE_SPOTANIMS)
+		{
+			if (npc.hasSpotAnim(id))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void closeCharge(NPC npc)
+	{
+		chargeClosedTick.put(npc, client.getTickCount());
+		if (chargeStart.remove(npc) != null)
+		{
+			chargeEndedTick = client.getTickCount();
+		}
+	}
+
+	/**
+	 * How full the charge bar is, 0-1, or -1 when nothing is charging. Carries the sub-tick fraction so
+	 * it sweeps like the native bar instead of stepping once a tick.
+	 */
+	double chargeFraction(Actor actor)
+	{
+		Integer start = chargeStart.get(actor);
+		if (start == null)
+		{
+			return -1;
+		}
+
+		double elapsed = client.getTickCount() - start + tickFraction();
+		return Math.min(1.0, Math.max(0.0, elapsed / chargeTicks(actor)));
+	}
+
+	/** Fill length, which differs per encounter - Doom's beam is far quicker than a flare's. */
+	private static int chargeTicks(Actor actor)
+	{
+		return actor instanceof NPC && ((NPC) actor).getId() == NpcID.YAMA_VOIDFLARE
+			? YAMA_FLARE_CHARGE_TICKS : DOOM_CHARGE_TICKS;
+	}
+
+	/** Progress through the current tick, 0-1. Clamped, not wrapped like tickProgress() - a bar must not run backwards. */
+	private double tickFraction()
+	{
+		double elapsed = (System.currentTimeMillis() - lastTickTimeMs) / MS_PER_TICK;
+		return Math.min(1.0, Math.max(0.0, elapsed));
+	}
+
+	/** [remaining, 500] while this actor is Doom's shielded form, else null. */
+	int[] doomShieldHp(Actor actor)
+	{
+		Integer remaining = config.showNpcShieldBar() ? doomShielded.get(actor) : null;
+		return remaining == null ? null : new int[]{remaining, DOOM_SHIELD_HP};
+	}
+
+	boolean isShieldedNpc(Actor actor)
+	{
+		return config.showNpcShieldBar() && actor instanceof NPC
+			&& SHIELDED_NPC_IDS.contains(((NPC) actor).getId());
+	}
+
 	private void applyHitsplatDamage(NPC npc, Hitsplat hitsplat)
 	{
 		Integer current = preciseNpcHp.get(npc);
 		if (current == null)
+		{
+			// Covers a flare hit on the tick it spawns, before the scene walk reaches it.
+			current = seedFlareHp(npc);
+		}
+		if (current == null || doomShielded.containsKey(npc))
 		{
 			return;
 		}
@@ -1979,7 +2464,7 @@ public class CustomHpBarPlugin extends Plugin
 			// interact with you. isConfirmedDead too: a corpse mid-animation still has an Attack option, so the
 			// onGameTick discovery loops would re-track it the moment evict() removes it.
 			NPC npc = (NPC) actor;
-			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isConfirmedDead(npc);
+			return isTrackedNpc(npc) && isAttackableNpc(npc) && !isDeadNotSettling(npc);
 		}
 		if (!(actor instanceof Player))
 		{
@@ -1989,7 +2474,7 @@ public class CustomHpBarPlugin extends Plugin
 		// reference doesn't clear until despawn either.
 		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers())
 			&& isTrackedPlayer((Player) actor)
-			&& !isConfirmedDead(actor);
+			&& !isDeadNotSettling(actor);
 	}
 
 	/** Whether npc is eligible for a bar or a name at all - isAttackableNpc() is the stricter bar-only gate. */
@@ -2020,7 +2505,6 @@ public class CustomHpBarPlugin extends Plugin
 		int tick = client.getTickCount();
 		if (tick != trackedNpcCacheTick)
 		{
-			logTrackedNpcCacheStats(tick);
 			trackedNpcCache.clear();
 			trackedNpcCacheTick = tick;
 		}
@@ -2028,31 +2512,12 @@ public class CustomHpBarPlugin extends Plugin
 		Boolean cached = trackedNpcCache.get(npc);
 		if (cached != null)
 		{
-			trackedNpcCacheHits++;
 			return cached;
 		}
 
-		trackedNpcCacheMisses++;
 		boolean result = isTrackedNpc(npc);
 		trackedNpcCache.put(npc, result);
 		return result;
-	}
-
-	/** Debug-only: reports the cache's hit rate every ~30s so the per-frame savings can be checked live. */
-	private void logTrackedNpcCacheStats(int tick)
-	{
-		if (!log.isDebugEnabled() || tick - trackedNpcCacheLastLogTick < 50)
-		{
-			return;
-		}
-		trackedNpcCacheLastLogTick = tick;
-
-		int total = trackedNpcCacheHits + trackedNpcCacheMisses;
-		int hitRate = total == 0 ? 0 : Math.round(100f * trackedNpcCacheHits / total);
-		log.debug("trackedNpcCache: {} hits, {} misses ({}% reuse) since last report",
-			trackedNpcCacheHits, trackedNpcCacheMisses, hitRate);
-		trackedNpcCacheHits = 0;
-		trackedNpcCacheMisses = 0;
 	}
 
 	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. */
