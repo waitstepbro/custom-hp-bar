@@ -1,8 +1,9 @@
 ## Bugs
 
-**1. ToA rooms with no HP rows.** The Wardens' statue forms, Zebak's Tail, Osmumten and the puzzle
-scenery (Boulder, Rubble, Jug, Wave, Blood Cloud, the orbs) have no `npc_hp.csv` rows, so they draw
-a percentage. The HUD covers the Wardens and the Palms; the rest would need rows.
+**1. ToA rows that are missing or wrong.** Scaling is settled - a 3-man at three raid levels
+confirmed minions take the party term - so what is left is the rows themselves:
+  - **Baboon Thrall `11718`** reads high - measured 8/8/9 at raid 170/185/200 in a 3-man against
+    9/11/11 predicted, and no integer base row fits the formula in either rounding direction.
 
 **2. Bar disappears with `hideNativeBar` on**
 ([issue #16](https://github.com/waitstepbro/custom-hp-bar/issues/16)) - one symptom, a different
@@ -16,18 +17,17 @@ none rechecked since:
   - **ToB Nylocas "Support" pillars** - game objects, out of reach of the Verzik fix, and not
     confirmed broken at all.
 
-**3. Yama's void flares show a full bar until hit**
-([issue #31](https://github.com/waitstepbro/custom-hp-bar/issues/31)) - they spawn at part health,
-but "Always Show NPC Bar" has no read before the first hitsplat, so the pass draws `{1, 1}`. Doom's
-Demonic larva too. Any fix has to stay narrower than "draw nothing until a real read", which would
-also strip the full bar every never-hit NPC deliberately gets.
-
 ## Features
 
-- **Draw our own shield/charge bar** instead of leaving Doom's and Yama's to the native UI.
+- **Friend names should appear green.**
 - **Slayer task NPC identification.**
 - **Scale NPC bar length to the mob's tile size**
   ([issue #33](https://github.com/waitstepbro/custom-hp-bar/issues/33)) - needs a capped curve.
+
+## Functional Changes
+
+- **Move the NPC name and bar up when NPC chat appears**, so overhead text doesn't sit on top of
+  them.
 
 ## Ideas
 
