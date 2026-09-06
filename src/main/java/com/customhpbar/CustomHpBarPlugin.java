@@ -4,7 +4,6 @@ import com.google.inject.Provides;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
-import net.runelite.api.ActorSpotAnim;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -144,8 +143,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** NPC IDs with no drop table of their own - never greyed out, since there's no loot to taint. */
 	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BOSS_JAGUAR,
-		// Yama's minions. The "yama" entry in COMMUNAL_LOOT_NAMES is name-matched, so it exempts him
-		// and nothing else - a duo partner's hits greyed every flare.
+		// COMMUNAL_LOOT_NAMES matches "yama" by name, which exempts him and none of his minions.
 		NpcID.YAMA_VOIDFLARE, NpcID.YAMA_JUDGE_OF_YAMA, NpcID.YAMA_IMP, NpcID.YAMA_METEOR_NPC
 	));
 
@@ -169,10 +167,6 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
-
-	/** Debug-only: Yama and his void flares, probed for the charge signal Doom's 3412/12408 pair gave. */
-	private static final Set<Integer> YAMA_PROBE_IDS = new HashSet<>(Arrays.asList(
-		NpcID.YAMA, NpcID.YAMA_VOIDFLARE, NpcID.YAMA_JUDGE_OF_YAMA));
 
 	/**
 	 * Forms whose bar is a shield rather than hitpoints. Doom's value has to be derived; Kephri's is
@@ -209,14 +203,11 @@ public class CustomHpBarPlugin extends Plugin
 	/**
 	 * A void flare charges from the tick it spawns until it detonates 26 ticks later, on animation 12136.
 	 * Nothing marks the fill - no wind-up, no spotanim - and the bar is on a head bar getHealthRatio()
-	 * cannot reach, so the spawn is the only anchor. Two untouched flares gave spawn+26 exactly.
+	 * cannot reach, so the spawn is the only anchor.
 	 */
 	private static final int YAMA_FLARE_CHARGE_TICKS = 26;
 
-	/**
-	 * A flare spawned in Yama's last phase starts at half health. Measured: every flare before the second
-	 * transition died to exactly 140, every one after it to a single 71, with no reading to tell them apart.
-	 */
+	/** A flare spawned in Yama's last phase starts at half health - nothing it reports says so. */
 	private static final int YAMA_FLARE_LATE_HP = 71;
 	private static final int YAMA_FINAL_PHASE_TRANSITIONS = 2;
 
@@ -503,9 +494,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** isTrackedNpc() result per NPC, cached for one game tick rather than recomputed every frame. */
 	private int trackedNpcCacheTick = Integer.MIN_VALUE;
 	private final Map<NPC, Boolean> trackedNpcCache = new ConcurrentHashMap<>();
-	private int trackedNpcCacheHits;
-	private int trackedNpcCacheMisses;
-	private int trackedNpcCacheLastLogTick;
 
 	/** Debug-only: ToA NPC ids already logged this room, so logToaScaling() reports each once. TODO bug 1. */
 	private final Set<Integer> toaLoggedNpcIds = new HashSet<>();
@@ -539,11 +527,6 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Same for the charge window - a native bar that outlives ours must not flash through behind it. */
 	private int chargeEndedTick = Integer.MIN_VALUE;
-
-	/** Debug-only: Yama probe state - last reported line, and the open spotanim window per NPC. */
-	private final Map<NPC, String> yamaProbeLast = new ConcurrentHashMap<>();
-	private final Map<NPC, Integer> yamaSpotStart = new ConcurrentHashMap<>();
-	private final Map<NPC, Integer> yamaSpotStartHp = new ConcurrentHashMap<>();
 
 	/** Flares whose HP is seeded and then tracked by hitsplat alone - their reported bar is a different one. */
 	private final Set<NPC> seededFlares = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -654,9 +637,6 @@ public class CustomHpBarPlugin extends Plugin
 		bleedEndedTick = Integer.MIN_VALUE;
 		trackedNpcCache.clear();
 		trackedNpcCacheTick = Integer.MIN_VALUE;
-		trackedNpcCacheHits = 0;
-		trackedNpcCacheMisses = 0;
-		trackedNpcCacheLastLogTick = 0;
 		toaLoggedNpcIds.clear();
 		toaLoggedRegion = -1;
 		loggedHudMaxHp = -1;
@@ -778,8 +758,6 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
-
-		logYamaHitsplat(actor, hitsplat);
 
 		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat should show for
 		// anything the native client would, e.g. PRAYER_DRAIN. overheadEligiblePlayers being tick-granular, a
@@ -1045,7 +1023,6 @@ public class CustomHpBarPlugin extends Plugin
 		trackSecondaryBars();
 
 		logToaScaling();
-		logYama();
 	}
 
 	/**
@@ -1544,7 +1521,7 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * A form swap is how Doom implements his shield, and the only signal it exists - the pool itself is
-	 * never transmitted. Opens and closes the derived shield window; the rest here is debug-only.
+	 * never transmitted. Opens and closes the derived shield window.
 	 */
 	@Subscribe
 	public void onNpcChanged(NpcChanged event)
@@ -1625,13 +1602,6 @@ public class CustomHpBarPlugin extends Plugin
 				syncSecondaryOverrides();
 			}
 		}
-
-		if (log.isDebugEnabled() && YAMA_PROBE_IDS.contains(npc.getId()))
-		{
-			log.debug("Yama anim: tick={} npc={} id={} animation={} ratio={} scale={} spots={}",
-				client.getTickCount(), npcToken(npc), npc.getId(), npc.getAnimation(),
-				npc.getHealthRatio(), npc.getHealthScale(), spotAnimIds(npc));
-		}
 	}
 
 	/**
@@ -1672,120 +1642,6 @@ public class CustomHpBarPlugin extends Plugin
 				region, npc.getId(), npc.getName(), baseHp, raidLevel, pathLevel, partySize,
 				resolveNpcMaxHp(npc.getId()), npc.getHealthRatio(), npc.getHealthScale());
 		}
-	}
-
-	/**
-	 * Debug-only: the spotanim ids on an actor, each with its start cycle. A charge that re-creates its
-	 * spotanim every tick instead of clearing it is invisible to a presence check but changes this.
-	 */
-	private static String spotAnimIds(NPC npc)
-	{
-		StringBuilder ids = new StringBuilder();
-		for (ActorSpotAnim spot : npc.getSpotAnims())
-		{
-			ids.append(ids.length() == 0 ? "" : ",").append(spot.getId()).append('@').append(spot.getStartCycle());
-		}
-		return ids.length() == 0 ? "-" : ids.toString();
-	}
-
-	/**
-	 * Debug-only: hunts the charge signal on Yama's flares the way 3412/12408 were found on Doom. The
-	 * spotanim id is not known ahead of time, so any window of one at all is bracketed and timed.
-	 */
-	private void logYama()
-	{
-		if (!log.isDebugEnabled())
-		{
-			return;
-		}
-
-		int tick = client.getTickCount();
-		int playerHp = client.getBoostedSkillLevel(Skill.HITPOINTS);
-		Set<NPC> seen = new HashSet<>();
-		for (NPC npc : client.getTopLevelWorldView().npcs())
-		{
-			if (npc == null || !YAMA_PROBE_IDS.contains(npc.getId()))
-			{
-				continue;
-			}
-			seen.add(npc);
-
-			String spots = spotAnimIds(npc);
-			logYamaSpotWindow(npc, spots, tick, playerHp);
-
-			String line = npc.getId() + "/" + npc.getHealthRatio() + "/" + npc.getHealthScale()
-				+ "/" + spots + "/" + npc.getAnimation();
-			if (line.equals(yamaProbeLast.put(npc, line)))
-			{
-				continue;
-			}
-
-			log.debug("Yama probe: tick={} npc={} id={} ratio={} scale={} resolvedMax={} anim={} spots={}"
-					+ " chargeStart={} chargeFrac={} tracked={}",
-				tick, npcToken(npc), npc.getId(), npc.getHealthRatio(), npc.getHealthScale(),
-				resolveNpcMaxHp(npc.getId()), npc.getAnimation(), spots, chargeStart.get(npc),
-				String.format("%.2f", chargeFraction(npc)), trackedActors.containsKey(npc));
-		}
-
-		yamaProbeLast.keySet().retainAll(seen);
-		yamaSpotStart.keySet().retainAll(seen);
-		yamaSpotStartHp.keySet().retainAll(seen);
-	}
-
-	/** Debug-only: a stable short handle per NPC, so concurrent flares can be told apart in the log. */
-	private static String npcToken(NPC npc)
-	{
-		return Integer.toHexString(System.identityHashCode(npc));
-	}
-
-	/**
-	 * Debug-only: hits on Yama and his flares. Pairs with logYama() - a flare's first ratio reading
-	 * arriving only here would confirm why the always-show pass draws a full bar, and a charge that
-	 * restarts on damage shows as its spotanim's start cycle jumping against these ticks.
-	 */
-	private void logYamaHitsplat(Actor actor, Hitsplat hitsplat)
-	{
-		if (!log.isDebugEnabled() || !(actor instanceof NPC)
-			|| !YAMA_PROBE_IDS.contains(((NPC) actor).getId()))
-		{
-			return;
-		}
-
-		NPC npc = (NPC) actor;
-		log.debug("Yama hit: tick={} npc={} id={} type={} amount={} mine={} ratio={} scale={} resolvedMax={}"
-				+ " anim={} spots={}",
-			client.getTickCount(), npcToken(npc), npc.getId(), hitsplat.getHitsplatType(), hitsplat.getAmount(),
-			hitsplat.isMine(), npc.getHealthRatio(), npc.getHealthScale(), resolveNpcMaxHp(npc.getId()),
-			npc.getAnimation(), spotAnimIds(npc));
-	}
-
-	/** Debug-only: one spotanim window, with the player HP lost across it - an explosion should show. */
-	private void logYamaSpotWindow(NPC npc, String spots, int tick, int playerHp)
-	{
-		boolean present = !"-".equals(spots);
-		Integer start = yamaSpotStart.get(npc);
-
-		if (present)
-		{
-			if (start == null)
-			{
-				yamaSpotStart.put(npc, tick);
-				yamaSpotStartHp.put(npc, playerHp);
-			}
-			return;
-		}
-
-		if (start == null)
-		{
-			return;
-		}
-
-		log.debug("Yama window: npc={} id={} startTick={} endTick={} ticks={} playerHpLost={} ratio={} scale={}",
-			npcToken(npc), npc.getId(), start, tick, tick - start,
-			yamaSpotStartHp.getOrDefault(npc, playerHp) - playerHp,
-			npc.getHealthRatio(), npc.getHealthScale());
-		yamaSpotStart.remove(npc);
-		yamaSpotStartHp.remove(npc);
 	}
 
 	/**
@@ -2098,9 +1954,8 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Seeds a flare's HP on first sight - half in the last phase, full before it. Every flare needs one:
-	 * the bar it reports is not its hitpoints, so without a baseline the first hitsplat is discarded and
-	 * no later reading ever puts it back. Returns the seeded value, or the existing one.
+	 * Seeds a flare's HP on first sight - half in the last phase, full before it. The bar it reports is
+	 * not its hitpoints, so without a baseline applyHitsplatDamage() discards the first hit for good.
 	 */
 	private Integer seedFlareHp(NPC npc)
 	{
@@ -2650,7 +2505,6 @@ public class CustomHpBarPlugin extends Plugin
 		int tick = client.getTickCount();
 		if (tick != trackedNpcCacheTick)
 		{
-			logTrackedNpcCacheStats(tick);
 			trackedNpcCache.clear();
 			trackedNpcCacheTick = tick;
 		}
@@ -2658,31 +2512,12 @@ public class CustomHpBarPlugin extends Plugin
 		Boolean cached = trackedNpcCache.get(npc);
 		if (cached != null)
 		{
-			trackedNpcCacheHits++;
 			return cached;
 		}
 
-		trackedNpcCacheMisses++;
 		boolean result = isTrackedNpc(npc);
 		trackedNpcCache.put(npc, result);
 		return result;
-	}
-
-	/** Debug-only: reports the cache's hit rate every ~30s so the per-frame savings can be checked live. */
-	private void logTrackedNpcCacheStats(int tick)
-	{
-		if (!log.isDebugEnabled() || tick - trackedNpcCacheLastLogTick < 50)
-		{
-			return;
-		}
-		trackedNpcCacheLastLogTick = tick;
-
-		int total = trackedNpcCacheHits + trackedNpcCacheMisses;
-		int hitRate = total == 0 ? 0 : Math.round(100f * trackedNpcCacheHits / total);
-		log.debug("trackedNpcCache: {} hits, {} misses ({}% reuse) since last report",
-			trackedNpcCacheHits, trackedNpcCacheMisses, hitRate);
-		trackedNpcCacheHits = 0;
-		trackedNpcCacheMisses = 0;
 	}
 
 	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. */
