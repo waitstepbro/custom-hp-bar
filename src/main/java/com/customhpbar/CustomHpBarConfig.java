@@ -654,11 +654,103 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showNpcShieldBar",
+		name = "Show Shield Bar",
+		description = "Shows a shield's remaining strength on the bar while an NPC is shielded. "
+			+ "Supports Doom of Mokhaiotl and Kephri.",
+		section = TARGET_NPC_SECTION,
+		position = 24
+	)
+	default boolean showNpcShieldBar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "npcShieldBarColor",
+		name = "Shield Bar Color",
+		description = "Fill color for the bar while an NPC is shielded.",
+		section = TARGET_NPC_SECTION,
+		position = 25
+	)
+	default Color npcShieldBarColor()
+	{
+		return new Color(60, 130, 220);
+	}
+
+	@ConfigItem(
+		keyName = "showNpcChargeBar",
+		name = "Show Charge Bar",
+		description = "Shows a second bar beneath an NPC's while it charges a special attack. "
+			+ "Supports Doom of Mokhaiotl and Yama's void flares.",
+		section = TARGET_NPC_SECTION,
+		position = 26
+	)
+	default boolean showNpcChargeBar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarColor",
+		name = "Charge Bar Color",
+		description = "Fill color for the charge bar.",
+		section = TARGET_NPC_SECTION,
+		position = 27
+	)
+	default Color npcChargeBarColor()
+	{
+		return new Color(235, 195, 40);
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarWidth",
+		name = "Charge Bar Width",
+		description = "Width of the charge bar in pixels. 0 matches the NPC bar's width. "
+			+ "Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 28
+	)
+	@Range(min = 0, max = 200)
+	default int npcChargeBarWidth()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarHeight",
+		name = "Charge Bar Height",
+		description = "Height of the charge bar in pixels. 0 matches the NPC bar's height. "
+			+ "Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 29
+	)
+	@Range(min = 0, max = 30)
+	default int npcChargeBarHeight()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "npcChargeBarGap",
+		name = "Charge Bar Gap",
+		description = "Pixels between the NPC's bar and the charge bar beneath it. The charge bar drops "
+			+ "further when status icons need the room. Requires 'Show Charge Bar'.",
+		section = TARGET_NPC_SECTION,
+		position = 30
+	)
+	@Range(min = 0, max = 20)
+	default int npcChargeBarGap()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "npcFilter",
 		name = "NPC Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 23
+		position = 31
 	)
 	default String npcFilter()
 	{
@@ -671,7 +763,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
 			"ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 20
 	)
 	@Range(min = 0, max = 30)
 	default int npcStackLimit()
@@ -685,7 +777,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
 			"Nothing is drawn for an NPC with no weakness.",
 		section = TARGET_NPC_SECTION,
-		position = 20
+		position = 21
 	)
 	default boolean showNpcWeaknessIcon()
 	{
@@ -697,7 +789,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Show Weakness Percent",
 		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
 		section = TARGET_NPC_SECTION,
-		position = 21
+		position = 22
 	)
 	default boolean showNpcWeaknessPercent()
 	{
@@ -709,7 +801,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Weakness Percent Color",
 		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
 		section = TARGET_NPC_SECTION,
-		position = 22
+		position = 23
 	)
 	default Color npcWeaknessPercentColor()
 	{

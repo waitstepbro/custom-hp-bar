@@ -19,7 +19,8 @@ final class NativeHealthBarSprites
 		SpriteID.StandardHealth160.FRONT, SpriteID.StandardHealth160.BACK,
 	};
 
-	private static final int[] SHIELD = {
+	/** Also the native Prayer bar's sprite set - blanking these blanks that too. See CLAUDE.md. */
+	static final int[] SHIELD = {
 		SpriteID.StandardShield30.FRONT, SpriteID.StandardShield30.BACK,
 		SpriteID.StandardShield40.FRONT, SpriteID.StandardShield40.BACK,
 		SpriteID.StandardShield50.FRONT, SpriteID.StandardShield50.BACK,
@@ -47,7 +48,8 @@ final class NativeHealthBarSprites
 		SpriteID.StandardArmour160.FRONT, SpriteID.StandardArmour160.BACK,
 	};
 
-	private static final int[] CHARGE = {
+	/** Blanked only while our own charge bar is drawing - nothing else replaces these. */
+	static final int[] CHARGE = {
 		SpriteID.StandardCharge30.FRONT, SpriteID.StandardCharge30.BACK,
 		SpriteID.StandardCharge40.FRONT, SpriteID.StandardCharge40.BACK,
 		SpriteID.StandardCharge50.FRONT, SpriteID.StandardCharge50.BACK,
@@ -112,9 +114,9 @@ final class NativeHealthBarSprites
 	};
 
 	/**
-	 * What hideNativeBar blanks: hitpoints only. ARMOUR/CHARGE/SHIELD and INDICATOR_HEADBAR are
-	 * deliberately out - this plugin draws no replacement for a mechanic bar, so blanking one
-	 * destroys information instead of moving it. See CLAUDE.md.
+	 * What hideNativeBar blanks: hitpoints only. ARMOUR/CHARGE and INDICATOR_HEADBAR are deliberately
+	 * out - no replacement is drawn for those, so blanking one destroys information. SHIELD is out of
+	 * this set too, but is blanked on its own while a shield window is open. See CLAUDE.md.
 	 */
 	static final int[] HEALTH_ONLY = concat(HEALTH, POISON, THEMED_HEALTH);
 

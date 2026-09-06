@@ -1,20 +1,11 @@
 ## Summary
 
-<!-- What changed, from a user's point of view. One or two lines. -->
+<!-- What changed, from a user's point of view. Link any related issue. -->
 
 ## Why
 
-<!-- The behaviour that was wrong, or the request behind it. Use "Closes #N" to link an issue. -->
+<!-- The behaviour that was wrong, or the request behind it. Use "Closes #N" if it closes one. -->
 
-## Testing
+## Confirmed in game
 
-- [ ] `gradlew build` passes, checkstyle included
-- [ ] Confirmed live in game
-
-<!-- If it isn't confirmed live, say here what still needs checking. -->
-
-## Housekeeping
-
-- [ ] New or changed config items are in the README table, with their defaults
-- [ ] Rationale and history went to CLAUDE.md, not into code comments
-- [ ] TODO.md updated if this opens or closes an item
+<!-- What you watched working, and what is still unchecked. Say plainly if nothing was. -->
