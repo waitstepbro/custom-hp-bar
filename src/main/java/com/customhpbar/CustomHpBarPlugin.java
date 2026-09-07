@@ -1427,9 +1427,8 @@ public class CustomHpBarPlugin extends Plugin
 			return null;
 		}
 
-		// Het's Seal wears "(protected)"/"(weakened)" where its HUD is plain - the reverse of the usual
-		// case. Confined to TOA_BOSS_NPC_IDS: stripping the actor side generally would let
-		// "Great Olm (Left claw)" answer to Olm's own figure. CLAUDE.md.
+		// Het's Seal is the reverse case - parenthetical on the actor, plain on the HUD. Confined to
+		// TOA_BOSS_NPC_IDS so "Great Olm (Left claw)" still can't answer to Olm's figure. CLAUDE.md.
 		String plainName = Text.removeTags(actorName);
 		if (!hudNameMatches(plainName)
 			&& !(toaHudNpc && hudNameMatches(HUD_NAME_SUFFIX.matcher(plainName).replaceAll("").trim())))
@@ -1502,8 +1501,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private int toaScaledMaxHp(int baseHp)
 	{
-		// Order matters only because each term truncates, and it is not the wiki's reading order:
-		// party first is what holds Kephri at the HUD's 820 where raid first gives 810.
+		// Order matters only because each term truncates - see CLAUDE.md.
 		int hp = baseHp;
 
 		int partySize = toaPartySize();
@@ -1619,8 +1617,7 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * Debug-only: dumps every scaling input and output for each ToA NPC once per room, so a live raid
-	 * can be compared against real max HP. getHealthScale() is not a shortcut to the max - it read 30
-	 * for a 40 HP baboon and 60 for a 66 HP scarab - and is -1 here until the NPC is in combat.
+	 * can be compared against real max HP. getHealthScale() is the bar's own scale, not the max.
 	 */
 	private void logToaScaling()
 	{
@@ -2575,9 +2572,8 @@ public class CustomHpBarPlugin extends Plugin
 
 	/**
 	 * Whether npc is a HUD-driven mechanic target - the Crondis palms and Het's Seal, which have a real
-	 * pool but no Attack option. Identity-based, not a live nativeHudHp() read: the HUD comes and goes,
-	 * and eligibility that blinks with it makes a bar appear and vanish. The name test drops Akkha's
-	 * nameless headbar dummy. Callers must not apply isConfirmedDead() - these sit at ratio 0 unfilled.
+	 * pool but no Attack option. Identity-based rather than a live nativeHudHp() read, and callers must
+	 * not apply isConfirmedDead() to these: they sit at ratio 0 unfilled. CLAUDE.md.
 	 */
 	boolean hudDrivenNpc(NPC npc)
 	{

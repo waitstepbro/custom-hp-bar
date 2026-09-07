@@ -495,16 +495,14 @@ class CustomHpBarOverlay extends Overlay
 				// Bankers and fishing spots have no HP; talk-only NPCs have a level but no fight in them. Both can
 				// still draw a name, but a fresh kill must not: hasAttackOption() reads static composition data, so
 				// isConfirmedDead is what makes a corpse's name disappear in step with its bar.
-				// hudDrivenNpc() covers the pools the Attack-option test misses, and skips the corpse
-				// test with them: an unwatered Crondis palm sits at ratio 0, which is empty, not dead.
-				// It needs real data though - the {1, 1} fallback below would paint that palm 100%.
+				// A mechanic target is exempt from the corpse test - an unwatered palm reads ratio 0 -
+				// but its bar waits for real data, since the {1, 1} fallback below would paint it 100%.
 				boolean confirmedDead = CustomHpBarPlugin.isConfirmedDead(npc);
 				boolean hudDriven = plugin.hudDrivenNpc(npc);
 				boolean hudMechanic = hudDriven && resolveHp(npc, resolveMaxHp(npc)) != null;
 				boolean drawBarForThis = alwaysBar
 					&& (hudMechanic || (!confirmedDead && plugin.isAttackableNpc(npc)));
-				// The name has no data to wait for, so it follows identity alone - otherwise it shows
-				// outside the room at ratio -1 and vanishes on entry when the empty palm reads 0.
+				// The name has nothing to wait for, so identity alone.
 				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName())
 					&& (hudDriven || !confirmedDead) && !plugin.isPetNameHidden(npc);
 
