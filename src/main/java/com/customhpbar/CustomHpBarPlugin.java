@@ -176,6 +176,12 @@ public class CustomHpBarPlugin extends Plugin
 		return NAME_WHITESPACE.matcher(separated).replaceAll(" ");
 	}
 
+	/**
+	 * The crashed star, which is a nameless NPC riding the mineable object. Its health ratio is the
+	 * current layer's remaining share on a scale of 50, not hitpoints - see CLAUDE.md.
+	 */
+	private static final int SHOOTING_STAR_NPC_ID = 10629;
+
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
 
@@ -2679,6 +2685,12 @@ public class CustomHpBarPlugin extends Plugin
 		boolean result = isTrackedNpc(npc);
 		trackedNpcCache.put(npc, result);
 		return result;
+	}
+
+	/** The crashed star's bar is a mining-progress readout, so it gets its own colour rather than health's. */
+	boolean isShootingStar(NPC npc)
+	{
+		return npc != null && npc.getId() == SHOOTING_STAR_NPC_ID;
 	}
 
 	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. */

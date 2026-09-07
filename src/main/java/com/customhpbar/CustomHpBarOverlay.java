@@ -1503,7 +1503,11 @@ class CustomHpBarOverlay extends Overlay
 			&& plugin.isNpcAggressive((NPC) actor);
 		// Held separately from fillColor: null means the gradient is driving the fill, which is
 		// what lets a matched trail resolve its own color per HP level below.
-		Color overrideColor = plugin.isShieldedNpc(actor) ? SHIELD_BAR_COLOR : null;
+		// A star takes the shield colour too, and nothing below applies to one: it is not lootable,
+		// poisonable or aggressive.
+		Color overrideColor = plugin.isShieldedNpc(actor)
+			|| (actor instanceof NPC && plugin.isShootingStar((NPC) actor))
+			? SHIELD_BAR_COLOR : null;
 		if (overrideColor == null)
 		{
 			overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
@@ -2630,6 +2634,11 @@ class CustomHpBarOverlay extends Overlay
 			return config.otherPlayerDisplayMode() == CustomHpBarConfig.OtherPlayerDisplayMode.NEITHER
 				? CustomHpBarConfig.DisplayMode.NEITHER
 				: CustomHpBarConfig.DisplayMode.PERCENT;
+		}
+		// A star's ratio is layer progress, so any number built from it would be meaningless.
+		if (actor instanceof NPC && plugin.isShootingStar((NPC) actor))
+		{
+			return CustomHpBarConfig.DisplayMode.NEITHER;
 		}
 		return config.targetDisplayMode();
 	}
