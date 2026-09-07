@@ -508,9 +508,16 @@ class CustomHpBarOverlay extends Overlay
 				// Bankers and fishing spots have no HP; talk-only NPCs have a level but no fight in them. Both can
 				// still draw a name, but a fresh kill must not: hasAttackOption() reads static composition data, so
 				// isConfirmedDead is what makes a corpse's name disappear in step with its bar.
+				// A mechanic target is exempt from the corpse test - an unwatered palm reads ratio 0 -
+				// but its bar waits for real data, since the {1, 1} fallback below would paint it 100%.
 				boolean confirmedDead = CustomHpBarPlugin.isConfirmedDead(npc);
-				boolean drawBarForThis = alwaysBar && plugin.isAttackableNpc(npc) && !confirmedDead;
-				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName()) && !confirmedDead;
+				boolean hudDriven = plugin.hudDrivenNpc(npc);
+				boolean hudMechanic = hudDriven && resolveHp(npc, resolveMaxHp(npc)) != null;
+				boolean drawBarForThis = alwaysBar
+					&& (hudMechanic || (!confirmedDead && plugin.isAttackableNpc(npc)));
+				// The name has nothing to wait for, so identity alone.
+				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName())
+					&& (hudDriven || !confirmedDead);
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
 				// would shift every other bar on its tile upwards for no visible reason.
@@ -1308,13 +1315,18 @@ class CustomHpBarOverlay extends Overlay
 		int w = rect[2];
 		int h = rect[3];
 		int nameGap = scaled(NAME_GAP, zoom);
-		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s. No grey or
-		// aggressive tint to outrank the by-level one here - neither concept exists for players.
+		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s.
 		int level = player.getCombatLevel();
 		String levelSuffix = config.showPlayerCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
 		Color byLevel = levelNameColor(level);
+		Color nameColor = byLevel != null ? byLevel : config.playerNameColor();
+		if (config.highlightFriends() && player.isFriend())
+		{
+			// Identity outranks the by-level tint, which is a threat read a friend doesn't need.
+			nameColor = config.friendNameColor();
+		}
 		drawNameLabel(g, style, Text.removeTags(playerName), levelSuffix, x, y - h - nameGap, w, h, zoom,
-			byLevel != null ? byLevel : config.playerNameColor(), levelSuffixColor(level));
+			nameColor, levelSuffixColor(level));
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */

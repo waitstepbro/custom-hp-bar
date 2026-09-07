@@ -215,6 +215,8 @@ of your own.
 | Player Name | Whether other players get a name label: Never, When tracked, or Always. | When tracked |
 | Combat Level | Appends the player's combat level to their name. Requires Player Name. | Off |
 | Name Color | Color of the player name text, separate from the HP number's color | White |
+| Highlight Friends | Draws a friend's name in the friend color instead of the normal one. Overrides "Color Names By Combat Level". | On |
+| Friend Name Color | Color of a friend's name. Requires "Highlight Friends". | Green |
 | Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
 | Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
