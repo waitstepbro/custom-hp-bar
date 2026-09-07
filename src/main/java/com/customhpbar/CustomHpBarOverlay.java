@@ -69,6 +69,18 @@ class CustomHpBarOverlay extends Overlay
 	private static final float GRADIENT_HIGHLIGHT = 0.2f;
 
 	/** Fixed grey for both grey-out toggles - overrides the status tint and the aggressive name color. */
+	/** The gradient's fixed waypoints - it blends bar colour to mid to low as HP drops. */
+	private static final Color GRADIENT_MID_COLOR = new Color(180, 180, 0);
+	private static final Color GRADIENT_LOW_COLOR = new Color(180, 0, 0);
+	private static final int GRADIENT_MIDPOINT = 50;
+
+	/** Shield and charge bars read as mechanics rather than health, so their colours are fixed. */
+	private static final Color SHIELD_BAR_COLOR = new Color(60, 130, 220);
+	private static final Color CHARGE_BAR_COLOR = new Color(235, 195, 40);
+
+	/** The run bar's fill while a Stamina buff is active, mirroring core's own run orb. */
+	private static final Color STAMINA_BAR_COLOR = new Color(160, 124, 72);
+
 	private static final Color LOOT_TAINTED_COLOR = new Color(120, 120, 120);
 
 	/** Alpha for a bar's heal/restore preview segment - reads as "not real yet" over the bar's own color. */
@@ -260,7 +272,7 @@ class CustomHpBarOverlay extends Overlay
 
 		// "Prioritize Self on Same Tile": self's tile when the feature applies, else null. See
 		// suppressedForSelfTile().
-		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf()
+		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf().shown()
 			? localPlayer.getWorldLocation() : null;
 
 		// Resolved before anything draws - drawSkullIcon()/drawOverheadIcon() read iconOwners to
@@ -385,13 +397,13 @@ class CustomHpBarOverlay extends Overlay
 			drawBar(g, actor, anchor, hp[0], hp[1], maxHp, style);
 		}
 
-		// "Fade Bar On Death": the one pass that draws an actor already gone from trackedActors, and only
+		// The death fade: the one pass that draws an actor already gone from trackedActors, and only
 		// because beginDeathFade() saw its bar on screen as it died - issue #22's gates are all untouched.
 		// Runs straight after the tracked loop so a corpse claims its slot ahead of the "Always Show" passes.
 		if (config.fadeNpcBarOnDeath() && !plugin.getDeathFades().isEmpty())
 		{
 			long now = System.currentTimeMillis();
-			int fadeMs = Math.max(1, config.npcDeathFadeDuration());
+			int fadeMs = CustomHpBarPlugin.DEATH_FADE_DURATION_MS;
 			double zoom = zoomFactor();
 			for (Map.Entry<Actor, Long> fade : plugin.getDeathFades().entrySet())
 			{
@@ -437,7 +449,7 @@ class CustomHpBarOverlay extends Overlay
 				// drawBar()'s name branch needs the NPC tracked and the "Always Show NPC Name" pass skips a corpse,
 				// so neither draws this one - and the name has to fade with the bar rather than popping off the
 				// instant it dies.
-				if (config.showNpcName())
+				if (config.showNpcName().shown())
 				{
 					drawNpcNameOnly(fadeGraphics, npc, anchor, targetStyle, zoom);
 				}
@@ -448,7 +460,8 @@ class CustomHpBarOverlay extends Overlay
 		// Independent path: shows the Prayer/Special/Run/HP bars outside combat too, per each bar's own
 		// "always show" toggle or activity (playerBarStack()). Skipped if the main loop already drew the
 		// player. Stashed for the same deferred-draw reason as the tracked case above.
-		if (playerHp == null && localPlayer != null && config.showForSelf() && !plugin.getTrackedActors().containsKey(localPlayer))
+		if (playerHp == null && localPlayer != null && config.showForSelf().shown()
+			&& !plugin.getTrackedActors().containsKey(localPlayer))
 		{
 			List<CustomHpBarConfig.BarKind> stack = playerBarStack(false);
 			Point anchor = stack.isEmpty() ? null : actorAnchor(localPlayer);
@@ -480,7 +493,7 @@ class CustomHpBarOverlay extends Overlay
 		// Second pass for "regardless of combat" behaviors: Always Show NPC Bar/Name, one shared
 		// loop so they don't double-claim same-tile stack slots.
 		boolean alwaysBar = config.alwaysShowNpcBar();
-		boolean alwaysName = config.showNpcName() && config.alwaysShowNpcName();
+		boolean alwaysName = config.showNpcName().always();
 		if (alwaysBar || alwaysName)
 		{
 			double zoom = zoomFactor();
@@ -504,7 +517,7 @@ class CustomHpBarOverlay extends Overlay
 					&& (hudMechanic || (!confirmedDead && plugin.isAttackableNpc(npc)));
 				// The name has nothing to wait for, so identity alone.
 				boolean drawNameForThis = alwaysName && isDisplayableName(npc.getName())
-					&& (hudDriven || !confirmedDead) && !plugin.isPetNameHidden(npc);
+					&& (hudDriven || !confirmedDead);
 
 				// Decided before claiming a slot: claiming one for an NPC that then draws nothing
 				// would shift every other bar on its tile upwards for no visible reason.
@@ -558,8 +571,8 @@ class CustomHpBarOverlay extends Overlay
 		// "Always Show Player Bar"/"Always Show Player Name" in one shared loop, so they don't double-claim
 		// stack slots. Runs unconditionally: it is also the only place a skulled or praying player with no
 		// bar and no name gets drawn. alwaysShowPlayerName deliberately doesn't require showForPlayers.
-		boolean alwaysPlayerBar = config.showForPlayers() && config.alwaysShowPlayerBar();
-		boolean alwaysPlayerName = config.showPlayerName() && config.alwaysShowPlayerName();
+		boolean alwaysPlayerBar = config.showForPlayers().always();
+		boolean alwaysPlayerName = config.showPlayerName().always();
 		{
 			double zoom = zoomFactor();
 			for (Player other : client.getTopLevelWorldView().players())
@@ -758,7 +771,7 @@ class CustomHpBarOverlay extends Overlay
 		// Replacement for the native overhead prayer icon (and skull, if any), which the render
 		// callback suppresses. Drawn last of all - it's anchored above the player's own bar, so
 		// it's already clear of every NPC bar drawn above.
-		if (localPlayer != null && config.showForSelf())
+		if (localPlayer != null && config.showForSelf().shown())
 		{
 			playerStyle = playerStyle != null ? playerStyle : resolveStyle(localPlayer);
 			// playerAnchor is null whenever self drew neither a bar nor a standalone stack above
@@ -857,20 +870,19 @@ class CustomHpBarOverlay extends Overlay
 			int verticalOffset = self ? config.playerVerticalOffset() : config.otherPlayerVerticalOffset();
 			Color barColor = self ? config.playerBarColor() : config.otherPlayerBarColor();
 			boolean hpColorGradient = self ? config.playerHpColorGradient() : config.otherPlayerHpColorGradient();
-			Color colorMid = self ? config.playerColorMid() : config.otherPlayerColorMid();
-			Color colorLow = self ? config.playerColorLow() : config.otherPlayerColorLow();
-			int midpoint = self ? config.playerMidpoint() : config.otherPlayerMidpoint();
+			Color colorMid = GRADIENT_MID_COLOR;
+			Color colorLow = GRADIENT_LOW_COLOR;
 			Color barBackground = self ? config.playerBarBackground() : config.otherPlayerBarBackground();
 			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
 			Color textColor = self ? config.playerTextColor() : config.otherPlayerTextColor();
-			boolean damageTrail = self ? config.playerDamageTrail() : config.otherPlayerDamageTrail();
+			CustomHpBarConfig.DamageTrailMode trailMode = self ? config.playerDamageTrail() : config.otherPlayerDamageTrail();
+			boolean damageTrail = trailMode.shown();
 			Color damageTrailColor = self ? config.playerDamageTrailColor() : config.otherPlayerDamageTrailColor();
-			boolean damageTrailMatchBar = self ? config.playerDamageTrailMatchBar() : config.otherPlayerDamageTrailMatchBar();
+			boolean damageTrailMatchBar = trailMode == CustomHpBarConfig.DamageTrailMode.MATCH_BAR;
 			return new BarStyle(
 				config.playerBarWidth(), config.playerBarHeight(), config.playerCornerRadius(),
 				config.playerBorderWidth(), config.playerBorderColor(), barColor,
-				hpColorGradient, colorMid, colorLow,
-				midpoint,
+				hpColorGradient, colorMid, colorLow, GRADIENT_MIDPOINT,
 				barBackground, barOpacity, damageTrail, damageTrailColor, damageTrailMatchBar, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
 				textColor, config.playerTextOutline(), config.playerTextVerticalNudge(),
@@ -879,10 +891,10 @@ class CustomHpBarOverlay extends Overlay
 		return new BarStyle(
 			config.targetBarWidth(), config.targetBarHeight(), config.targetCornerRadius(),
 			config.targetBorderWidth(), config.targetBorderColor(), config.targetBarColor(),
-			config.targetHpColorGradient(), config.targetColorMid(), config.targetColorLow(),
-			config.targetMidpoint(),
+			config.targetHpColorGradient(), GRADIENT_MID_COLOR, GRADIENT_LOW_COLOR, GRADIENT_MIDPOINT,
 			config.targetBarBackground(), config.targetBarOpacity(),
-			config.targetDamageTrail(), config.targetDamageTrailColor(), config.targetDamageTrailMatchBar(),
+			config.targetDamageTrail().shown(), config.targetDamageTrailColor(),
+			config.targetDamageTrail() == CustomHpBarConfig.DamageTrailMode.MATCH_BAR,
 			config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
 			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge(),
@@ -1004,7 +1016,7 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private void reserveSelfStackHeight(Map<WorldPoint, Point> tileStacks, Player localPlayer)
 	{
-		if (localPlayer == null || !config.showForSelf())
+		if (localPlayer == null || !config.showForSelf().shown())
 		{
 			return;
 		}
@@ -1051,7 +1063,7 @@ class CustomHpBarOverlay extends Overlay
 			return anchor;
 		}
 
-		boolean nameShown = actor instanceof NPC ? config.showNpcName() : config.showPlayerName();
+		boolean nameShown = (actor instanceof NPC ? config.showNpcName() : config.showPlayerName()).shown();
 		int[] rect = barRect(anchor, style, zoom);
 		int top = nameShown ? rect[1] - rect[3] - scaled(NAME_GAP, zoom) : rect[1];
 		return claimStackSlot(tileStacks, tile, anchor, top, rect[1] + rect[3],
@@ -1233,7 +1245,7 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private void drawNpcNameOnly(Graphics2D g, NPC npc, Point anchor, BarStyle style, double zoom)
 	{
-		if (!plugin.isNamesVisible() || plugin.isPetNameHidden(npc))
+		if (!plugin.isNamesVisible())
 		{
 			return;
 		}
@@ -1255,11 +1267,11 @@ class CustomHpBarOverlay extends Overlay
 		// about this NPC now, while the level is a standing one. A null levelNameColor() (toggle off, or no
 		// level to compare) leaves the configured color standing.
 		Color nameColor;
-		if (config.greyOutOtherPlayerDamageNames() && plugin.isLootTainted(npc))
+		if (config.greyOutOtherPlayerDamage() && plugin.isLootTainted(npc))
 		{
 			nameColor = LOOT_TAINTED_COLOR;
 		}
-		else if (config.colorAggressiveNpcNames() && plugin.isNpcAggressive(npc))
+		else if (config.colorAggressiveNpcNames().names() && plugin.isNpcAggressive(npc))
 		{
 			nameColor = config.aggressiveNpcColor();
 		}
@@ -1362,7 +1374,7 @@ class CustomHpBarOverlay extends Overlay
 		int iconY = barY + barH / 2 - size / 2;
 		g.drawImage(icon, iconX, iconY, size, size, null);
 
-		if (!config.showNpcWeaknessPercent())
+		if (config.showNpcWeaknessIcon() != CustomHpBarConfig.WeaknessMode.ICON_AND_PERCENT)
 		{
 			return;
 		}
@@ -1457,7 +1469,7 @@ class CustomHpBarOverlay extends Overlay
 	private String truncateName(String name)
 	{
 		int limit = config.npcNameMaxLength();
-		if (!config.truncateNpcNames() || name.length() <= limit)
+		if (limit <= 0 || name.length() <= limit)
 		{
 			return name;
 		}
@@ -1499,11 +1511,15 @@ class CustomHpBarOverlay extends Overlay
 		// Toggles first: isNpcAggressive allocates a stream once the tolerance window lapses, and
 		// this runs per NPC per frame. One shared read feeds both the fill and the icon.
 		boolean aggressive = actor instanceof NPC
-			&& (config.colorAggressiveNpcBars() || config.showAggressiveNpcIcon())
+			&& (config.colorAggressiveNpcNames().bars() || config.showAggressiveNpcIcon())
 			&& plugin.isNpcAggressive((NPC) actor);
 		// Held separately from fillColor: null means the gradient is driving the fill, which is
 		// what lets a matched trail resolve its own color per HP level below.
-		Color overrideColor = plugin.isShieldedNpc(actor) ? config.npcShieldBarColor() : null;
+		// A star takes the shield colour too, and nothing below applies to one: it is not lootable,
+		// poisonable or aggressive.
+		Color overrideColor = plugin.isShieldedNpc(actor)
+			|| (actor instanceof NPC && plugin.isShootingStar((NPC) actor))
+			? SHIELD_BAR_COLOR : null;
 		if (overrideColor == null)
 		{
 			overrideColor = config.greyOutOtherPlayerDamage() && actor instanceof NPC
@@ -1513,7 +1529,7 @@ class CustomHpBarOverlay extends Overlay
 		{
 			overrideColor = plugin.statusEffectColor(actor);
 		}
-		if (overrideColor == null && aggressive && config.colorAggressiveNpcBars())
+		if (overrideColor == null && aggressive && config.colorAggressiveNpcNames().bars())
 		{
 			overrideColor = config.aggressiveNpcColor();
 		}
@@ -1539,7 +1555,7 @@ class CustomHpBarOverlay extends Overlay
 			}
 			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor, trailFraction, trailColor);
 
-			if (self && config.showFoodHealPreview())
+			if (self && config.showPreviews())
 			{
 				// ratio/scale are the local player's real current/max HP already, not a bucket.
 				drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
@@ -1558,7 +1574,7 @@ class CustomHpBarOverlay extends Overlay
 			drawAggressiveNpcIcon(g, x, hpY, h, zoom);
 		}
 
-		if (actor instanceof NPC && config.showNpcWeaknessIcon())
+		if (actor instanceof NPC && config.showNpcWeaknessIcon() != CustomHpBarConfig.WeaknessMode.OFF)
 		{
 			drawWeaknessIcon(g, (NPC) actor, x, hpY, w, h, style, zoom);
 		}
@@ -1582,7 +1598,7 @@ class CustomHpBarOverlay extends Overlay
 			int chargeH = config.npcChargeBarHeight() > 0 ? scaled(config.npcChargeBarHeight(), zoom) : h;
 			int chargeY = bottomY + Math.max(scaled(config.npcChargeBarGap(), zoom), statusRowH);
 			drawBarShape(g, style, x + (w - chargeW) / 2, chargeY, chargeW, chargeH, border, arc, charge,
-				config.npcChargeBarColor());
+				CHARGE_BAR_COLOR);
 		}
 
 		if (stack != null)
@@ -1602,11 +1618,12 @@ class CustomHpBarOverlay extends Overlay
 		// With "Always Show Name" on, render()'s dedicated pass is the sole name source. trackedNow is the
 		// other half: without it an actor shown only by its "always show bar" toggle would still get a name
 		// here, which made "Always Show NPC/Player Name" look like it did nothing.
-		if (actor instanceof NPC && config.showNpcName() && !config.alwaysShowNpcName() && trackedNow)
+		if (actor instanceof NPC && config.showNpcName() == CustomHpBarConfig.Visibility.TRACKED && trackedNow)
 		{
 			drawNpcNameOnly(g, (NPC) actor, anchor, style, zoom);
 		}
-		else if (actor instanceof Player && !self && config.showPlayerName() && !config.alwaysShowPlayerName() && trackedNow)
+		else if (actor instanceof Player && !self
+			&& config.showPlayerName() == CustomHpBarConfig.Visibility.TRACKED && trackedNow)
 		{
 			drawPlayerNameOnly(g, (Player) actor, anchor, style, zoom);
 		}
@@ -1620,7 +1637,8 @@ class CustomHpBarOverlay extends Overlay
 			// isNamesVisible() deliberately, unlike the name row's own "purely visual" hotkey gate: the skull and
 			// overhead icon track what is actually on screen, so they snap down to the bar's top the instant
 			// names are hotkey-hidden.
-			boolean nameShown = config.showPlayerName() && isDisplayableName(other.getName()) && plugin.isNamesVisible();
+			boolean nameShown = config.showPlayerName().shown() && isDisplayableName(other.getName())
+				&& plugin.isNamesVisible();
 			drawSkullIcon(g, other, anchor, style, nameShown);
 			drawOverheadIcon(g, other, anchor, style, nameShown);
 			drawHitsplats(g, other);
@@ -1710,11 +1728,11 @@ class CustomHpBarOverlay extends Overlay
 	{
 		if (actor instanceof NPC)
 		{
-			return config.targetShowStatusIcon();
+			return config.targetColorByStatusEffect().icon();
 		}
 		if (actor instanceof Player)
 		{
-			return config.selfShowStatusIcon();
+			return config.selfColorByStatusEffect().icon();
 		}
 		return false;
 	}
@@ -1822,13 +1840,13 @@ class CustomHpBarOverlay extends Overlay
 	/** Whether the Prayer bar is part of your stack right now - hidePrayerBarWhenInactive gates it on praying. */
 	private boolean prayerBarAttached()
 	{
-		return config.showPrayerBar() && (!config.hidePrayerBarWhenInactive() || plugin.isPrayerActive());
+		return config.showPrayerBar().attached(plugin.isPrayerActive());
 	}
 
 	/** Whether the special attack bar is part of your stack right now. */
 	private boolean specialBarAttached()
 	{
-		return config.showSpecialAttackBar();
+		return config.showSpecialAttackBar().shown();
 	}
 
 	/**
@@ -1838,11 +1856,12 @@ class CustomHpBarOverlay extends Overlay
 	 */
 	private boolean runBarAttached()
 	{
-		if (!config.showRunEnergyBar())
+		if (config.showRunEnergyBar() == CustomHpBarConfig.RunBarVisibility.NEVER)
 		{
 			return false;
 		}
-		return config.alwaysShowRunBar() || !plugin.isRunEnergyBarTimedOut();
+		return config.showRunEnergyBar() == CustomHpBarConfig.RunBarVisibility.ALWAYS
+			|| !plugin.isRunEnergyBarTimedOut();
 	}
 
 	/**
@@ -1869,17 +1888,18 @@ class CustomHpBarOverlay extends Overlay
 			switch (kind)
 			{
 				case PRAYER:
-					visible = prayerBarAttached() && (tracked || plugin.isPrayerActive() || config.alwaysShowPrayerBar());
+					visible = prayerBarAttached() && (tracked || plugin.isPrayerActive()
+						|| config.showPrayerBar() == CustomHpBarConfig.PrayerBarVisibility.ALWAYS);
 					break;
 				case SPECIAL:
-					visible = specialBarAttached() && (tracked || config.alwaysShowSpecialBar());
+					visible = specialBarAttached() && (tracked || config.showSpecialAttackBar().always());
 					break;
 				case RUN:
 					visible = runBarAttached();
 					break;
 				case HP:
 				default:
-					visible = tracked || config.alwaysShowHpBar();
+					visible = tracked || config.showForSelf().always();
 					break;
 			}
 			if (visible)
@@ -1888,7 +1908,7 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
-		if ((tracked || config.alwaysShowHpBar()) && !stack.contains(CustomHpBarConfig.BarKind.HP))
+		if ((tracked || config.showForSelf().always()) && !stack.contains(CustomHpBarConfig.BarKind.HP))
 		{
 			stack.add(0, CustomHpBarConfig.BarKind.HP);
 		}
@@ -2198,11 +2218,11 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		Color prayerColor = config.prayerBarColor();
-		int restoreValue = config.showPrayerRestorePreview() ? hoveredRestoreValue(Skill.PRAYER) : -1;
+		int restoreValue = config.showPreviews() ? hoveredRestoreValue(Skill.PRAYER) : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor,
 			config.prayerTextColor(), restoreValue);
 
-		if (config.showPrayerTickTimer() && (!config.hidePrayerTickTimerWhenInactive() || plugin.isPrayerActive()))
+		if (config.showPrayerTickTimer().shown(plugin.isPrayerActive()))
 		{
 			drawPrayerTickTimer(g, x, y, w, h, border, zoom);
 		}
@@ -2259,12 +2279,12 @@ class CustomHpBarOverlay extends Overlay
 			config.specialAttackTextColor(), -1);
 	}
 
-	/** Fill swaps to runEnergyStaminaColor while a Stamina buff is active - mirrors core's own run orb. */
+	/** Fill swaps to STAMINA_BAR_COLOR while a Stamina buff is active - mirrors core's own run orb. */
 	private void drawRunEnergyBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc, double zoom)
 	{
 		int current = plugin.runEnergy();
-		Color runColor = plugin.isStaminaActive() ? config.runEnergyStaminaColor() : config.runEnergyBarColor();
-		int restoreValue = config.showRunEnergyRestorePreview() ? hoveredRestoreValue("Run Energy") : -1;
+		Color runColor = plugin.isStaminaActive() ? STAMINA_BAR_COLOR : config.runEnergyBarColor();
+		int restoreValue = config.showPreviews() ? hoveredRestoreValue("Run Energy") : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, runColor,
 			config.runEnergyTextColor(), restoreValue);
 	}
@@ -2626,6 +2646,11 @@ class CustomHpBarOverlay extends Overlay
 			return config.otherPlayerDisplayMode() == CustomHpBarConfig.OtherPlayerDisplayMode.NEITHER
 				? CustomHpBarConfig.DisplayMode.NEITHER
 				: CustomHpBarConfig.DisplayMode.PERCENT;
+		}
+		// A star's ratio is layer progress, so any number built from it would be meaningless.
+		if (actor instanceof NPC && plugin.isShootingStar((NPC) actor))
+		{
+			return CustomHpBarConfig.DisplayMode.NEITHER;
 		}
 		return config.targetDisplayMode();
 	}

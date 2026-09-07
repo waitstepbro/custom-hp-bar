@@ -31,9 +31,8 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Player Bar — Style",
-		description = "Whether to show your own bar; its size/shape/border/text settings, shared with " +
-			"other players; and its own fill/gradient/background color, opacity, and vertical offset - " +
-			"other players use independent versions of those in Other Player Bar — Style",
+		description = "Your own bar's size, shape, color, and text - the size, shape, and font here " +
+			"apply to other players too",
 		position = 2,
 		closedByDefault = true
 	)
@@ -41,7 +40,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Player Bar — Info",
-		description = "Prayer bar, status effects, restore previews, and the overhead icon",
+		description = "The Prayer, special attack, and run energy bars, and how your stack is ordered",
 		position = 3,
 		closedByDefault = true
 	)
@@ -49,8 +48,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Other Player Bar — Style",
-		description = "Whether to show other players' bars, and the fill/gradient/background color, " +
-			"opacity, and vertical offset settings independent of your own",
+		description = "Color, opacity, and offset for other players' bars, independent of your own",
 		position = 4,
 		closedByDefault = true
 	)
@@ -65,20 +63,12 @@ public interface CustomHpBarConfig extends Config
 	String OTHER_PLAYER_INFO_SECTION = "otherPlayerInfo";
 
 	@ConfigSection(
-		name = "Behavior",
-		description = "Settings shared by both bar types",
+		name = "Behavior & Hotkeys",
+		description = "Settings shared by every bar, and keybinds to show or hide names and bars instantly",
 		position = 6,
 		closedByDefault = true
 	)
 	String BEHAVIOR_SECTION = "behavior";
-
-	@ConfigSection(
-		name = "Hotkeys",
-		description = "Keybinds to instantly show/hide HP bars or names, independent of every other setting",
-		position = 7,
-		closedByDefault = true
-	)
-	String HOTKEY_SECTION = "hotkeys";
 
 	// ==================== Target bar style ====================
 
@@ -147,15 +137,16 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetBorderColor",
-		name = "Border Color",
-		description = "Color of the bar's outline",
+		keyName = "targetVerticalOffset",
+		name = "Vertical Offset",
+		description = "Pixels to shift the bar up (positive) or down (negative) from center",
 		section = TARGET_SECTION,
 		position = 5
 	)
-	default Color targetBorderColor()
+	@Range(min = -50, max = 100)
+	default int targetVerticalOffset()
 	{
-		return new Color(0, 0, 0, 190);
+		return 5;
 	}
 
 	@ConfigItem(
@@ -173,7 +164,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends the bar's fill color as HP drops. Off keeps Bar Color at all HP levels.",
+		description = "Blends an NPC's bar from the bar color through yellow to red as HP drops, instead of one flat color.",
 		section = TARGET_SECTION,
 		position = 7
 	)
@@ -183,40 +174,15 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetColorMid",
-		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP Color Gradient.",
+		keyName = "targetBorderColor",
+		name = "Border Color",
+		description = "Color of the bar's outline",
 		section = TARGET_SECTION,
 		position = 8
 	)
-	default Color targetColorMid()
+	default Color targetBorderColor()
 	{
-		return new Color(180, 180, 0);
-	}
-
-	@ConfigItem(
-		keyName = "targetMidpoint",
-		name = "Midpoint",
-		description = "HP percentage at which the bar is exactly Mid HP Color.",
-		section = TARGET_SECTION,
-		position = 9
-	)
-	@Range(min = 0, max = 100)
-	default int targetMidpoint()
-	{
-		return 50;
-	}
-
-	@ConfigItem(
-		keyName = "targetColorLow",
-		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient.",
-		section = TARGET_SECTION,
-		position = 10
-	)
-	default Color targetColorLow()
-	{
-		return new Color(180, 0, 0);
+		return new Color(0, 0, 0, 190);
 	}
 
 	@ConfigItem(
@@ -224,7 +190,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Background Color",
 		description = "Color of the empty portion of the bar",
 		section = TARGET_SECTION,
-		position = 11
+		position = 9
 	)
 	default Color targetBarBackground()
 	{
@@ -232,16 +198,17 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetVerticalOffset",
-		name = "Vertical Offset",
-		description = "Pixels to shift the bar up (positive) or down (negative) from center",
+		keyName = "targetBarOpacity",
+		name = "Bar Opacity",
+		description = "Overall transparency of the bar's background, fill, and border. 100 = fully opaque; " +
+			"the HP text itself is unaffected.",
 		section = TARGET_SECTION,
-		position = 12
+		position = 10
 	)
-	@Range(min = -50, max = 100)
-	default int targetVerticalOffset()
+	@Range(min = 0, max = 100)
+	default int targetBarOpacity()
 	{
-		return 5;
+		return 100;
 	}
 
 	@ConfigItem(
@@ -249,7 +216,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font",
 		description = "Typeface for the HP text.",
 		section = TARGET_SECTION,
-		position = 13
+		position = 11
 	)
 	default FontFamily targetFontFamily()
 	{
@@ -261,7 +228,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Style",
 		description = "Applied on top of the chosen font.",
 		section = TARGET_SECTION,
-		position = 14
+		position = 12
 	)
 	default FontStyle targetFontStyle()
 	{
@@ -273,7 +240,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Size",
 		description = "Size of the HP number text.",
 		section = TARGET_SECTION,
-		position = 15
+		position = 13
 	)
 	@Range(min = 6, max = 20)
 	default int targetFontSize()
@@ -286,7 +253,7 @@ public interface CustomHpBarConfig extends Config
 		name = "HP Text Color",
 		description = "Color of the HP number",
 		section = TARGET_SECTION,
-		position = 16
+		position = 14
 	)
 	default Color targetTextColor()
 	{
@@ -298,7 +265,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Outline",
 		description = "Full outline around the text for readability at small sizes.",
 		section = TARGET_SECTION,
-		position = 17
+		position = 15
 	)
 	default boolean targetTextOutline()
 	{
@@ -306,24 +273,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetTextVerticalNudge",
-		name = "Text Vertical Nudge",
-		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
-		section = TARGET_SECTION,
-		position = 18
-	)
-	@Range(min = -10, max = 10)
-	default int targetTextVerticalNudge()
-	{
-		return 0;
-	}
-
-	@ConfigItem(
 		keyName = "targetTextAlignment",
 		name = "Text Alignment",
 		description = "Where the HP text sits horizontally within the bar.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 16
 	)
 	default TextAlignment targetTextAlignment()
 	{
@@ -336,7 +290,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
 			"Display Mode of 'Both'.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 17
 	)
 	@Range(min = 0, max = 200)
 	default int targetHpTextSpacing()
@@ -345,90 +299,62 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "targetBarOpacity",
-		name = "Bar Opacity",
-		description = "Overall transparency of the bar's background, fill, and border. 100 = fully opaque; " +
-			"the HP text itself is unaffected.",
+		keyName = "targetTextVerticalNudge",
+		name = "Text Nudge",
+		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = TARGET_SECTION,
-		position = 21
+		position = 18
 	)
-	@Range(min = 0, max = 100)
-	default int targetBarOpacity()
+	@Range(min = -10, max = 10)
+	default int targetTextVerticalNudge()
 	{
-		return 100;
+		return 0;
 	}
 
 	@ConfigItem(
 		keyName = "targetDamageTrail",
 		name = "Damage Trail",
-		description = "Leaves a colored trail behind the bar when an NPC takes damage, draining to " +
-			"the new HP a moment later. Healing has no trail.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = TARGET_SECTION,
-		position = 22
+		position = 19
 	)
-	default boolean targetDamageTrail()
+	default DamageTrailMode targetDamageTrail()
 	{
-		return false;
+		return DamageTrailMode.OFF;
 	}
 
 	@ConfigItem(
 		keyName = "targetDamageTrailColor",
-		name = "Damage Trail Color",
-		description = "Color of the health an NPC just lost. Timing is shared by every bar, in " +
-			"Behavior.",
+		name = "Trail Color",
+		description = "Color of the health an NPC just lost. Requires a Damage Trail of 'Custom color'.",
 		section = TARGET_SECTION,
-		position = 23
+		position = 20
 	)
 	default Color targetDamageTrailColor()
 	{
 		return new Color(200, 40, 40, 220);
 	}
 
-	@ConfigItem(
-		keyName = "targetDamageTrailMatchBar",
-		name = "Match Bar Color",
-		description = "Colors the trail from the bar's own color at the health it is draining " +
-			"from, darkened. Replaces Damage Trail Color.",
-		section = TARGET_SECTION,
-		position = 24
-	)
-	default boolean targetDamageTrailMatchBar()
-	{
-		return false;
-	}
-
 	// ==================== Target bar NPC info ====================
 
 	@ConfigItem(
 		keyName = "showNpcName",
-		name = "Show NPC Name",
-		description = "Draws the NPC's name above its HP bar.",
+		name = "NPC Name",
+		description = "Whether NPCs get a name label: never, only while in combat with you, or always.",
 		section = TARGET_NPC_SECTION,
 		position = 0
 	)
-	default boolean showNpcName()
+	default Visibility showNpcName()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowNpcName",
-		name = "Always Show NPC Name",
-		description = "Shows the NPC name at all times, not just in combat. Requires 'Show NPC Name'.",
-		section = TARGET_NPC_SECTION,
-		position = 1
-	)
-	default boolean alwaysShowNpcName()
-	{
-		return true;
+		return Visibility.ALWAYS;
 	}
 
 	@ConfigItem(
 		keyName = "showNpcCombatLevel",
-		name = "Show Combat Level",
-		description = "Appends the NPC's combat level to its name. Requires 'Show NPC Name'.",
+		name = "Combat Level",
+		description = "Appends the NPC's combat level to its name. Requires 'NPC Name'.",
 		section = TARGET_NPC_SECTION,
-		position = 2
+		position = 1
 	)
 	default boolean showNpcCombatLevel()
 	{
@@ -436,34 +362,45 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "truncateNpcNames",
-		name = "Truncate Long NPC Names",
-		description = "Shortens NPC names past a character limit and appends a period. Requires " +
-			"'Show NPC Name'.",
+		keyName = "onlyShowCombatNpcNames",
+		name = "Combat NPCs Only",
+		description = "Hides NPCs that have no combat level and no Attack option, like bankers and shop keepers.",
 		section = TARGET_NPC_SECTION,
-		position = 3
+		position = 2
 	)
-	default boolean truncateNpcNames()
+	default boolean onlyShowCombatNpcNames()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 		keyName = "npcNameMaxLength",
-		name = "NPC Name Length Limit",
-		description = "Characters to keep before the period. Requires 'Truncate Long NPC Names'.",
+		name = "Name Length Limit",
+		description = "Shortens NPC names past this many characters and appends a period. 0 = no limit.",
+		section = TARGET_NPC_SECTION,
+		position = 3
+	)
+	@Range(min = 0, max = 50)
+	default int npcNameMaxLength()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "npcNameColor",
+		name = "Name Color",
+		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_NPC_SECTION,
 		position = 4
 	)
-	@Range(min = 1, max = 50)
-	default int npcNameMaxLength()
+	default Color npcNameColor()
 	{
-		return 16;
+		return new Color(255, 255, 0);
 	}
 
 	@ConfigItem(
 		keyName = "alwaysShowNpcBar",
-		name = "Always Show NPC Bar",
+		name = "Always Show Bar",
 		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
 		section = TARGET_NPC_SECTION,
 		position = 5
@@ -474,57 +411,61 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "onlyShowCombatNpcNames",
-		name = "Only Show Combat NPC Names",
-		description = "Excludes non-attackable NPCs from bars and names.",
+		keyName = "fadeNpcBarOnDeath",
+		name = "Death Fade",
+		description = "Fades an NPC's bar and name out when it dies instead of hiding them the instant " +
+			"the killing blow lands.",
 		section = TARGET_NPC_SECTION,
 		position = 6
 	)
-	default boolean onlyShowCombatNpcNames()
+	default boolean fadeNpcBarOnDeath()
 	{
 		return true;
 	}
 
 	@ConfigItem(
-		keyName = "showPetNames",
-		name = "Show Pet Names",
-		description = "Draws names above pets. Requires 'Show NPC Name'.",
+		keyName = "targetPersistDuration",
+		name = "Persist Duration",
+		description = "How long in seconds an NPC's bar keeps showing the last known HP after the " +
+			"native bar fades (0 = hide immediately).",
 		section = TARGET_NPC_SECTION,
 		position = 7
 	)
-	default boolean showPetNames()
+	@Range(min = 0, max = 300)
+	default int targetPersistDuration()
 	{
-		return true;
+		return 5;
 	}
 
 	@ConfigItem(
-		keyName = "npcNameColor",
-		name = "NPC Name Color",
-		description = "Color of the NPC name text, separate from the HP number's color.",
+		keyName = "npcStackLimit",
+		name = "Stack Limit",
+		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
+			"ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = TARGET_NPC_SECTION,
 		position = 8
 	)
-	default Color npcNameColor()
+	@Range(min = 0, max = 30)
+	default int npcStackLimit()
 	{
-		return new Color(255, 255, 0);
+		return 0;
 	}
 
 	@ConfigItem(
 		keyName = "colorAggressiveNpcNames",
-		name = "Color Aggressive NPC Names",
-		description = "Colors an NPC's name while it's aggressive toward you, reverting once the tolerance " +
-			"timer expires.",
+		name = "Color Aggressive NPCs",
+		description = "Colors an NPC's name, bar, both or neither while it is aggressive toward you, reverting once the tolerance timer expires.",
 		section = TARGET_NPC_SECTION,
 		position = 9
 	)
-	default boolean colorAggressiveNpcNames()
+	default AggressiveHighlight colorAggressiveNpcNames()
 	{
-		return false;
+		return AggressiveHighlight.OFF;
 	}
 
 	@ConfigItem(
 		keyName = "showAggressiveNpcIcon",
-		name = "Show Aggressive NPC Icon",
+		name = "Aggressive Icon",
 		description = "Shows an icon next to an NPC's bar while it's aggressive toward you.",
 		section = TARGET_NPC_SECTION,
 		position = 10
@@ -534,27 +475,14 @@ public interface CustomHpBarConfig extends Config
 		return false;
 	}
 
-	@ConfigItem(
-		keyName = "colorAggressiveNpcBars",
-		name = "Color Aggressive NPC Bars",
-		description = "Fills an NPC's bar with the aggressive color while it's aggressive toward you. " +
-			"A status effect tint takes precedence.",
-		section = TARGET_NPC_SECTION,
-		position = 11
-	)
-	default boolean colorAggressiveNpcBars()
-	{
-		return false;
-	}
-
 	// keyName stays "aggressiveNpcNameColor" so saved profiles carry over - see CLAUDE.md.
 	@ConfigItem(
 		keyName = "aggressiveNpcNameColor",
-		name = "Aggressive NPC Color",
+		name = "Aggressive Color",
 		description = "Shared color for the name and bar of an NPC that's currently aggressive toward " +
-			"you. Applies to whichever of the options above are on.",
+			"you. Requires 'Color Aggressive NPCs'.",
 		section = TARGET_NPC_SECTION,
-		position = 12
+		position = 11
 	)
 	default Color aggressiveNpcColor()
 	{
@@ -563,50 +491,23 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
-		name = "Color By Status Effect",
-		description = "Tints the bar while poisoned, envenomed, burning, diseased, or corrupted.",
+		name = "Status Effects",
+		description = "How poison, venom, burns, bleeds, disease and corruption show on an NPC's bar: as a tint, an icon, both, or not at all.",
 		section = TARGET_NPC_SECTION,
-		position = 13
+		position = 12
 	)
-	default boolean targetColorByStatusEffect()
+	default StatusEffectMode targetColorByStatusEffect()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "targetShowStatusIcon",
-		name = "Show Status Icon",
-		description = "Shows a debuff icon beneath the bar while poisoned, envenomed, burning, diseased, " +
-			"or corrupted.",
-		section = TARGET_NPC_SECTION,
-		position = 14
-	)
-	default boolean targetShowStatusIcon()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "targetPersistDuration",
-		name = "Persist Duration (seconds)",
-		description = "How long an NPC's bar keeps showing the last known HP after the native bar fades " +
-			"(0 = hide immediately).",
-		section = TARGET_NPC_SECTION,
-		position = 15
-	)
-	@Range(min = 0, max = 300)
-	default int targetPersistDuration()
-	{
-		return 5;
+		return StatusEffectMode.BOTH;
 	}
 
 	@ConfigItem(
 		keyName = "greyOutOtherPlayerDamage",
-		name = "Grey Out Health Bars",
-		description = "Greys out an NPC's bar once another player damages it. Ironman accounts only; " +
-			"bosses with shared or personal loot are exempt.",
+		name = "Grey Out Bars & Names",
+		description = "Greys out an NPC's bar and name once another player damages it. Ironman accounts " +
+			"only; bosses with shared or personal loot are exempt.",
 		section = TARGET_NPC_SECTION,
-		position = 16
+		position = 13
 	)
 	default boolean greyOutOtherPlayerDamage()
 	{
@@ -614,52 +515,36 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "greyOutOtherPlayerDamageNames",
-		name = "Grey Out Names",
-		description = "Greys out an NPC's name on the same terms as 'Grey Out Health Bars'. " +
-			"Independent of that setting, and overrides the aggressive name color.",
+		keyName = "showNpcWeaknessIcon",
+		name = "Weakness Icon",
+		description = "Whether an NPC's elemental weakness draws beside its bar, with or without the percentage.",
 		section = TARGET_NPC_SECTION,
-		position = 17
+		position = 14
 	)
-	default boolean greyOutOtherPlayerDamageNames()
+	default WeaknessMode showNpcWeaknessIcon()
 	{
-		return true;
+		return WeaknessMode.OFF;
 	}
 
 	@ConfigItem(
-		keyName = "fadeNpcBarOnDeath",
-		name = "Fade Bar On Death",
-		description = "Fades an NPC's bar and name out when it dies instead of hiding them the instant " +
-			"the killing blow lands.",
+		keyName = "npcWeaknessPercentColor",
+		name = "Percent Color",
+		description = "Color of the weakness percentage text. Requires 'Weakness Icon' set to Icon & percent.",
 		section = TARGET_NPC_SECTION,
-		position = 18
+		position = 15
 	)
-	default boolean fadeNpcBarOnDeath()
+	default Color npcWeaknessPercentColor()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "npcDeathFadeDuration",
-		name = "Death Fade Duration (ms)",
-		description = "How long an NPC's bar takes to fade out after it dies. Ends early if the corpse " +
-			"despawns first. Requires Fade Bar On Death.",
-		section = TARGET_NPC_SECTION,
-		position = 19
-	)
-	@Range(min = 0, max = 2000)
-	default int npcDeathFadeDuration()
-	{
-		return 600;
+		return new Color(255, 255, 255);
 	}
 
 	@ConfigItem(
 		keyName = "showNpcShieldBar",
-		name = "Show Shield Bar",
+		name = "Shield Bar",
 		description = "Shows a shield's remaining strength on the bar while an NPC is shielded. "
 			+ "Supports Doom of Mokhaiotl and Kephri.",
 		section = TARGET_NPC_SECTION,
-		position = 24
+		position = 16
 	)
 	default boolean showNpcShieldBar()
 	{
@@ -667,24 +552,12 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "npcShieldBarColor",
-		name = "Shield Bar Color",
-		description = "Fill color for the bar while an NPC is shielded.",
-		section = TARGET_NPC_SECTION,
-		position = 25
-	)
-	default Color npcShieldBarColor()
-	{
-		return new Color(60, 130, 220);
-	}
-
-	@ConfigItem(
 		keyName = "showNpcChargeBar",
-		name = "Show Charge Bar",
+		name = "Charge Bar",
 		description = "Shows a second bar beneath an NPC's while it charges a special attack. "
 			+ "Supports Doom of Mokhaiotl and Yama's void flares.",
 		section = TARGET_NPC_SECTION,
-		position = 26
+		position = 17
 	)
 	default boolean showNpcChargeBar()
 	{
@@ -692,24 +565,12 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "npcChargeBarColor",
-		name = "Charge Bar Color",
-		description = "Fill color for the charge bar.",
-		section = TARGET_NPC_SECTION,
-		position = 27
-	)
-	default Color npcChargeBarColor()
-	{
-		return new Color(235, 195, 40);
-	}
-
-	@ConfigItem(
 		keyName = "npcChargeBarWidth",
-		name = "Charge Bar Width",
+		name = "Charge Width",
 		description = "Width of the charge bar in pixels. 0 matches the NPC bar's width. "
-			+ "Requires 'Show Charge Bar'.",
+			+ "Requires 'Charge Bar'.",
 		section = TARGET_NPC_SECTION,
-		position = 28
+		position = 18
 	)
 	@Range(min = 0, max = 200)
 	default int npcChargeBarWidth()
@@ -719,11 +580,11 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "npcChargeBarHeight",
-		name = "Charge Bar Height",
+		name = "Charge Height",
 		description = "Height of the charge bar in pixels. 0 matches the NPC bar's height. "
-			+ "Requires 'Show Charge Bar'.",
+			+ "Requires 'Charge Bar'.",
 		section = TARGET_NPC_SECTION,
-		position = 29
+		position = 19
 	)
 	@Range(min = 0, max = 30)
 	default int npcChargeBarHeight()
@@ -733,11 +594,11 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "npcChargeBarGap",
-		name = "Charge Bar Gap",
+		name = "Charge Gap",
 		description = "Pixels between the NPC's bar and the charge bar beneath it. The charge bar drops "
-			+ "further when status icons need the room. Requires 'Show Charge Bar'.",
+			+ "further when status icons need the room. Requires 'Charge Bar'.",
 		section = TARGET_NPC_SECTION,
-		position = 30
+		position = 20
 	)
 	@Range(min = 0, max = 20)
 	default int npcChargeBarGap()
@@ -747,86 +608,35 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "npcFilter",
-		name = "NPC Blacklist",
+		name = "Blacklist",
 		description = "Comma-separated NPC names to hide. Supports * wildcards; leave blank to show all.",
 		section = TARGET_NPC_SECTION,
-		position = 31
+		position = 21
 	)
 	default String npcFilter()
 	{
 		return "";
 	}
 
-	@ConfigItem(
-		keyName = "npcStackLimit",
-		name = "NPC Stack Limit",
-		description = "Caps how many NPCs (bar and/or name) render on the same tile at once - which " +
-			"ones is arbitrary, not distance-based. 0 = unlimited.",
-		section = TARGET_NPC_SECTION,
-		position = 20
-	)
-	@Range(min = 0, max = 30)
-	default int npcStackLimit()
-	{
-		return 0;
-	}
-
-	@ConfigItem(
-		keyName = "showNpcWeaknessIcon",
-		name = "Show Weakness Icon",
-		description = "Shows the surge spell icon for an NPC's elemental weakness beside its HP bar. " +
-			"Nothing is drawn for an NPC with no weakness.",
-		section = TARGET_NPC_SECTION,
-		position = 21
-	)
-	default boolean showNpcWeaknessIcon()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "showNpcWeaknessPercent",
-		name = "Show Weakness Percent",
-		description = "Draws the weakness percentage beside the icon. Requires 'Show Weakness Icon'.",
-		section = TARGET_NPC_SECTION,
-		position = 22
-	)
-	default boolean showNpcWeaknessPercent()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "npcWeaknessPercentColor",
-		name = "Weakness Percent Color",
-		description = "Color of the weakness percentage text. Requires 'Show Weakness Percent'.",
-		section = TARGET_NPC_SECTION,
-		position = 23
-	)
-	default Color npcWeaknessPercentColor()
-	{
-		return new Color(255, 255, 255);
-	}
-
 	// ==================== Player bar style (self + other players) ====================
 
 	@ConfigItem(
 		keyName = "showForSelf",
-		name = "Show for Self",
-		description = "Draw the player bar over your own character",
+		name = "Show Bar",
+		description = "Whether your own bar draws: never, only while you are in combat, or always.",
 		section = PLAYER_SECTION,
 		position = 0
 	)
-	default boolean showForSelf()
+	default Visibility showForSelf()
 	{
-		return true;
+		return Visibility.TRACKED;
 	}
 
 	@ConfigItem(
 		keyName = "selfDisplayMode",
-		name = "Self Display Mode",
-		description = "Display mode for your own bar - number, percentage, both, or neither " +
-			"(bar only, no text). Requires 'Show for Self'.",
+		name = "Display Mode",
+		description = "Show your own HP as a raw number, a percentage, both, or neither " +
+			"(bar only, no text). Requires 'Show Bar'.",
 		section = PLAYER_SECTION,
 		position = 1
 	)
@@ -840,7 +650,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar Width",
 		description = "Width of the bar in pixels",
 		section = PLAYER_SECTION,
-		position = 7
+		position = 2
 	)
 	@Range(min = 20, max = 200)
 	default int playerBarWidth()
@@ -853,7 +663,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar Height",
 		description = "Height of the bar in pixels",
 		section = PLAYER_SECTION,
-		position = 8
+		position = 3
 	)
 	@Range(min = 4, max = 30)
 	default int playerBarHeight()
@@ -866,7 +676,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Corner Radius",
 		description = "Rounds the corners of the bar. 0 = sharp corners.",
 		section = PLAYER_SECTION,
-		position = 9
+		position = 4
 	)
 	@Range(min = 0, max = 12)
 	default int playerCornerRadius()
@@ -879,7 +689,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Border Width",
 		description = "Thickness of the bar's outline in pixels. 0 = no border.",
 		section = PLAYER_SECTION,
-		position = 10
+		position = 5
 	)
 	@Range(min = 0, max = 4)
 	default int playerBorderWidth()
@@ -888,24 +698,26 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerBorderColor",
-		name = "Border Color",
-		description = "Color of the bar's outline",
+		keyName = "playerVerticalOffset",
+		name = "Vertical Offset",
+		description = "Pixels to shift your own bar up (positive) or down (negative) from center. " +
+			"Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
-		position = 11
+		position = 6
 	)
-	default Color playerBorderColor()
+	@Range(min = -50, max = 100)
+	default int playerVerticalOffset()
 	{
-		return new Color(0, 0, 0, 190);
+		return 15;
 	}
 
 	@ConfigItem(
 		keyName = "playerBarColor",
 		name = "Bar Color",
-		description = "Fill color of your own bar, and the full-HP color when HP Color Gradient is " +
-			"on. Other players have their own in Other Player Bar — Style.",
+		description = "Fill color of your own bar, and the full-HP color when HP Color Gradient is on. " +
+			"Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
-		position = 12
+		position = 7
 	)
 	default Color playerBarColor()
 	{
@@ -915,10 +727,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends your own bar's fill color as HP drops. Off keeps Bar Color at all HP " +
-			"levels. Other players have their own in Other Player Bar — Style.",
+		description = "Blends your own bar from the bar color through yellow to red as HP drops, instead of one flat color.",
 		section = PLAYER_SECTION,
-		position = 13
+		position = 8
 	)
 	default boolean playerHpColorGradient()
 	{
@@ -926,43 +737,15 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerColorMid",
-		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP " +
-			"Color Gradient. Other players have their own in Other Player Bar — Style.",
+		keyName = "playerBorderColor",
+		name = "Border Color",
+		description = "Color of the bar's outline",
 		section = PLAYER_SECTION,
-		position = 14
+		position = 9
 	)
-	default Color playerColorMid()
+	default Color playerBorderColor()
 	{
-		return new Color(180, 180, 0);
-	}
-
-	@ConfigItem(
-		keyName = "playerMidpoint",
-		name = "Midpoint",
-		description = "HP percentage at which your own bar is exactly Mid HP Color. Other players " +
-			"have their own in Other Player Bar — Style.",
-		section = PLAYER_SECTION,
-		position = 15
-	)
-	@Range(min = 1, max = 99)
-	default int playerMidpoint()
-	{
-		return 50;
-	}
-
-	@ConfigItem(
-		keyName = "playerColorLow",
-		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient. Other players have their " +
-			"own in Other Player Bar — Style.",
-		section = PLAYER_SECTION,
-		position = 16
-	)
-	default Color playerColorLow()
-	{
-		return new Color(180, 0, 0);
+		return new Color(0, 0, 0, 190);
 	}
 
 	@ConfigItem(
@@ -971,7 +754,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of the empty portion of your own bar. Other players have their own in " +
 			"Other Player Bar — Style.",
 		section = PLAYER_SECTION,
-		position = 17
+		position = 10
 	)
 	default Color playerBarBackground()
 	{
@@ -979,17 +762,17 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerVerticalOffset",
-		name = "Vertical Offset (Self)",
-		description = "Pixels to shift your own bar up (positive) or down (negative) from center. " +
-			"Other players have their own in Other Player Bar — Style.",
+		keyName = "playerBarOpacity",
+		name = "Bar Opacity",
+		description = "Overall transparency of your own bar's background, fill, and border. 100 = " +
+			"fully opaque. Other players have their own in Other Player Bar — Style.",
 		section = PLAYER_SECTION,
-		position = 18
+		position = 11
 	)
-	@Range(min = -50, max = 100)
-	default int playerVerticalOffset()
+	@Range(min = 0, max = 100)
+	default int playerBarOpacity()
 	{
-		return 15;
+		return 100;
 	}
 
 	@ConfigItem(
@@ -997,7 +780,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font",
 		description = "Typeface for the HP text.",
 		section = PLAYER_SECTION,
-		position = 19
+		position = 12
 	)
 	default FontFamily playerFontFamily()
 	{
@@ -1009,7 +792,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Style",
 		description = "Applied on top of the chosen font.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 13
 	)
 	default FontStyle playerFontStyle()
 	{
@@ -1021,7 +804,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Font Size",
 		description = "Size of the HP number text.",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 14
 	)
 	@Range(min = 6, max = 20)
 	default int playerFontSize()
@@ -1035,7 +818,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of your own HP number. The Prayer, special attack, and run energy numbers " +
 			"have their own in Player Bar — Info.",
 		section = PLAYER_SECTION,
-		position = 22
+		position = 15
 	)
 	default Color playerTextColor()
 	{
@@ -1047,7 +830,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Text Outline",
 		description = "Full outline around the text for readability at small sizes.",
 		section = PLAYER_SECTION,
-		position = 23
+		position = 16
 	)
 	default boolean playerTextOutline()
 	{
@@ -1055,24 +838,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerTextVerticalNudge",
-		name = "Text Vertical Nudge",
-		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
-		section = PLAYER_SECTION,
-		position = 24
-	)
-	@Range(min = -10, max = 10)
-	default int playerTextVerticalNudge()
-	{
-		return 0;
-	}
-
-	@ConfigItem(
 		keyName = "playerTextAlignment",
 		name = "Text Alignment",
 		description = "Where each bar's number sits horizontally within it - HP, Prayer, Special, and Run.",
 		section = PLAYER_SECTION,
-		position = 25
+		position = 17
 	)
 	default TextAlignment playerTextAlignment()
 	{
@@ -1085,7 +855,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Pushes the HP number and percentage apart, up to the width of the bar. Requires a " +
 			"Display Mode of 'Both'.",
 		section = PLAYER_SECTION,
-		position = 26
+		position = 18
 	)
 	@Range(min = 0, max = 200)
 	default int playerHpTextSpacing()
@@ -1094,117 +864,62 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerBarOpacity",
-		name = "Bar Opacity",
-		description = "Overall transparency of your own bars' background, fill, and border. 100 = " +
-			"fully opaque. Other players have their own in Other Player Bar — Style.",
+		keyName = "playerTextVerticalNudge",
+		name = "Text Nudge",
+		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
-		position = 27
+		position = 19
 	)
-	@Range(min = 0, max = 100)
-	default int playerBarOpacity()
+	@Range(min = -10, max = 10)
+	default int playerTextVerticalNudge()
 	{
-		return 100;
+		return 0;
 	}
 
 	@ConfigItem(
 		keyName = "playerDamageTrail",
 		name = "Damage Trail",
-		description = "Leaves a colored trail behind your HP bar when you take damage, draining to " +
-			"your new HP a moment later. Healing has no trail.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = PLAYER_SECTION,
-		position = 28
+		position = 20
 	)
-	default boolean playerDamageTrail()
+	default DamageTrailMode playerDamageTrail()
 	{
-		return false;
+		return DamageTrailMode.OFF;
 	}
 
 	@ConfigItem(
 		keyName = "playerDamageTrailColor",
-		name = "Damage Trail Color",
-		description = "Color of the health you just lost. Timing is shared by every bar, in " +
-			"Behavior.",
+		name = "Trail Color",
+		description = "Color of the health you just lost. Requires a Damage Trail of 'Custom color'.",
 		section = PLAYER_SECTION,
-		position = 29
+		position = 21
 	)
 	default Color playerDamageTrailColor()
 	{
 		return new Color(200, 40, 40, 220);
 	}
 
-	@ConfigItem(
-		keyName = "playerDamageTrailMatchBar",
-		name = "Match Bar Color",
-		description = "Colors the trail from the bar's own color at the health it is draining " +
-			"from, darkened. Replaces Damage Trail Color.",
-		section = PLAYER_SECTION,
-		position = 30
-	)
-	default boolean playerDamageTrailMatchBar()
-	{
-		return false;
-	}
-
 	// ==================== Player bar player info ====================
 
 	@ConfigItem(
-		keyName = "alwaysShowHpBar",
-		name = "Always Show HP Bar",
-		description = "Shows your HP bar even when not tracked in combat. Requires 'Show for Self'.",
+		keyName = "showPrayerBar",
+		name = "Prayer Bar",
+		description = "Whether the prayer bar draws: never, only while praying, only while you are in combat, or always.",
 		section = PLAYER_INFO_SECTION,
 		position = 0
 	)
-	default boolean alwaysShowHpBar()
+	default PrayerBarVisibility showPrayerBar()
 	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "showPrayerBar",
-		name = "Show Prayer Bar",
-		description = "Draws a Prayer points bar beneath your HP bar, or on its own outside combat. " +
-			"Requires 'Show for Self'.",
-		section = PLAYER_INFO_SECTION,
-		position = 1
-	)
-	default boolean showPrayerBar()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowPrayerBar",
-		name = "Always Show Prayer Bar",
-		description = "Shows the Prayer bar even when not tracked in combat. Still subject to 'Hide " +
-			"Prayer Bar While Not Praying'. Requires 'Show Prayer Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 2
-	)
-	default boolean alwaysShowPrayerBar()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "hidePrayerBarWhenInactive",
-		name = "Hide Prayer Bar While Not Praying",
-		description = "Only draws the Prayer bar while a prayer is active. Flicking keeps it up. " +
-			"Requires 'Show Prayer Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 3
-	)
-	default boolean hidePrayerBarWhenInactive()
-	{
-		return false;
+		return PrayerBarVisibility.TRACKED;
 	}
 
 	@ConfigItem(
 		keyName = "prayerBarColor",
-		name = "Prayer Bar Color",
-		description = "Fill color of the Prayer bar. Requires 'Show Prayer Bar'.",
+		name = "Prayer Fill",
+		description = "Fill color of the Prayer bar. Requires 'Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 4
+		position = 1
 	)
 	default Color prayerBarColor()
 	{
@@ -1213,10 +928,10 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "prayerTextColor",
-		name = "Prayer Text Color",
-		description = "Color of the Prayer number. Requires 'Show Prayer Bar'.",
+		name = "Prayer Text",
+		description = "Color of the Prayer number. Requires 'Prayer Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 5
+		position = 2
 	)
 	default Color prayerTextColor()
 	{
@@ -1225,36 +940,22 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "showPrayerTickTimer",
-		name = "Show Prayer Tick Timer",
-		description = "Draws an indicator that sweeps across the Prayer bar once per game tick, for timing " +
-			"prayer flicks. Requires 'Show Prayer Bar'.",
+		name = "Prayer Bar Tick",
+		description = "Whether the prayer tick timer draws: never, only while praying, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 6
+		position = 3
 	)
-	default boolean showPrayerTickTimer()
+	default PrayerTimerVisibility showPrayerTickTimer()
 	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "hidePrayerTickTimerWhenInactive",
-		name = "Hide Tick Timer While Not Praying",
-		description = "Only draws the tick timer while a prayer is active, same as 'Hide Prayer Bar While " +
-			"Not Praying'. Requires 'Show Prayer Tick Timer'.",
-		section = PLAYER_INFO_SECTION,
-		position = 7
-	)
-	default boolean hidePrayerTickTimerWhenInactive()
-	{
-		return false;
+		return PrayerTimerVisibility.NEVER;
 	}
 
 	@ConfigItem(
 		keyName = "prayerTickTimerColor",
-		name = "Prayer Tick Timer Color",
-		description = "Color of the tick timer indicator. Requires 'Show Prayer Tick Timer'.",
+		name = "Tick Color",
+		description = "Color of the tick timer indicator. Requires 'Prayer Bar Tick'.",
 		section = PLAYER_INFO_SECTION,
-		position = 8
+		position = 4
 	)
 	default Color prayerTickTimerColor()
 	{
@@ -1263,36 +964,22 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "showSpecialAttackBar",
-		name = "Show Special Attack Bar",
-		description = "Draws a special attack energy bar alongside your HP bar, in combat only. " +
-			"Requires 'Show for Self'.",
+		name = "Special Attack Bar",
+		description = "Whether the special attack bar draws: never, only while you are in combat, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 9
+		position = 5
 	)
-	default boolean showSpecialAttackBar()
+	default Visibility showSpecialAttackBar()
 	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowSpecialBar",
-		name = "Always Show Special Attack Bar",
-		description = "Shows the special attack bar even when not tracked in combat. Requires 'Show Special " +
-			"Attack Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 10
-	)
-	default boolean alwaysShowSpecialBar()
-	{
-		return false;
+		return Visibility.NEVER;
 	}
 
 	@ConfigItem(
 		keyName = "specialAttackBarColor",
-		name = "Special Attack Bar Color",
-		description = "Fill color of the special attack bar. Requires 'Show Special Attack Bar'.",
+		name = "Special Attack Fill",
+		description = "Fill color of the special attack bar. Requires 'Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 11
+		position = 6
 	)
 	default Color specialAttackBarColor()
 	{
@@ -1301,10 +988,10 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "specialAttackTextColor",
-		name = "Special Attack Text Color",
-		description = "Color of the special attack number. Requires 'Show Special Attack Bar'.",
+		name = "Special Attack Text",
+		description = "Color of the special attack number. Requires 'Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 12
+		position = 7
 	)
 	default Color specialAttackTextColor()
 	{
@@ -1313,37 +1000,23 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "showRunEnergyBar",
-		name = "Show Run Energy Bar",
-		description = "Draws a run energy bar alongside your HP bar. Unlike Prayer/Special, shows " +
-			"regardless of combat state. Requires 'Show for Self'.",
+		name = "Run Energy Bar",
+		description = "Whether the run energy bar draws: never, only while it is draining or recently drained, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 13
+		position = 8
 	)
-	default boolean showRunEnergyBar()
+	default RunBarVisibility showRunEnergyBar()
 	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowRunBar",
-		name = "Always Show Run Energy Bar",
-		description = "Shows the run energy bar even when not tracked in combat, ignoring the timeout below. " +
-			"Requires 'Show Run Energy Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 14
-	)
-	default boolean alwaysShowRunBar()
-	{
-		return false;
+		return RunBarVisibility.NEVER;
 	}
 
 	@ConfigItem(
 		keyName = "runEnergyBarTimeout",
-		name = "Run Energy Bar Timeout (seconds)",
-		description = "Hides the run energy bar this many seconds after you last ran. 0 = never time " +
-			"out. Requires 'Show Run Energy Bar'.",
+		name = "Run Energy Timeout",
+		description = "Hides the run energy bar this many seconds after you last ran (0 = never time " +
+			"out). Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 15
+		position = 9
 	)
 	@Range(min = 0, max = 300)
 	default int runEnergyBarTimeout()
@@ -1353,10 +1026,10 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "runEnergyBarColor",
-		name = "Run Energy Bar Color",
-		description = "Fill color of the run energy bar. Requires 'Show Run Energy Bar'.",
+		name = "Run Energy Fill",
+		description = "Fill color of the run energy bar. Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 16
+		position = 10
 	)
 	default Color runEnergyBarColor()
 	{
@@ -1364,24 +1037,11 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "runEnergyStaminaColor",
-		name = "Run Energy Bar Color (Stamina Active)",
-		description = "Fill color of the run energy bar while a Stamina potion's drain-reduction effect " +
-			"is active. Requires 'Show Run Energy Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 17
-	)
-	default Color runEnergyStaminaColor()
-	{
-		return new Color(160, 124, 72);
-	}
-
-	@ConfigItem(
 		keyName = "runEnergyTextColor",
-		name = "Run Energy Text Color",
-		description = "Color of the run energy number. Requires 'Show Run Energy Bar'.",
+		name = "Run Energy Text",
+		description = "Color of the run energy number. Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 18
+		position = 11
 	)
 	default Color runEnergyTextColor()
 	{
@@ -1390,11 +1050,11 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "barPosition1",
-		name = "Bar 1 (Top)",
-		description = "Which bar is drawn first (topmost) in your stack. If a bar is picked in more than " +
-			"one position, only its topmost pick is shown.",
+		name = "Bar 1",
+		description = "Which bar is drawn topmost in your stack, with any bar picked twice showing " +
+			"only at its topmost pick.",
 		section = PLAYER_INFO_SECTION,
-		position = 19
+		position = 12
 	)
 	default BarKind barPosition1()
 	{
@@ -1404,9 +1064,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "barPosition2",
 		name = "Bar 2",
-		description = "Which bar is drawn second in your stack. See 'Bar 1 (Top)'.",
+		description = "Which bar is drawn second in your stack. See 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 20
+		position = 13
 	)
 	default BarKind barPosition2()
 	{
@@ -1416,9 +1076,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "barPosition3",
 		name = "Bar 3",
-		description = "Which bar is drawn third in your stack. See 'Bar 1 (Top)'.",
+		description = "Which bar is drawn third in your stack. See 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 21
+		position = 14
 	)
 	default BarKind barPosition3()
 	{
@@ -1427,10 +1087,10 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "barPosition4",
-		name = "Bar 4 (Bottom)",
-		description = "Which bar is drawn fourth (bottommost) in your stack. See 'Bar 1 (Top)'.",
+		name = "Bar 4",
+		description = "Which bar is drawn bottommost in your stack, following the same rules as 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 22
+		position = 15
 	)
 	default BarKind barPosition4()
 	{
@@ -1439,36 +1099,37 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
-		name = "Color By Status Effect",
-		description = "Tints a player's bar while poisoned, envenomed, burning, bleeding, diseased, or corrupted.",
+		name = "Status Effects",
+		description = "How poison, venom, burns, bleeds, disease and corruption show on your bar: as a tint, an icon, both, or not at all.",
 		section = PLAYER_INFO_SECTION,
-		position = 23
+		position = 16
 	)
-	default boolean selfColorByStatusEffect()
+	default StatusEffectMode selfColorByStatusEffect()
 	{
-		return true;
+		return StatusEffectMode.BOTH;
 	}
 
 	@ConfigItem(
-		keyName = "selfShowStatusIcon",
-		name = "Show Status Icon",
-		description = "Shows a debuff icon beneath a player's bar while poisoned, envenomed, burning, " +
-			"bleeding, diseased, or corrupted.",
+		keyName = "showFoodHealPreview",
+		// keyName stays "showFoodHealPreview" so saved profiles carry over - see CLAUDE.md.
+		name = "Restore Previews",
+		description = "Previews what a hovered food, potion or restore item would give, as an extra segment " +
+			"on the HP, prayer or run bar. Requires your own bar to be showing.",
 		section = PLAYER_INFO_SECTION,
-		position = 24
+		position = 17
 	)
-	default boolean selfShowStatusIcon()
+	default boolean showPreviews()
 	{
 		return true;
 	}
 
 	@ConfigItem(
 		keyName = "playerPersistDuration",
-		name = "Persist Duration (seconds)",
-		description = "How long a player's bar keeps showing the last known HP after the native bar fades " +
-			"(0 = hide immediately).",
+		name = "Persist Duration",
+		description = "How long in seconds a player's bar keeps showing the last known HP after the " +
+			"native bar fades (0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 25
+		position = 18
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -1476,71 +1137,18 @@ public interface CustomHpBarConfig extends Config
 		return 5;
 	}
 
-	@ConfigItem(
-		keyName = "showFoodHealPreview",
-		name = "Show Food Heal Preview",
-		description = "Previews HP restored by a hovered food/potion as an extra bar segment. Requires " +
-			"'Show for Self'.",
-		section = PLAYER_INFO_SECTION,
-		position = 26
-	)
-	default boolean showFoodHealPreview()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "showPrayerRestorePreview",
-		name = "Show Prayer Restore Preview",
-		description = "Previews Prayer points restored by a hovered item as an extra bar segment. Requires " +
-			"'Show Prayer Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 27
-	)
-	default boolean showPrayerRestorePreview()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "showRunEnergyRestorePreview",
-		name = "Show Run Energy Restore Preview",
-		description = "Previews run energy restored by a hovered item as an extra bar segment. " +
-			"Requires 'Show Run Energy Bar'.",
-		section = PLAYER_INFO_SECTION,
-		position = 28
-	)
-	default boolean showRunEnergyRestorePreview()
-	{
-		return true;
-	}
-
 	// ==================== Other player bar style ====================
 
 	@ConfigItem(
 		keyName = "showForPlayers",
-		name = "Show for Other Players",
-		description = "Draws the health bar over other players. Names can still show without this if " +
-			"'Always Show Player Name' is on.",
+		name = "Show Bar",
+		description = "Whether other players get a bar: never, only while they are in combat, or always.",
 		section = OTHER_PLAYER_SECTION,
 		position = 0
 	)
-	default boolean showForPlayers()
+	default Visibility showForPlayers()
 	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowPlayerBar",
-		name = "Always Show Player HP Bar",
-		description = "Shows other players' HP bar at all times, not just when tracked in combat. " +
-			"Requires 'Show for Other Players'.",
-		section = OTHER_PLAYER_SECTION,
-		position = 1
-	)
-	default boolean alwaysShowPlayerBar()
-	{
-		return false;
+		return Visibility.NEVER;
 	}
 
 	@ConfigItem(
@@ -1548,7 +1156,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Display Mode",
 		description = "Show other players' HP as a percentage, or neither (bar only, no text).",
 		section = OTHER_PLAYER_SECTION,
-		position = 2
+		position = 1
 	)
 	default OtherPlayerDisplayMode otherPlayerDisplayMode()
 	{
@@ -1557,11 +1165,11 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "otherPlayerVerticalOffset",
-		name = "Vertical Offset (Other Players)",
+		name = "Vertical Offset",
 		description = "Pixels to shift other players' bars up (positive) or down (negative) from " +
 			"center. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 3
+		position = 2
 	)
 	@Range(min = -50, max = 100)
 	default int otherPlayerVerticalOffset()
@@ -1575,7 +1183,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Fill color of other players' bars, and the full-HP color when HP Color " +
 			"Gradient is on. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 4
+		position = 3
 	)
 	default Color otherPlayerBarColor()
 	{
@@ -1585,54 +1193,13 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerHpColorGradient",
 		name = "HP Color Gradient",
-		description = "Blends other players' bar fill color as HP drops. Off keeps Bar Color at all " +
-			"HP levels. Independent of your own in Player Bar — Style.",
+		description = "Blends other players' bars from the bar color through yellow to red as HP drops, instead of one flat color.",
 		section = OTHER_PLAYER_SECTION,
-		position = 5
+		position = 4
 	)
 	default boolean otherPlayerHpColorGradient()
 	{
 		return false;
-	}
-
-	@ConfigItem(
-		keyName = "otherPlayerColorMid",
-		name = "Mid HP Color",
-		description = "Color reached at the midpoint, blended toward from both sides. Requires HP " +
-			"Color Gradient. Independent of your own in Player Bar — Style.",
-		section = OTHER_PLAYER_SECTION,
-		position = 6
-	)
-	default Color otherPlayerColorMid()
-	{
-		return new Color(180, 180, 0);
-	}
-
-	@ConfigItem(
-		keyName = "otherPlayerMidpoint",
-		name = "Midpoint",
-		description = "HP percentage at which other players' bars are exactly Mid HP Color. " +
-			"Independent of your own in Player Bar — Style.",
-		section = OTHER_PLAYER_SECTION,
-		position = 7
-	)
-	@Range(min = 1, max = 99)
-	default int otherPlayerMidpoint()
-	{
-		return 50;
-	}
-
-	@ConfigItem(
-		keyName = "otherPlayerColorLow",
-		name = "Low HP Color",
-		description = "Color reached at 0% HP. Requires HP Color Gradient. Independent of your own in " +
-			"Player Bar — Style.",
-		section = OTHER_PLAYER_SECTION,
-		position = 8
-	)
-	default Color otherPlayerColorLow()
-	{
-		return new Color(180, 0, 0);
 	}
 
 	@ConfigItem(
@@ -1641,24 +1208,11 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of the empty portion of other players' bars. Independent of your own in " +
 			"Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 9
+		position = 5
 	)
 	default Color otherPlayerBarBackground()
 	{
 		return new Color(40, 40, 40, 220);
-	}
-
-	@ConfigItem(
-		keyName = "otherPlayerTextColor",
-		name = "HP Text Color",
-		description = "Color of the HP number on other players' bars. Independent of your own in " +
-			"Player Bar — Style.",
-		section = OTHER_PLAYER_SECTION,
-		position = 10
-	)
-	default Color otherPlayerTextColor()
-	{
-		return Color.WHITE;
 	}
 
 	@ConfigItem(
@@ -1667,7 +1221,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Overall transparency of other players' bar background, fill, and border. 100 = " +
 			"fully opaque. Independent of your own in Player Bar — Style.",
 		section = OTHER_PLAYER_SECTION,
-		position = 11
+		position = 6
 	)
 	@Range(min = 0, max = 100)
 	default int otherPlayerBarOpacity()
@@ -1676,78 +1230,63 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "otherPlayerTextColor",
+		name = "HP Text Color",
+		description = "Color of the HP number on other players' bars. Independent of your own in " +
+			"Player Bar — Style.",
+		section = OTHER_PLAYER_SECTION,
+		position = 7
+	)
+	default Color otherPlayerTextColor()
+	{
+		return Color.WHITE;
+	}
+
+	@ConfigItem(
 		keyName = "otherPlayerDamageTrail",
 		name = "Damage Trail",
-		description = "Leaves a colored trail behind another player's bar when they take damage, " +
-			"draining to their new HP a moment later. Healing has no trail.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = OTHER_PLAYER_SECTION,
-		position = 12
+		position = 8
 	)
-	default boolean otherPlayerDamageTrail()
+	default DamageTrailMode otherPlayerDamageTrail()
 	{
-		return false;
+		return DamageTrailMode.OFF;
 	}
 
 	@ConfigItem(
 		keyName = "otherPlayerDamageTrailColor",
-		name = "Damage Trail Color",
-		description = "Color of the health another player just lost. Timing is shared by every bar, " +
-			"in Behavior.",
+		name = "Trail Color",
+		description = "Color of the health another player just lost. Requires a Damage Trail of " +
+			"'Custom color'.",
 		section = OTHER_PLAYER_SECTION,
-		position = 13
+		position = 9
 	)
 	default Color otherPlayerDamageTrailColor()
 	{
 		return new Color(200, 40, 40, 220);
 	}
 
-	@ConfigItem(
-		keyName = "otherPlayerDamageTrailMatchBar",
-		name = "Match Bar Color",
-		description = "Colors the trail from the bar's own color at the health it is draining " +
-			"from, darkened. Replaces Damage Trail Color.",
-		section = OTHER_PLAYER_SECTION,
-		position = 14
-	)
-	default boolean otherPlayerDamageTrailMatchBar()
-	{
-		return false;
-	}
-
 	// ==================== Other player bar info ====================
 
 	@ConfigItem(
 		keyName = "showPlayerName",
-		name = "Show Player Name",
-		description = "Draws a name label above other players' bars. Without 'Always Show Player " +
-			"Name', only shows for players tracked via 'Show for Other Players'.",
+		name = "Player Name",
+		description = "Whether other players get a name label: never, only while they are in combat, or always.",
 		section = OTHER_PLAYER_INFO_SECTION,
 		position = 0
 	)
-	default boolean showPlayerName()
+	default Visibility showPlayerName()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowPlayerName",
-		name = "Always Show Player Name",
-		description = "Shows the name at all times, not just when the bar is tracked. Requires 'Show Player " +
-			"Name'.",
-		section = OTHER_PLAYER_INFO_SECTION,
-		position = 1
-	)
-	default boolean alwaysShowPlayerName()
-	{
-		return false;
+		return Visibility.TRACKED;
 	}
 
 	@ConfigItem(
 		keyName = "showPlayerCombatLevel",
-		name = "Show Combat Level",
-		description = "Appends the player's combat level to their name. Requires 'Show Player Name'.",
+		name = "Combat Level",
+		description = "Appends the player's combat level to their name. Requires 'Player Name'.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 2
+		position = 1
 	)
 	default boolean showPlayerCombatLevel()
 	{
@@ -1756,10 +1295,10 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "playerNameColor",
-		name = "Player Name Color",
+		name = "Name Color",
 		description = "Color of the player name text, separate from the HP number's color.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 3
+		position = 2
 	)
 	default Color playerNameColor()
 	{
@@ -1772,7 +1311,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Draws a friend's name in the friend color instead of the normal one. Overrides " +
 			"'Color Names By Combat Level'.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 4
+		position = 3
 	)
 	default boolean highlightFriends()
 	{
@@ -1784,7 +1323,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Friend Name Color",
 		description = "Color of a friend's name. Requires 'Highlight Friends'.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 5
+		position = 4
 	)
 	default Color friendNameColor()
 	{
@@ -1792,8 +1331,22 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "playerNameStackLimit",
+		name = "Stack Limit",
+		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
+			"which ones is arbitrary, not distance-based. 0 = unlimited.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 5
+	)
+	@Range(min = 0, max = 30)
+	default int playerNameStackLimit()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "playerFilter",
-		name = "Player Blacklist",
+		name = "Blacklist",
 		description = "Comma-separated player names to hide. Supports * wildcards; leave blank to show all.",
 		section = OTHER_PLAYER_INFO_SECTION,
 		position = 6
@@ -1803,21 +1356,7 @@ public interface CustomHpBarConfig extends Config
 		return "";
 	}
 
-	@ConfigItem(
-		keyName = "playerNameStackLimit",
-		name = "Player Stack Limit",
-		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
-			"which ones is arbitrary, not distance-based. 0 = unlimited.",
-		section = OTHER_PLAYER_INFO_SECTION,
-		position = 7
-	)
-	@Range(min = 0, max = 30)
-	default int playerNameStackLimit()
-	{
-		return 0;
-	}
-
-	// ==================== Shared behavior ====================
+	// ==================== Behavior and hotkeys ====================
 
 	@ConfigItem(
 		keyName = "scaleWithZoom",
@@ -1833,9 +1372,9 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "hideNativeBar",
-		name = "Hide Native Health Bar",
+		name = "Hide Native Bar",
 		description = "Hides the game's own overhead health bar client-wide, so only this plugin's " +
-			"bar shows. Bars that track a mechanic rather than hitpoints stay visible.",
+			"bar shows. Native bars for mechanics this plugin doesn't redraw stay visible.",
 		section = BEHAVIOR_SECTION,
 		position = 1
 	)
@@ -1846,7 +1385,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "prioritizeSelfOnSameTile",
-		name = "Prioritize Self on Same Tile",
+		name = "Prioritize Self",
 		description = "When an NPC or another player shares your tile, hides their bar and name " +
 			"instead of stacking it with yours.",
 		section = BEHAVIOR_SECTION,
@@ -1872,7 +1411,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "colorNamesByCombatLevel",
-		name = "Color Names By Combat Level",
+		name = "Color Names By Level",
 		description = "Colors an NPC or player's name by how far their combat level is from your own. " +
 			"Replaces the configured name color.",
 		section = BEHAVIOR_SECTION,
@@ -1884,40 +1423,12 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "damageTrailHold",
-		name = "Damage Trail Hold (ms)",
-		description = "How long a damage trail stays put before it starts draining. Requires Damage " +
-			"Trail on at least one bar.",
-		section = BEHAVIOR_SECTION,
-		position = 5
-	)
-	@Range(min = 0, max = 2000)
-	default int damageTrailHold()
-	{
-		return 400;
-	}
-
-	@ConfigItem(
-		keyName = "damageTrailDrain",
-		name = "Damage Trail Drain (ms)",
-		description = "How long a damage trail takes to drain down to the current HP once it starts. " +
-			"Requires Damage Trail on at least one bar.",
-		section = BEHAVIOR_SECTION,
-		position = 6
-	)
-	@Range(min = 0, max = 2000)
-	default int damageTrailDrain()
-	{
-		return 250;
-	}
-
-	@ConfigItem(
 		keyName = "toggleNamesHotkey",
 		name = "Toggle Names",
 		description = "Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/" +
 			"Special/Run bars, hitsplats, chat text, or icons.",
-		section = HOTKEY_SECTION,
-		position = 0
+		section = BEHAVIOR_SECTION,
+		position = 5
 	)
 	default Keybind toggleNamesHotkey()
 	{
@@ -1929,23 +1440,10 @@ public interface CustomHpBarConfig extends Config
 		name = "Toggle HP Bars",
 		description = "Instantly shows/hides NPC and player HP bars (including your own). Doesn't " +
 			"affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons.",
-		section = HOTKEY_SECTION,
-		position = 1
+		section = BEHAVIOR_SECTION,
+		position = 6
 	)
 	default Keybind toggleHpBarsHotkey()
-	{
-		return Keybind.NOT_SET;
-	}
-
-	@ConfigItem(
-		keyName = "toggleWeaknessIconsHotkey",
-		name = "Toggle Weakness Icons",
-		description = "Instantly shows/hides the elemental weakness icon and its percentage. Doesn't "
-			+ "affect names, HP bars, or any other icon.",
-		section = HOTKEY_SECTION,
-		position = 2
-	)
-	default Keybind toggleWeaknessIconsHotkey()
 	{
 		return Keybind.NOT_SET;
 	}
@@ -1977,6 +1475,163 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	/** Other players' only real choices - see CustomHpBarOverlay.displayMode() for why NUMBER/BOTH aren't offered. */
+	/** The two aggressive-NPC colour checkboxes as one choice; the icon stays its own toggle. */
+	enum AggressiveHighlight
+	{
+		OFF,
+		NAMES,
+		BARS,
+		BOTH;
+
+		public boolean names()
+		{
+			return this == NAMES || this == BOTH;
+		}
+
+		public boolean bars()
+		{
+			return this == BARS || this == BOTH;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == OFF ? "Off" : this == NAMES ? "Names" : this == BARS ? "Bars" : "Both";
+		}
+	}
+
+	/** A damage trail's on/off and "match bar colour" checkboxes as one choice. */
+	enum DamageTrailMode
+	{
+		OFF,
+		MATCH_BAR,
+		CUSTOM;
+
+		public boolean shown()
+		{
+			return this != OFF;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == OFF ? "Off" : this == MATCH_BAR ? "Match bar color" : "Custom color";
+		}
+	}
+
+	enum WeaknessMode
+	{
+		OFF,
+		ICON,
+		ICON_AND_PERCENT;
+
+		@Override
+		public String toString()
+		{
+			return this == OFF ? "Off" : this == ICON ? "Icon" : "Icon & percent";
+		}
+	}
+
+	enum StatusEffectMode
+	{
+		OFF,
+		TINT,
+		ICON,
+		BOTH;
+
+		public boolean tint()
+		{
+			return this == TINT || this == BOTH;
+		}
+
+		public boolean icon()
+		{
+			return this == ICON || this == BOTH;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == OFF ? "Off" : this == TINT ? "Bar tint" : this == ICON ? "Icon" : "Both";
+		}
+	}
+
+	/** The prayer bar's three former checkboxes. TRACKED is the old default: drawn, but only in combat. */
+	enum PrayerBarVisibility
+	{
+		NEVER,
+		WHILE_PRAYING,
+		TRACKED,
+		ALWAYS;
+
+		public boolean attached(boolean praying)
+		{
+			return this != NEVER && (this != WHILE_PRAYING || praying);
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == NEVER ? "Never" : this == WHILE_PRAYING ? "While praying"
+				: this == TRACKED ? "When tracked" : "Always";
+		}
+	}
+
+	enum PrayerTimerVisibility
+	{
+		NEVER,
+		WHILE_PRAYING,
+		ALWAYS;
+
+		public boolean shown(boolean praying)
+		{
+			return this != NEVER && (this != WHILE_PRAYING || praying);
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == NEVER ? "Never" : this == WHILE_PRAYING ? "While praying" : "Always";
+		}
+	}
+
+	enum RunBarVisibility
+	{
+		NEVER,
+		WHILE_DRAINING,
+		ALWAYS;
+
+		@Override
+		public String toString()
+		{
+			return this == NEVER ? "Never" : this == WHILE_DRAINING ? "While draining" : "Always";
+		}
+	}
+
+	/** Two former checkboxes - "show" and "always show" - as the one three-state choice they described. */
+	enum Visibility
+	{
+		NEVER,
+		TRACKED,
+		ALWAYS;
+
+		public boolean shown()
+		{
+			return this != NEVER;
+		}
+
+		public boolean always()
+		{
+			return this == ALWAYS;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == NEVER ? "Never" : this == TRACKED ? "When tracked" : "Always";
+		}
+	}
+
 	enum OtherPlayerDisplayMode
 	{
 		PERCENT,
