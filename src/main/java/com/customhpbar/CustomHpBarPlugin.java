@@ -500,14 +500,14 @@ public class CustomHpBarPlugin extends Plugin
 	private int trackedNpcCacheTick = Integer.MIN_VALUE;
 	private final Map<NPC, Boolean> trackedNpcCache = new ConcurrentHashMap<>();
 
-	/** Debug-only: ToA NPC ids already logged this room, so logToaScaling() reports each once. TODO bug 1. */
+	/** Debug-only: ToA NPC ids already logged this room, so logToaScaling() reports each once. */
 	private final Set<Integer> toaLoggedNpcIds = new HashSet<>();
 	private int toaLoggedRegion = -1;
 
 	/** Debug-only: last boss-HUD reading logged, so logToaBossHud() reports each boss and phase once. */
 	private int loggedHudMaxHp = -1;
 
-	/** Debug-only: last reported party slot line, so logToaParty() reports a change once. TODO bug 1. */
+	/** Debug-only: last reported party slot line, so logToaParty() reports a change once. */
 	private String loggedToaParty;
 	private String loggedHudName;
 
@@ -546,7 +546,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** Tick each NPC last left Doom's shielded form - see isDeadNotSettling(). */
 	private final Map<NPC, Integer> doomShieldEndedTick = new ConcurrentHashMap<>();
 
-	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits}, dumped on death. TODO bug 1. */
+	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits, healthScale}, dumped on death. */
 	private final Map<NPC, int[]> toaDamageTally = new ConcurrentHashMap<>();
 	private final Set<NPC> toaTallyLogged = ConcurrentHashMap.newKeySet();
 
@@ -1174,7 +1174,8 @@ public class CustomHpBarPlugin extends Plugin
 		// having had a bar to fade.
 		NPC npc = (NPC) actor;
 		if (trackedActors.containsKey(npc)
-			|| (config.alwaysShowNpcBar() && isTrackedNpcCached(npc) && isAttackableNpc(npc)))
+			|| (config.alwaysShowNpcBar() && isTrackedNpcCached(npc)
+				&& (isAttackableNpc(npc) || hudDrivenNpc(npc))))
 		{
 			deathFades.putIfAbsent(npc, System.currentTimeMillis());
 		}
@@ -1281,7 +1282,7 @@ public class CustomHpBarPlugin extends Plugin
 	public void onNpcDespawned(NpcDespawned event)
 	{
 		// Second chance at the tally: on the killing hitsplat getHealthRatio() has usually already
-		// read 0, but not guaranteed - a dead NPC despawning is the backstop. TODO bug 1.
+		// read 0, but not guaranteed - a dead NPC despawning is the backstop.
 		if (isConfirmedDead(event.getNpc()))
 		{
 			logToaDeathTally(event.getNpc());
@@ -1414,7 +1415,8 @@ public class CustomHpBarPlugin extends Plugin
 
 		// The HUD follows whatever's currently being fought, not just the boss, so a targeted minion
 		// can briefly leak a real number onto its bar - restrict this path to real bosses in ToA.
-		if (actor instanceof NPC && isInsideToa() && !TOA_BOSS_NPC_IDS.contains(((NPC) actor).getId()))
+		boolean toaHudNpc = actor instanceof NPC && isInsideToa();
+		if (toaHudNpc && !TOA_BOSS_NPC_IDS.contains(((NPC) actor).getId()))
 		{
 			return null;
 		}
@@ -1425,9 +1427,12 @@ public class CustomHpBarPlugin extends Plugin
 			return null;
 		}
 
+		// Het's Seal wears "(protected)"/"(weakened)" where its HUD is plain - the reverse of the usual
+		// case. Confined to TOA_BOSS_NPC_IDS: stripping the actor side generally would let
+		// "Great Olm (Left claw)" answer to Olm's own figure. CLAUDE.md.
 		String plainName = Text.removeTags(actorName);
-		if (!nativeHudBossName.equalsIgnoreCase(plainName)
-			&& (nativeHudBossBaseName == null || !nativeHudBossBaseName.equalsIgnoreCase(plainName)))
+		if (!hudNameMatches(plainName)
+			&& !(toaHudNpc && hudNameMatches(HUD_NAME_SUFFIX.matcher(plainName).replaceAll("").trim())))
 		{
 			return null;
 		}
@@ -1492,38 +1497,39 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * npc_hp.csv's ToA rows are base (raid level 0, path 0, solo) HP - ToA scales that by raid level,
-	 * path level and party size, then rounds once - see CLAUDE.md.
+	 * npc_hp.csv's ToA rows are base (raid level 0, path 0, solo) HP - ToA scales that by party size,
+	 * then raid level, then path level, truncating after each - see CLAUDE.md.
 	 */
 	private int toaScaledMaxHp(int baseHp)
 	{
-		// Exact arithmetic, rounded once at the end. Truncating each term instead lost up to a whole
-		// rounding step, which showed as Kephri reading 810 against the HUD's own 820.
-		double hp = baseHp;
-		hp += hp * (4 * client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL)) / 1000.0;
-
-		int pathLevel = toaPathLevel();
-		if (pathLevel > 0)
-		{
-			// Level 1 is +8%, each level after +5%.
-			hp += hp * (3 + 5 * pathLevel) / 100.0;
-		}
+		// Order matters only because each term truncates, and it is not the wiki's reading order:
+		// party first is what holds Kephri at the HUD's 820 where raid first gives 810.
+		int hp = baseHp;
 
 		int partySize = toaPartySize();
 		if (partySize >= 2)
 		{
 			// 2nd and 3rd member add 90% of base each, 4th and beyond 60% each.
 			int partyFactor = 9 * Math.min(partySize - 1, 2) + 6 * Math.max(partySize - 3, 0);
-			hp += hp * partyFactor / 10.0;
+			hp += hp * partyFactor / 10;
+		}
+
+		hp += hp * (4 * client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL)) / 1000;
+
+		int pathLevel = toaPathLevel();
+		if (pathLevel > 0)
+		{
+			// Level 1 is +8%, each level after +5%.
+			hp += hp * (3 + 5 * pathLevel) / 100;
 		}
 
 		if (hp <= 100)
 		{
-			return (int) Math.round(hp);
+			return hp;
 		}
 
 		int roundTo = hp > 300 ? 10 : 5;
-		return (int) (Math.round(hp / roundTo) * roundTo);
+		return (hp + roundTo / 2) / roundTo * roundTo;
 	}
 
 	/**
@@ -1612,9 +1618,9 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): dumps every scaling input and output for each ToA NPC once per room, so a
-	 * live raid can be compared against real max HP. getHealthScale() is included because it may already
-	 * carry the true scaled max, which would make the formula unnecessary for the small-HP minions.
+	 * Debug-only: dumps every scaling input and output for each ToA NPC once per room, so a live raid
+	 * can be compared against real max HP. getHealthScale() is not a shortcut to the max - it read 30
+	 * for a 40 HP baboon and 60 for a 66 HP scarab - and is -1 here until the NPC is in combat.
 	 */
 	private void logToaScaling()
 	{
@@ -1653,7 +1659,7 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): the raw party slots behind toaPartySize(), which has only ever been
+	 * Debug-only: the raw party slots behind toaPartySize(), which has only ever been
 	 * exercised solo. A miscount there shifts every scaled max in the raid by a constant.
 	 */
 	private void logToaParty(int region, int raidLevel, int partySize)
@@ -1677,7 +1683,7 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): the boss HP HUD's own numbers, which are the server's -
+	 * Debug-only: the boss HP HUD's own numbers, which are the server's -
 	 * VarbitID.HPBAR_HUD_HP / HPBAR_HUD_BASEHP, exact where logToaDeathTally() is not. Logged once per
 	 * (name, max) pair, alongside what our own formula predicts for the same target.
 	 */
@@ -1712,7 +1718,7 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): accumulates damage dealt to a ToA NPC so logToaDeathTally() can
+	 * Debug-only: accumulates damage dealt to a ToA NPC so logToaDeathTally() can
 	 * recover its true max HP from the total, independent of npc_hp.csv and of the scaling formula.
 	 */
 	private void tallyToaDamage(NPC npc, Hitsplat hitsplat)
@@ -1723,14 +1729,20 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		int[] tally = toaDamageTally.computeIfAbsent(npc, k -> new int[3]);
+		int[] tally = toaDamageTally.computeIfAbsent(npc, k -> new int[4]);
 		tally[0] += hitsplat.getAmount();
 		tally[1] = hitsplat.getAmount();
 		tally[2]++;
+
+		// Recorded here rather than at death: the scale only exists while the bar is up.
+		if (npc.getHealthScale() > 0)
+		{
+			tally[3] = npc.getHealthScale();
+		}
 	}
 
 	/**
-	 * Debug-only (TODO bug 1): on the killing blow, reports total damage taken against what the
+	 * Debug-only: on the killing blow, reports total damage taken against what the
 	 * table and the scaling formula predicted. The last hit can overkill, so the true max HP is
 	 * within (total - lastHit, total] - a few kills of the same NPC narrow that to one number.
 	 */
@@ -1750,11 +1762,11 @@ public class CustomHpBarPlugin extends Plugin
 		toaTallyLogged.add(npc);
 
 		log.debug("ToA death: region={} id={} name={} baseRow={} predictedMax={} raidLevel={} pathLevel={}"
-				+ " partySize={} damageTotal={} lastHit={} hits={} trueMaxRange=({}..{}]",
+				+ " partySize={} damageTotal={} lastHit={} hits={} healthScale={} trueMaxRange=({}..{}]",
 			localPlayerRegion(), npc.getId(), npc.getName(), NpcMaxHpTable.getMaxHp(npc.getId()),
 			resolveNpcMaxHp(npc.getId()), client.getVarbitValue(VarbitID.TOA_CLIENT_RAID_LEVEL),
 			toaPathLevel(), toaPartySize(),
-			tally[0], tally[1], tally[2], tally[0] - tally[1], tally[0]);
+			tally[0], tally[1], tally[2], tally[3], tally[0] - tally[1], tally[0]);
 	}
 
 	/** Path level (0-6) for the room the player is in, or 0 in the rooms no path level applies to. */
@@ -2514,8 +2526,10 @@ public class CustomHpBarPlugin extends Plugin
 	boolean isTrackedNpc(NPC npc)
 	{
 		// Widening-only: level 0 but attackable still counts as combat (CoX scaled trash), so nothing
-		// that passed before is excluded. CLAUDE.md.
-		if (config.onlyShowCombatNpcNames() && npc.getCombatLevel() <= 0 && !isAttackableNpc(npc))
+		// that passed before is excluded. A HUD-driven pool counts too, for the level-0 unattackable
+		// targets that still have one. CLAUDE.md.
+		if (config.onlyShowCombatNpcNames() && npc.getCombatLevel() <= 0 && !isAttackableNpc(npc)
+			&& !hudDrivenNpc(npc))
 		{
 			return false;
 		}
@@ -2557,6 +2571,26 @@ public class CustomHpBarPlugin extends Plugin
 	boolean isAttackableNpc(NPC npc)
 	{
 		return npc.getHealthRatio() != -1 || hasAttackOption(npc);
+	}
+
+	/**
+	 * Whether npc is a HUD-driven mechanic target - the Crondis palms and Het's Seal, which have a real
+	 * pool but no Attack option. Identity-based, not a live nativeHudHp() read: the HUD comes and goes,
+	 * and eligibility that blinks with it makes a bar appear and vanish. The name test drops Akkha's
+	 * nameless headbar dummy. Callers must not apply isConfirmedDead() - these sit at ratio 0 unfilled.
+	 */
+	boolean hudDrivenNpc(NPC npc)
+	{
+		String name = npc.getName();
+		return name != null && !name.isEmpty() && isInsideToa()
+			&& TOA_BOSS_NPC_IDS.contains(npc.getId()) && !hasAttackOption(npc);
+	}
+
+	/** Whether name matches the HUD's current subject, either as printed or with its suffix stripped. */
+	private boolean hudNameMatches(String name)
+	{
+		return nativeHudBossName.equalsIgnoreCase(name)
+			|| (nativeHudBossBaseName != null && nativeHudBossBaseName.equalsIgnoreCase(name));
 	}
 
 	/**
