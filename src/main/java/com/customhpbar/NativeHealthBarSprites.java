@@ -105,10 +105,13 @@ final class NativeHealthBarSprites
 		SpriteID.HeadbarBlood30.FRONT, SpriteID.HeadbarBlood30.BACK,
 	};
 
-	/** Headbars carrying a mechanic rather than hitpoints - a progress readout, a shield state, a timer. */
-	private static final int[] INDICATOR_HEADBAR = {
+	/** The crashed star's own headbar. In scope because we draw a replacement for this one. */
+	private static final int[] SHOOTING_STAR = {
 		SpriteID.HeadbarShootingStar50.FRONT, SpriteID.HeadbarShootingStar50.BACK,
+	};
 
+	/** Headbars carrying a mechanic rather than hitpoints - a shield state, a timer. */
+	private static final int[] INDICATOR_HEADBAR = {
 		SpriteID.HeadbarShield100.COX_GREEN, SpriteID.HeadbarShield100.COX_BLUE,
 		SpriteID.HeadbarOlmtimer100.YELLOW, SpriteID.HeadbarOlmtimer100.RED,
 	};
@@ -118,10 +121,11 @@ final class NativeHealthBarSprites
 	 * out - no replacement is drawn for those, so blanking one destroys information. SHIELD is out of
 	 * this set too, but is blanked on its own while a shield window is open. See CLAUDE.md.
 	 */
-	static final int[] HEALTH_ONLY = concat(HEALTH, POISON, THEMED_HEALTH);
+	static final int[] HEALTH_ONLY = concat(HEALTH, POISON, THEMED_HEALTH, SHOOTING_STAR);
 
 	/** Every category combined; SHIELD omitted since PRAYER already includes it. Removal only. */
-	static final int[] ALL = concat(HEALTH, ARMOUR, CHARGE, PRAYER, POISON, THEMED_HEALTH, INDICATOR_HEADBAR);
+	static final int[] ALL = concat(
+		HEALTH, ARMOUR, CHARGE, PRAYER, POISON, THEMED_HEALTH, INDICATOR_HEADBAR, SHOOTING_STAR);
 
 	private static int[] concat(int[]... arrays)
 	{

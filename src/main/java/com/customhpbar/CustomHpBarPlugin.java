@@ -107,6 +107,17 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.BLOCK_ME, HitsplatID.BLOCK_OTHER
 	));
 
+	/** Config group, and the marker key that stops the one-time dropdown migration re-running. */
+	private static final String CONFIG_GROUP = "customhpbar";
+	private static final String CONFIG_MIGRATION_KEY = "mergedItemsMigrated";
+
+	/** Damage trail timings, eyeballed from screenshots rather than sampled - see CLAUDE.md. */
+	private static final int DAMAGE_TRAIL_HOLD_MS = 400;
+	private static final int DAMAGE_TRAIL_DRAIN_MS = 250;
+
+	/** How long a dead NPC's bar takes to fade out. Read by the overlay's death-fade pass too. */
+	static final int DEATH_FADE_DURATION_MS = 600;
+
 	/** Hitsplats meaning another player hit the NPC - powers greyOutOtherPlayerDamage. Includes BLOCK_OTHER. */
 	private static final Set<Integer> OTHER_PLAYER_DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
 		HitsplatID.DAMAGE_OTHER, HitsplatID.DAMAGE_OTHER_CYAN, HitsplatID.DAMAGE_OTHER_ORANGE,
@@ -164,6 +175,12 @@ public class CustomHpBarPlugin extends Plugin
 		String separated = NAME_SEPARATORS.matcher(Text.standardize(name)).replaceAll(" ").trim();
 		return NAME_WHITESPACE.matcher(separated).replaceAll(" ");
 	}
+
+	/**
+	 * The crashed star, which is a nameless NPC riding the mineable object. Its health ratio is the
+	 * current layer's remaining share on a scale of 50, not hitpoints - see CLAUDE.md.
+	 */
+	private static final int SHOOTING_STAR_NPC_ID = 10629;
 
 	/** Doom of Mokhaiotl's three combat-form NPC IDs (no gameval constants exist for these). */
 	private static final Set<Integer> DOOM_NPC_IDS = new HashSet<>(Arrays.asList(14707, 14708, 14709));
@@ -367,6 +384,9 @@ public class CustomHpBarPlugin extends Plugin
 	@Inject
 	private KeyManager keyManager;
 
+	@Inject
+	private ConfigManager configManager;
+
 	/**
 	 * Runtime-only show/hide state for "Toggle Names"/"Toggle HP Bars", flipped by the hotkey listeners
 	 * below. Not config-backed and not reset on startUp()/shutDown() - a hotkey is a temporary override,
@@ -394,15 +414,6 @@ public class CustomHpBarPlugin extends Plugin
 		public void hotkeyPressed()
 		{
 			hpBarsVisible = !hpBarsVisible;
-		}
-	};
-
-	private final HotkeyListener toggleWeaknessIconsHotkeyListener = new HotkeyListener(() -> config.toggleWeaknessIconsHotkey())
-	{
-		@Override
-		public void hotkeyPressed()
-		{
-			weaknessIconsVisible = !weaknessIconsVisible;
 		}
 	};
 
@@ -583,6 +594,163 @@ public class CustomHpBarPlugin extends Plugin
 	private int nativeHudCurrentHp;
 	private int nativeHudMaxHp;
 
+	/**
+	 * One-time rewrite of the checkbox pairs that became dropdowns. Each dropdown kept its "show"
+	 * partner's key, so the stored "true"/"false" would not parse and would silently read as the
+	 * default - the migration has to run before anything reads config. See CLAUDE.md.
+	 */
+	private void migrateMergedConfigItems()
+	{
+		if (configManager.getConfiguration(CONFIG_GROUP, CONFIG_MIGRATION_KEY) != null)
+		{
+			return;
+		}
+
+		migrateVisibility("showForSelf", "alwaysShowHpBar");
+		migrateVisibility("showSpecialAttackBar", "alwaysShowSpecialBar");
+		migrateVisibility("showForPlayers", "alwaysShowPlayerBar");
+		migrateVisibility("showPlayerName", "alwaysShowPlayerName");
+		migrateVisibility("showNpcName", "alwaysShowNpcName");
+
+		migrateThreeWay("showPrayerBar", "hidePrayerBarWhenInactive", "WHILE_PRAYING",
+			"alwaysShowPrayerBar", "ALWAYS", "TRACKED");
+		migrateThreeWay("showPrayerTickTimer", "hidePrayerTickTimerWhenInactive", "WHILE_PRAYING",
+			null, null, "ALWAYS");
+		migrateThreeWay("showRunEnergyBar", "alwaysShowRunBar", "ALWAYS", null, null, "WHILE_DRAINING");
+
+		migrateThreeWay("playerDamageTrail", "playerDamageTrailMatchBar", "MATCH_BAR", null, null, "CUSTOM");
+		migrateThreeWay("targetDamageTrail", "targetDamageTrailMatchBar", "MATCH_BAR", null, null, "CUSTOM");
+		migrateThreeWay("otherPlayerDamageTrail", "otherPlayerDamageTrailMatchBar", "MATCH_BAR", null, null,
+			"CUSTOM");
+
+		migrateThreeWay("showNpcWeaknessIcon", "showNpcWeaknessPercent", "ICON_AND_PERCENT", null, null, "ICON");
+
+		migrateStatusEffect("selfColorByStatusEffect", "selfShowStatusIcon");
+		migrateStatusEffect("targetColorByStatusEffect", "targetShowStatusIcon");
+
+		migrateAggressive();
+		migrateFlagToZero("truncateNpcNames", "npcNameMaxLength", 16);
+
+		configManager.setConfiguration(CONFIG_GROUP, CONFIG_MIGRATION_KEY, true);
+		log.debug("Migrated merged config items to their dropdown equivalents");
+	}
+
+	/** A "show" plus "always show" pair. Absent keys leave the new item alone, so defaults still apply. */
+	private void migrateVisibility(String showKey, String alwaysKey)
+	{
+		migrateThreeWay(showKey, alwaysKey, "ALWAYS", null, null, "TRACKED");
+	}
+
+	/**
+	 * The general shape: off when the "show" key was false, otherwise the first matching modifier's
+	 * value, else fallback. secondKey/secondValue are optional and checked after firstKey.
+	 */
+	private void migrateThreeWay(String showKey, String firstKey, String firstValue,
+		String secondKey, String secondValue, String fallback)
+	{
+		Boolean shown = oldFlag(showKey);
+		if (shown == null)
+		{
+			return;
+		}
+
+		String value;
+		if (!shown)
+		{
+			value = isOffValueNever(showKey) ? "NEVER" : "OFF";
+		}
+		else if (Boolean.TRUE.equals(oldFlag(firstKey)))
+		{
+			value = firstValue;
+		}
+		else if (secondKey != null && Boolean.TRUE.equals(oldFlag(secondKey)))
+		{
+			value = secondValue;
+		}
+		else
+		{
+			value = fallback;
+		}
+
+		configManager.setConfiguration(CONFIG_GROUP, showKey, value);
+		configManager.unsetConfiguration(CONFIG_GROUP, firstKey);
+		if (secondKey != null)
+		{
+			configManager.unsetConfiguration(CONFIG_GROUP, secondKey);
+		}
+	}
+
+	/** The two aggressive colour checkboxes, which kept the names one's key. */
+	private void migrateAggressive()
+	{
+		Boolean names = oldFlag("colorAggressiveNpcNames");
+		Boolean bars = oldFlag("colorAggressiveNpcBars");
+		if (names == null && bars == null)
+		{
+			return;
+		}
+
+		boolean namesOn = Boolean.TRUE.equals(names);
+		boolean barsOn = Boolean.TRUE.equals(bars);
+		configManager.setConfiguration(CONFIG_GROUP, "colorAggressiveNpcNames",
+			namesOn && barsOn ? "BOTH" : namesOn ? "NAMES" : barsOn ? "BARS" : "OFF");
+		configManager.unsetConfiguration(CONFIG_GROUP, "colorAggressiveNpcBars");
+	}
+
+	/**
+	 * A checkbox folded into the number beside it, where 0 now means off. The number keeps whatever
+	 * the user had, so only the disabled case needs writing - and it has to be written, since the
+	 * stored number would otherwise switch the feature back on.
+	 */
+	private void migrateFlagToZero(String flagKey, String numberKey, int enabledDefault)
+	{
+		Boolean flag = oldFlag(flagKey);
+		if (flag == null)
+		{
+			return;
+		}
+
+		if (!flag)
+		{
+			configManager.setConfiguration(CONFIG_GROUP, numberKey, 0);
+		}
+		else if (configManager.getConfiguration(CONFIG_GROUP, numberKey) == null)
+		{
+			configManager.setConfiguration(CONFIG_GROUP, numberKey, enabledDefault);
+		}
+		configManager.unsetConfiguration(CONFIG_GROUP, flagKey);
+	}
+
+	/** The two status-effect enums use OFF rather than NEVER, and combine into four states. */
+	private void migrateStatusEffect(String tintKey, String iconKey)
+	{
+		Boolean tint = oldFlag(tintKey);
+		Boolean icon = oldFlag(iconKey);
+		if (tint == null && icon == null)
+		{
+			return;
+		}
+
+		boolean tintOn = !Boolean.FALSE.equals(tint);
+		boolean iconOn = !Boolean.FALSE.equals(icon);
+		configManager.setConfiguration(CONFIG_GROUP, tintKey,
+			tintOn && iconOn ? "BOTH" : tintOn ? "TINT" : iconOn ? "ICON" : "OFF");
+		configManager.unsetConfiguration(CONFIG_GROUP, iconKey);
+	}
+
+	/** Which enums spell their off state NEVER - the visibility ones - rather than OFF. */
+	private static boolean isOffValueNever(String showKey)
+	{
+		return !showKey.endsWith("DamageTrail") && !showKey.equals("showNpcWeaknessIcon");
+	}
+
+	/** A stored boolean from before the merge, or null if the user never set it. */
+	private Boolean oldFlag(String key)
+	{
+		String raw = configManager.getConfiguration(CONFIG_GROUP, key);
+		return raw == null ? null : Boolean.valueOf("true".equalsIgnoreCase(raw));
+	}
+
 	@Provides
 	CustomHpBarConfig provideConfig(ConfigManager configManager)
 	{
@@ -592,12 +760,12 @@ public class CustomHpBarPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		suppressSelfOverheads = config.showForSelf();
+		migrateMergedConfigItems();
+		suppressSelfOverheads = config.showForSelf().shown();
 		overlayManager.add(overlay);
 		renderCallbackManager.register(renderCallback);
 		keyManager.registerKeyListener(toggleNamesHotkeyListener);
 		keyManager.registerKeyListener(toggleHpBarsHotkeyListener);
-		keyManager.registerKeyListener(toggleWeaknessIconsHotkeyListener);
 		clientThread.invokeLater(this::syncNativeBarOverrides);
 	}
 
@@ -608,7 +776,6 @@ public class CustomHpBarPlugin extends Plugin
 		overlayManager.remove(overlay);
 		keyManager.unregisterKeyListener(toggleNamesHotkeyListener);
 		keyManager.unregisterKeyListener(toggleHpBarsHotkeyListener);
-		keyManager.unregisterKeyListener(toggleWeaknessIconsHotkeyListener);
 		trackedActors.clear();
 		lastKnownHp.clear();
 		damageTrails.clear();
@@ -662,7 +829,7 @@ public class CustomHpBarPlugin extends Plugin
 
 		if ("showForSelf".equals(event.getKey()))
 		{
-			suppressSelfOverheads = config.showForSelf();
+			suppressSelfOverheads = config.showForSelf().shown();
 		}
 	}
 
@@ -690,7 +857,7 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			applySpriteOverride(NativeHealthBarSprites.HEALTH_ONLY);
 		}
-		else if (config.showPrayerBar())
+		else if (config.showPrayerBar() != CustomHpBarConfig.PrayerBarVisibility.NEVER)
 		{
 			applySpriteOverride(NativeHealthBarSprites.PRAYER);
 		}
@@ -938,8 +1105,7 @@ public class CustomHpBarPlugin extends Plugin
 		// that stops being drawn without ever despawning. The overlay checks elapsed time itself
 		// rather than trusting this to have run - this only stops the maps growing.
 		long nowMs = System.currentTimeMillis();
-		int fadeMs = config.npcDeathFadeDuration();
-		deathFades.values().removeIf(start -> nowMs - start >= fadeMs || nowMs < start);
+		deathFades.values().removeIf(start -> nowMs - start >= DEATH_FADE_DURATION_MS || nowMs < start);
 		damageTrails.values().removeIf(trail -> nowMs - trail.lastSeenMs > TRAIL_STALE_MS || nowMs < trail.lastSeenMs);
 
 		updateAggressionArea(currentTick);
@@ -1043,8 +1209,8 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 
-		boolean alwaysShow = (config.showPlayerName() && config.alwaysShowPlayerName())
-			|| (config.showForPlayers() && config.alwaysShowPlayerBar());
+		boolean alwaysShow = config.showPlayerName().always()
+			|| config.showForPlayers().always();
 		for (Player player : client.getTopLevelWorldView().players())
 		{
 			if (player == null || player == localPlayer)
@@ -1155,7 +1321,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private void beginDeathFade(Actor actor)
 	{
-		if (!(actor instanceof NPC) || !config.fadeNpcBarOnDeath() || config.npcDeathFadeDuration() <= 0)
+		if (!(actor instanceof NPC) || !config.fadeNpcBarOnDeath())
 		{
 			return;
 		}
@@ -1191,15 +1357,15 @@ public class CustomHpBarPlugin extends Plugin
 			if (pending != null && maxHp > 0)
 			{
 				state.start(Math.min(1.0, fraction + pending / (double) maxHp), fraction, now,
-					config.damageTrailHold());
+					DAMAGE_TRAIL_HOLD_MS);
 			}
-			return state.trailAt(now, config.damageTrailDrain());
+			return state.trailAt(now, DAMAGE_TRAIL_DRAIN_MS);
 		}
 
-		double trail = state.trailAt(now, config.damageTrailDrain());
+		double trail = state.trailAt(now, DAMAGE_TRAIL_DRAIN_MS);
 		if (fraction < state.lastFraction)
 		{
-			state.start(Math.max(trail, state.lastFraction), fraction, now, config.damageTrailHold());
+			state.start(Math.max(trail, state.lastFraction), fraction, now, DAMAGE_TRAIL_HOLD_MS);
 		}
 		else if (fraction > state.lastFraction && fraction >= trail)
 		{
@@ -1210,13 +1376,14 @@ public class CustomHpBarPlugin extends Plugin
 
 		state.lastFraction = fraction;
 		state.lastSeenMs = now;
-		return Math.max(fraction, state.trailAt(now, config.damageTrailDrain()));
+		return Math.max(fraction, state.trailAt(now, DAMAGE_TRAIL_DRAIN_MS));
 	}
 
 	/** Whether any bar profile has its damage trail on - gates the hitsplat seed when it's all off. */
 	private boolean anyDamageTrailEnabled()
 	{
-		return config.targetDamageTrail() || config.playerDamageTrail() || config.otherPlayerDamageTrail();
+		return config.targetDamageTrail().shown() || config.playerDamageTrail().shown()
+			|| config.otherPlayerDamageTrail().shown();
 	}
 
 	/** Drops trail/fade state that no bar can still be drawing - despawn is the hard end for both. */
@@ -2236,7 +2403,7 @@ public class CustomHpBarPlugin extends Plugin
 	Color statusEffectColor(Actor actor)
 	{
 		boolean isPlayer = actor instanceof Player;
-		boolean tintEnabled = isPlayer ? config.selfColorByStatusEffect() : config.targetColorByStatusEffect();
+		boolean tintEnabled = (isPlayer ? config.selfColorByStatusEffect() : config.targetColorByStatusEffect()).tint();
 		if (!tintEnabled)
 		{
 			return null;
@@ -2472,7 +2639,7 @@ public class CustomHpBarPlugin extends Plugin
 		}
 		// isConfirmedDead for the same reason as the NPC branch above - a dying player's getInteracting()
 		// reference doesn't clear until despawn either.
-		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers())
+		return (actor == client.getLocalPlayer() ? config.showForSelf() : config.showForPlayers()).shown()
 			&& isTrackedPlayer((Player) actor)
 			&& !isDeadNotSettling(actor);
 	}
@@ -2488,7 +2655,10 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		int npcId = npc.getId();
-		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId))
+		// Pets never get a bar or a name, independently of every option. Keyed by ID, not name or the
+		// client's follower flag: pets share names with attackable NPCs, and the flag catches quest
+		// companions - see CLAUDE.md.
+		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId) || PetNpcTable.isPet(npcId))
 		{
 			return false;
 		}
@@ -2520,20 +2690,16 @@ public class CustomHpBarPlugin extends Plugin
 		return result;
 	}
 
+	/** The crashed star's bar is a mining-progress readout, so it gets its own colour rather than health's. */
+	boolean isShootingStar(NPC npc)
+	{
+		return npc != null && npc.getId() == SHOOTING_STAR_NPC_ID;
+	}
+
 	/** Whether npc can have an HP bar - a live health ratio overrides the Attack-option test outright. */
 	boolean isAttackableNpc(NPC npc)
 	{
 		return npc.getHealthRatio() != -1 || hasAttackOption(npc);
-	}
-
-	/**
-	 * Whether npc's name is suppressed by "Show Pet Names". Keyed by NPC ID rather than name or the
-	 * client's follower flag: several pets share a name with an attackable NPC, and the flag also
-	 * covers quest companions - see CLAUDE.md.
-	 */
-	boolean isPetNameHidden(NPC npc)
-	{
-		return !config.showPetNames() && PetNpcTable.isPet(npc.getId());
 	}
 
 	/** Whether npc offers an Attack option - core's own signal. Unknown composition keeps the bar. */
