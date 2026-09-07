@@ -31,9 +31,8 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Player Bar — Style",
-		description = "Whether to show your own bar; its size/shape/border/text settings, shared with " +
-			"other players; and its own fill/gradient/background color, opacity, and vertical offset - " +
-			"other players use independent versions of those in Other Player Bar — Style",
+		description = "Your own bar's size, shape, color, and text - the size, shape, and font here " +
+			"apply to other players too",
 		position = 2,
 		closedByDefault = true
 	)
@@ -41,7 +40,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Player Bar — Info",
-		description = "Prayer bar, status effects, restore previews, and the overhead icon",
+		description = "The Prayer, special attack, and run energy bars, and how your stack is ordered",
 		position = 3,
 		closedByDefault = true
 	)
@@ -49,8 +48,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigSection(
 		name = "Other Player Bar — Style",
-		description = "Whether to show other players' bars, and the fill/gradient/background color, " +
-			"opacity, and vertical offset settings independent of your own",
+		description = "Color, opacity, and offset for other players' bars, independent of your own",
 		position = 4,
 		closedByDefault = true
 	)
@@ -65,12 +63,12 @@ public interface CustomHpBarConfig extends Config
 	String OTHER_PLAYER_INFO_SECTION = "otherPlayerInfo";
 
 	@ConfigSection(
-		name = "Global",
+		name = "Behavior & Hotkeys",
 		description = "Settings shared by every bar, and keybinds to show or hide names and bars instantly",
 		position = 6,
 		closedByDefault = true
 	)
-	String GLOBAL_SECTION = "global";
+	String BEHAVIOR_SECTION = "behavior";
 
 	// ==================== Target bar style ====================
 
@@ -316,7 +314,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetDamageTrail",
 		name = "Damage Trail",
-		description = "Whether a lighter trail follows damage down the bar, and whether it matches the bar color or uses its own.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = TARGET_SECTION,
 		position = 19
 	)
@@ -494,7 +492,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetColorByStatusEffect",
 		name = "Status Effects",
-		description = "How poison, venom, burns, disease and corruption show on an NPC's bar: as a tint, an icon, both, or not at all.",
+		description = "How poison, venom, burns, bleeds, disease and corruption show on an NPC's bar: as a tint, an icon, both, or not at all.",
 		section = TARGET_NPC_SECTION,
 		position = 12
 	)
@@ -881,7 +879,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerDamageTrail",
 		name = "Damage Trail",
-		description = "Whether a lighter trail follows damage down the bar, and whether it matches the bar color or uses its own.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = PLAYER_SECTION,
 		position = 20
 	)
@@ -1102,7 +1100,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Status Effects",
-		description = "How poison, venom, burns, disease and corruption show on your bar: as a tint, an icon, both, or not at all.",
+		description = "How poison, venom, burns, bleeds, disease and corruption show on your bar: as a tint, an icon, both, or not at all.",
 		section = PLAYER_INFO_SECTION,
 		position = 16
 	)
@@ -1247,7 +1245,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerDamageTrail",
 		name = "Damage Trail",
-		description = "Whether a lighter trail follows damage down the bar, and whether it matches the bar color or uses its own.",
+		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = OTHER_PLAYER_SECTION,
 		position = 8
 	)
@@ -1333,13 +1331,13 @@ public interface CustomHpBarConfig extends Config
 		return "";
 	}
 
-	// ==================== Global ====================
+	// ==================== Behavior and hotkeys ====================
 
 	@ConfigItem(
 		keyName = "scaleWithZoom",
 		name = "Scale With Zoom",
 		description = "Grows and shrinks bars and text with camera zoom.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 0
 	)
 	default boolean scaleWithZoom()
@@ -1352,7 +1350,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Hide Native Bar",
 		description = "Hides the game's own overhead health bar client-wide, so only this plugin's " +
 			"bar shows. Bars that track a mechanic rather than hitpoints stay visible.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 1
 	)
 	default boolean hideNativeBar()
@@ -1365,7 +1363,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Prioritize Self",
 		description = "When an NPC or another player shares your tile, hides their bar and name " +
 			"instead of stacking it with yours.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 2
 	)
 	default boolean prioritizeSelfOnSameTile()
@@ -1378,7 +1376,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color Combat Levels",
 		description = "Colors a combat level by how far it is from your own, red through yellow to green. " +
 			"Requires a combat level to be showing on the NPC or player.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 3
 	)
 	default boolean colorCombatLevelByDifference()
@@ -1391,7 +1389,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Color Names By Level",
 		description = "Colors an NPC or player's name by how far their combat level is from your own. " +
 			"Replaces the configured name color.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 4
 	)
 	default boolean colorNamesByCombatLevel()
@@ -1404,7 +1402,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Toggle Names",
 		description = "Instantly shows/hides NPC and player names. Doesn't affect HP bars, Prayer/" +
 			"Special/Run bars, hitsplats, chat text, or icons.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 5
 	)
 	default Keybind toggleNamesHotkey()
@@ -1417,7 +1415,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Toggle HP Bars",
 		description = "Instantly shows/hides NPC and player HP bars (including your own). Doesn't " +
 			"affect names, Prayer/Special/Run bars, hitsplats, chat text, or icons.",
-		section = GLOBAL_SECTION,
+		section = BEHAVIOR_SECTION,
 		position = 6
 	)
 	default Keybind toggleHpBarsHotkey()

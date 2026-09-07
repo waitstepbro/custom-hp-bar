@@ -2655,7 +2655,10 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		int npcId = npc.getId();
-		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId))
+		// Pets never get a bar or a name, independently of every option. Keyed by ID, not name or the
+		// client's follower flag: pets share names with attackable NPCs, and the flag catches quest
+		// companions - see CLAUDE.md.
+		if (HIDDEN_MECHANIC_NPC_IDS.contains(npcId) || PetNpcTable.isPet(npcId))
 		{
 			return false;
 		}
