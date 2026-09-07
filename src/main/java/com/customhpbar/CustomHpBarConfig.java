@@ -364,7 +364,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "onlyShowCombatNpcNames",
 		name = "Combat NPCs Only",
-		description = "Excludes non-attackable NPCs from bars and names.",
+		description = "Hides NPCs that have no combat level and no Attack option, like bankers and shop keepers.",
 		section = TARGET_NPC_SECTION,
 		position = 2
 	)
@@ -1349,7 +1349,7 @@ public interface CustomHpBarConfig extends Config
 		keyName = "hideNativeBar",
 		name = "Hide Native Bar",
 		description = "Hides the game's own overhead health bar client-wide, so only this plugin's " +
-			"bar shows. Bars that track a mechanic rather than hitpoints stay visible.",
+			"bar shows. Native bars for mechanics this plugin doesn't redraw stay visible.",
 		section = BEHAVIOR_SECTION,
 		position = 1
 	)
