@@ -120,7 +120,7 @@ in Other Player Bar — Style.
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Alignment | Where each bar's text sits horizontally within it. | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
-| Text Nudge | Nudges the HP text down (positive) or up (negative) if it looks off-center | 0 |
+| Text Nudge | Nudges the HP text up (positive) or down (negative) if it looks off-center | 0 |
 | Damage Trail | Whether a darker trail follows damage down the bar: Off, Match bar color, or Custom color. Healing has no trail. | Off |
 | Trail Color | Color of the health just lost. Requires a Damage Trail of Custom color. | Red |
 
@@ -205,6 +205,7 @@ of your own.
 | Background Color | Color of the empty portion of other players' bars | Dark gray (translucent) |
 | Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque | 100 |
 | HP Text Color | Color of the HP number on other players' bars | White |
+| Text Nudge | Nudges the HP text up (positive) or down (negative) on other players' bars if it looks off-center | 0 |
 | Damage Trail | Whether a darker trail follows damage down the bar: Off, Match bar color, or Custom color. Healing has no trail. | Off |
 | Trail Color | Color of the health another player just lost. Requires a Damage Trail of Custom color. | Red |
 

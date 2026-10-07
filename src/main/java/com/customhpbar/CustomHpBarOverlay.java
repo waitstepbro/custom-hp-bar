@@ -875,6 +875,7 @@ class CustomHpBarOverlay extends Overlay
 			Color barBackground = self ? config.playerBarBackground() : config.otherPlayerBarBackground();
 			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
 			Color textColor = self ? config.playerTextColor() : config.otherPlayerTextColor();
+			int textNudge = self ? config.playerTextVerticalNudge() : config.otherPlayerTextVerticalNudge();
 			CustomHpBarConfig.DamageTrailMode trailMode = self ? config.playerDamageTrail() : config.otherPlayerDamageTrail();
 			boolean damageTrail = trailMode.shown();
 			Color damageTrailColor = self ? config.playerDamageTrailColor() : config.otherPlayerDamageTrailColor();
@@ -885,7 +886,7 @@ class CustomHpBarOverlay extends Overlay
 				hpColorGradient, colorMid, colorLow, GRADIENT_MIDPOINT,
 				barBackground, barOpacity, damageTrail, damageTrailColor, damageTrailMatchBar, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
-				textColor, config.playerTextOutline(), config.playerTextVerticalNudge(),
+				textColor, config.playerTextOutline(), -textNudge,
 				config.playerTextAlignment());
 		}
 		return new BarStyle(
@@ -897,7 +898,7 @@ class CustomHpBarOverlay extends Overlay
 			config.targetDamageTrail() == CustomHpBarConfig.DamageTrailMode.MATCH_BAR,
 			config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
-			config.targetTextColor(), config.targetTextOutline(), config.targetTextVerticalNudge(),
+			config.targetTextColor(), config.targetTextOutline(), -config.targetTextVerticalNudge(),
 			config.targetTextAlignment());
 	}
 
