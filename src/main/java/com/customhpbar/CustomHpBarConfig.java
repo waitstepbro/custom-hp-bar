@@ -301,11 +301,11 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "targetTextVerticalNudge",
 		name = "Text Nudge",
-		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
+		description = "Nudges the HP text up (positive) or down (negative) if it looks off-center.",
 		section = TARGET_SECTION,
 		position = 18
 	)
-	@Range(min = -10, max = 10)
+	@Range(min = -50, max = 50)
 	default int targetTextVerticalNudge()
 	{
 		return 0;
@@ -866,11 +866,11 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "playerTextVerticalNudge",
 		name = "Text Nudge",
-		description = "Nudges the HP text down (positive) or up (negative) if it looks off-center.",
+		description = "Nudges the HP text up (positive) or down (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
 		position = 19
 	)
-	@Range(min = -10, max = 10)
+	@Range(min = -50, max = 50)
 	default int playerTextVerticalNudge()
 	{
 		return 0;
@@ -1243,11 +1243,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "otherPlayerTextVerticalNudge",
+		name = "Text Nudge",
+		description = "Nudges the HP text up (positive) or down (negative) on other players' bars if it looks off-center.",
+		section = OTHER_PLAYER_SECTION,
+		position = 8
+	)
+	@Range(min = -50, max = 50)
+	default int otherPlayerTextVerticalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "otherPlayerDamageTrail",
 		name = "Damage Trail",
 		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = OTHER_PLAYER_SECTION,
-		position = 8
+		position = 9
 	)
 	default DamageTrailMode otherPlayerDamageTrail()
 	{
@@ -1260,7 +1273,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of the health another player just lost. Requires a Damage Trail of " +
 			"'Custom color'.",
 		section = OTHER_PLAYER_SECTION,
-		position = 9
+		position = 10
 	)
 	default Color otherPlayerDamageTrailColor()
 	{
