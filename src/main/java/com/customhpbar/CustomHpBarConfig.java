@@ -454,7 +454,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "colorAggressiveNpcNames",
 		name = "Color Aggressive NPCs",
-		description = "Colors an NPC's name, bar, both or neither while it is aggressive toward you, reverting once the tolerance timer expires.",
+		description = "Colors an NPC's name, bar, both or neither while it is aggressive toward you.",
 		section = TARGET_NPC_SECTION,
 		position = 9
 	)

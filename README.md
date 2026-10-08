@@ -55,7 +55,7 @@ If you would like to support in some way, please consider joining the
 - **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
   engage it.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
-  show an icon by its bar, reverting once the game's tolerance timer expires.
+  show an icon by its bar.
 - **Elemental weakness icon** — optionally show the matching surge spell icon beside an NPC's bar,
   with the weakness percentage next to it.
 - **Ironman shared-loot warning** — optionally grey out an NPC's bar and name once another player
@@ -143,7 +143,7 @@ in Other Player Bar — Style.
 | Death Fade | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | On |
 | Persist Duration | How long in seconds the bar keeps showing the last known HP after the native bar fades (0 = hide immediately). | 5 |
 | Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
-| Color Aggressive NPCs | Colors an NPC's name, bar, both or neither while it's aggressive toward you, reverting once the tolerance timer expires. | Off |
+| Color Aggressive NPCs | Colors an NPC's name, bar, both or neither while it's aggressive toward you. | Off |
 | Aggressive Icon | Shows an icon next to the bar while an NPC is aggressive | Off |
 | Aggressive Color | Shared color for the name and bar of an NPC that's currently aggressive toward you. Requires Color Aggressive NPCs. | Red |
 | Status Effects | How poison, venom, burns, bleeds, disease and corruption show: Off, Bar tint, Icon, or Both. | Both |

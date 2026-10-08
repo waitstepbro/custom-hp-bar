@@ -90,12 +90,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** A trail with no fresh observation this recently snaps to current HP instead of animating. */
 	private static final long TRAIL_STALE_MS = 2000;
 
-	/** Aggression tolerance window in ticks (10 minutes), matching core's NPC Aggression Timer. */
-	private static final int AGGRESSION_TICKS = 1000;
-
-	/** Safe-area radius (tiles), matching core's NPC Aggression Timer plugin exactly - see updateAggressionArea(). */
-	private static final int AGGRESSION_SAFE_RADIUS = 10;
-
 	/** Ape Atoll monsters that turn tolerant for good once Monkey Madness II is complete. */
 	private static final Set<Integer> MM2_TOLERANT_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.MM_WAREHOUSE_SPIDER, NpcID.MM_CUTSCENE_SPIDER, NpcID.MM_JUNGLE_SCORPION, NpcID.MM_JUNGLE_SPIDER,
@@ -580,10 +574,6 @@ public class CustomHpBarPlugin extends Plugin
 	private Actor pendingClickActor;
 	private boolean pendingClickIsAttack;
 
-	/** Tick the aggression tolerance window expires; aggressionSafeCenters holds its two anchors. */
-	private int aggressionEndTick;
-	private final WorldPoint[] aggressionSafeCenters = new WorldPoint[2];
-
 	/** Cached because Quest.getState() runs a client script; refreshed on login and MM2 progress changes. */
 	private boolean mm2Complete;
 
@@ -820,8 +810,6 @@ public class CustomHpBarPlugin extends Plugin
 		overheadEligiblePlayers = Collections.emptySet();
 		otherPlayersInScene = false;
 		pendingClickActor = null;
-		aggressionEndTick = 0;
-		Arrays.fill(aggressionSafeCenters, null);
 		mm2Complete = false;
 		doomDelveLevel = 1;
 		setNativeHudBossName(null);
@@ -1150,8 +1138,6 @@ public class CustomHpBarPlugin extends Plugin
 		long nowMs = System.currentTimeMillis();
 		deathFades.values().removeIf(start -> nowMs - start >= DEATH_FADE_DURATION_MS || nowMs < start);
 		damageTrails.values().removeIf(trail -> nowMs - trail.lastSeenMs > TRAIL_STALE_MS || nowMs < trail.lastSeenMs);
-
-		updateAggressionArea(currentTick);
 
 		// onScriptPostFired only fires while the native HUD is actively updating, so this clears
 		// a stale boss name once its widget is hidden/absent - otherwise it would linger forever.
@@ -2608,37 +2594,19 @@ public class CustomHpBarPlugin extends Plugin
 		return false;
 	}
 
-	/** Advances the aggression tolerance window, porting core's real two-safe-tile mechanic. */
-	private void updateAggressionArea(int currentTick)
-	{
-		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer == null)
-		{
-			return;
-		}
-
-		WorldPoint location = localPlayer.getWorldLocation();
-		if (aggressionSafeCenters[1] == null
-			|| Arrays.stream(aggressionSafeCenters).noneMatch(
-				center -> center != null && center.distanceTo2D(location) <= AGGRESSION_SAFE_RADIUS))
-		{
-			aggressionSafeCenters[0] = aggressionSafeCenters[1];
-			aggressionSafeCenters[1] = location;
-			aggressionEndTick = currentTick + AGGRESSION_TICKS;
-		}
-	}
-
 	/** The NPC's elemental weakness, or null. Static per ID - no live client source exists. */
 	NpcWeaknessTable.Weakness npcWeakness(NPC npc)
 	{
 		return NpcWeaknessTable.getWeakness(npc.getId());
 	}
 
-	/** Whether npc would attack you if aggressive (type plus the 2x-combat-level rule), tolerance aside. */
-	private boolean wouldBeAggressive(Player localPlayer, NPC npc)
+	/** Whether npc attacks you on sight: an aggressive type within the 2x-combat-level rule, unless waived. */
+	boolean isNpcAggressive(NPC npc)
 	{
+		Player localPlayer = client.getLocalPlayer();
 		int npcLevel = npc.getCombatLevel();
-		return npcLevel > 0
+		return localPlayer != null
+			&& npcLevel > 0
 			&& AggressiveNpcTable.isAggressive(npc.getId())
 			&& !(mm2Complete && MM2_TOLERANT_NPC_IDS.contains(npc.getId()))
 			&& (localPlayer.getCombatLevel() <= 2 * npcLevel || ignoresLevelRule(npc));
@@ -2650,24 +2618,6 @@ public class CustomHpBarPlugin extends Plugin
 		return AggressiveNpcTable.ignoresLevel(npc.getId())
 			|| client.getVarbitValue(VarbitID.INSIDE_WILDERNESS) == 1
 			|| client.getTopLevelWorldView().isInstance();
-	}
-
-	/** Whether npc is aggressive now: would attack, and the tolerance window hasn't expired near it. */
-	boolean isNpcAggressive(NPC npc)
-	{
-		Player localPlayer = client.getLocalPlayer();
-		if (localPlayer == null || !wouldBeAggressive(localPlayer, npc))
-		{
-			return false;
-		}
-		if (client.getTickCount() < aggressionEndTick)
-		{
-			return true;
-		}
-
-		WorldPoint npcLocation = npc.getWorldLocation();
-		return Arrays.stream(aggressionSafeCenters)
-			.noneMatch(center -> center != null && npcLocation.distanceTo2D(center) <= AGGRESSION_SAFE_RADIUS);
 	}
 
 	/** True while the local player is any Ironman variant - preferred over the deprecated Client.getAccountType(). */
