@@ -1536,8 +1536,7 @@ class CustomHpBarOverlay extends Overlay
 		int hpY = stack == null ? y : y + h * stack.indexOf(CustomHpBarConfig.BarKind.HP);
 
 		double hpFraction = (double) ratio / scale;
-		// Toggles first: isNpcAggressive allocates a stream once the tolerance window lapses, and
-		// this runs per NPC per frame. One shared read feeds both the fill and the icon.
+		// One shared read feeds both the fill and the icon.
 		boolean aggressive = actor instanceof NPC
 			&& (config.colorAggressiveNpcNames().bars() || config.showAggressiveNpcIcon())
 			&& plugin.isNpcAggressive((NPC) actor);

@@ -10,20 +10,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
-/** NPC IDs whose monster is aggressive, from aggressive_npcs.csv - the type, not per-location tolerance. */
+/**
+ * NPC IDs whose monster is aggressive, from aggressive_npcs.csv - the type, not per-location tolerance - plus the
+ * subset in level_exempt_npcs.csv that attacks regardless of the player's combat level.
+ */
 @Slf4j
 class AggressiveNpcTable
 {
-	private static final Set<Integer> IDS = load();
+	private static final Set<Integer> IDS = load("aggressive_npcs.csv");
+	private static final Set<Integer> LEVEL_EXEMPT_IDS = load("level_exempt_npcs.csv");
 
-	private static Set<Integer> load()
+	private static Set<Integer> load(String file)
 	{
 		Set<Integer> ids = new HashSet<>();
-		try (InputStream in = AggressiveNpcTable.class.getResourceAsStream("aggressive_npcs.csv"))
+		try (InputStream in = AggressiveNpcTable.class.getResourceAsStream(file))
 		{
 			if (in == null)
 			{
-				log.warn("aggressive_npcs.csv not found on classpath; aggressive-NPC coloring will be unavailable");
+				log.warn("{} not found on classpath; aggressive-NPC coloring will be incomplete", file);
 				return ids;
 			}
 
@@ -43,14 +47,14 @@ class AggressiveNpcTable
 					}
 					catch (NumberFormatException e)
 					{
-						log.debug("Skipping malformed aggressive_npcs.csv line: {}", line);
+						log.debug("Skipping malformed {} line: {}", file, line);
 					}
 				}
 			}
 		}
 		catch (IOException e)
 		{
-			log.warn("Failed to load aggressive_npcs.csv; aggressive-NPC coloring will be unavailable", e);
+			log.warn("Failed to load {}; aggressive-NPC coloring will be incomplete", file, e);
 		}
 		return ids;
 	}
@@ -59,5 +63,11 @@ class AggressiveNpcTable
 	static boolean isAggressive(int npcId)
 	{
 		return IDS.contains(npcId);
+	}
+
+	/** Whether the given NPC ID ignores the 2x-combat-level rule wherever it is. */
+	static boolean ignoresLevel(int npcId)
+	{
+		return LEVEL_EXEMPT_IDS.contains(npcId);
 	}
 }
