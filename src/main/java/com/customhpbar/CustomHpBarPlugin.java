@@ -13,6 +13,8 @@ import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
+import net.runelite.api.Quest;
+import net.runelite.api.QuestState;
 import net.runelite.api.Renderable;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
@@ -36,6 +38,7 @@ import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallback;
@@ -92,6 +95,18 @@ public class CustomHpBarPlugin extends Plugin
 
 	/** Safe-area radius (tiles), matching core's NPC Aggression Timer plugin exactly - see updateAggressionArea(). */
 	private static final int AGGRESSION_SAFE_RADIUS = 10;
+
+	/** Ape Atoll monsters that turn tolerant for good once Monkey Madness II is complete. */
+	private static final Set<Integer> MM2_TOLERANT_NPC_IDS = new HashSet<>(Arrays.asList(
+		NpcID.MM_WAREHOUSE_SPIDER, NpcID.MM_CUTSCENE_SPIDER, NpcID.MM_JUNGLE_SCORPION, NpcID.MM_JUNGLE_SPIDER,
+		NpcID.MM_JUNGLE_SNAKE, NpcID.MM_MONKEY_ARCHER, NpcID.MM_RAVINE_ARCHER, NpcID.MM_POSTED_ARCHER,
+		NpcID.MM2_MONKEY_ARCHER, NpcID.MM_RELIGIOUS_GUARD, NpcID.MM_RELIGIOUS_TRAPDOOR_GUARD,
+		NpcID.MM2_TORTURED_GORILLA_LAB, NpcID.MM2_TORTURED_GORILLA_LAB_DEFEATED,
+		NpcID.MM2_TORTURED_GORILLA_STRONGHOLD, NpcID.MM2_TORTURED_GORILLA_1, NpcID.MM2_TORTURED_GORILLA_2,
+		NpcID.MM2_TORTURED_GORILLA_NONCOMBAT, NpcID.MM2_DEMON_GORILLA_1_MELEE, NpcID.MM2_DEMON_GORILLA_1_RANGED,
+		NpcID.MM2_DEMON_GORILLA_1_MAGIC, NpcID.MM2_DEMON_GORILLA_2_MELEE, NpcID.MM2_DEMON_GORILLA_2_RANGED,
+		NpcID.MM2_DEMON_GORILLA_2_MAGIC, NpcID.MM2_DEMON_GORILLA_NONCOMBAT
+	));
 
 	/** Hitsplat types that represent real HP damage, for precise HP tracking. */
 	private static final Set<Integer> DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
@@ -569,6 +584,9 @@ public class CustomHpBarPlugin extends Plugin
 	private int aggressionEndTick;
 	private final WorldPoint[] aggressionSafeCenters = new WorldPoint[2];
 
+	/** Cached because Quest.getState() runs a client script; refreshed on login and MM2 progress changes. */
+	private boolean mm2Complete;
+
 	/** Current Doom of Mokhaiotl delve level, indexes DOOM_DELVE_HP - advanced via onChatMessage/DOOM_DELVE_MESSAGE. */
 	private int doomDelveLevel = 1;
 
@@ -804,6 +822,7 @@ public class CustomHpBarPlugin extends Plugin
 		pendingClickActor = null;
 		aggressionEndTick = 0;
 		Arrays.fill(aggressionSafeCenters, null);
+		mm2Complete = false;
 		doomDelveLevel = 1;
 		setNativeHudBossName(null);
 		prayerActive = false;
@@ -853,7 +872,22 @@ public class CustomHpBarPlugin extends Plugin
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
 			clientThread.invokeLater(this::syncNativeBarOverrides);
+			clientThread.invokeLater(this::refreshMm2Complete);
 		}
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getVarbitId() == VarbitID.MM2_PROGRESS)
+		{
+			clientThread.invokeLater(this::refreshMm2Complete);
+		}
+	}
+
+	private void refreshMm2Complete()
+	{
+		mm2Complete = Quest.MONKEY_MADNESS_II.getState(client) == QuestState.FINISHED;
 	}
 
 	/** Recomputes native-sprite overrides from hideNativeBar and showPrayerBar together, not per toggle. */
@@ -2605,8 +2639,17 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		int npcLevel = npc.getCombatLevel();
 		return npcLevel > 0
-			&& localPlayer.getCombatLevel() <= 2 * npcLevel
-			&& AggressiveNpcTable.isAggressive(npc.getId());
+			&& AggressiveNpcTable.isAggressive(npc.getId())
+			&& !(mm2Complete && MM2_TOLERANT_NPC_IDS.contains(npc.getId()))
+			&& (localPlayer.getCombatLevel() <= 2 * npcLevel || ignoresLevelRule(npc));
+	}
+
+	/** The Wilderness, instances and level_exempt_npcs.csv's monsters skip the 2x-combat-level rule - see CLAUDE.md. */
+	private boolean ignoresLevelRule(NPC npc)
+	{
+		return AggressiveNpcTable.ignoresLevel(npc.getId())
+			|| client.getVarbitValue(VarbitID.INSIDE_WILDERNESS) == 1
+			|| client.getTopLevelWorldView().isInstance();
 	}
 
 	/** Whether npc is aggressive now: would attack, and the tolerance window hasn't expired near it. */
