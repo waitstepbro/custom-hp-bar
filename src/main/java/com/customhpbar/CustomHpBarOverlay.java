@@ -13,12 +13,15 @@ import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Skill;
 import net.runelite.api.SkullIcon;
+import net.runelite.api.clan.ClanChannel;
+import net.runelite.api.clan.ClanID;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.client.party.PartyService;
 import net.runelite.client.plugins.itemstats.Effect;
 import net.runelite.client.plugins.itemstats.ItemStatChangesService;
 import net.runelite.client.plugins.itemstats.StatChange;
@@ -205,6 +208,7 @@ class CustomHpBarOverlay extends Overlay
 	private final Client client;
 	private final SpriteManager spriteManager;
 	private final ItemStatChangesService itemStatService;
+	private final PartyService partyService;
 
 	/** Camera zoom at the first render, the "1.0x" baseline for zoom scaling - see zoomFactor(). */
 	private int baselineZoom = -1;
@@ -238,13 +242,14 @@ class CustomHpBarOverlay extends Overlay
 
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
-			ItemStatChangesService itemStatService)
+			ItemStatChangesService itemStatService, PartyService partyService)
 	{
 		this.plugin = plugin;
 		this.config = config;
 		this.client = client;
 		this.spriteManager = spriteManager;
 		this.itemStatService = itemStatService;
+		this.partyService = partyService;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.UNDER_WIDGETS);
 	}
@@ -1319,15 +1324,37 @@ class CustomHpBarOverlay extends Overlay
 		// Same suffix, same "no new stack height" reasoning as drawNpcNameOnly()'s.
 		int level = player.getCombatLevel();
 		String levelSuffix = config.showPlayerCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
-		Color byLevel = levelNameColor(level);
-		Color nameColor = byLevel != null ? byLevel : config.playerNameColor();
+		drawNameLabel(g, style, Text.removeTags(playerName), levelSuffix, x, y - h - nameGap, w, h, zoom,
+			playerNameColor(player, level), levelSuffixColor(level));
+	}
+
+	/** Party, friend, Group Ironman, clan, then the by-level or plain color - first match wins. */
+	private Color playerNameColor(Player player, int level)
+	{
+		// Identity outranks the by-level tint, which is a threat read an ally doesn't need.
+		String name = player.getName();
+		if (config.highlightGroups() && partyService.isInParty() && partyService.getMemberByDisplayName(name) != null)
+		{
+			return config.partyNameColor();
+		}
 		if (config.highlightFriends() && player.isFriend())
 		{
-			// Identity outranks the by-level tint, which is a threat read a friend doesn't need.
-			nameColor = config.friendNameColor();
+			return config.friendNameColor();
 		}
-		drawNameLabel(g, style, Text.removeTags(playerName), levelSuffix, x, y - h - nameGap, w, h, zoom,
-			nameColor, levelSuffixColor(level));
+		if (config.highlightGroups())
+		{
+			ClanChannel group = client.getClanChannel(ClanID.GROUP_IRONMAN);
+			if (group != null && group.findMember(name) != null)
+			{
+				return config.groupIronmanNameColor();
+			}
+			if (player.isClanMember())
+			{
+				return config.clanNameColor();
+			}
+		}
+		Color byLevel = levelNameColor(level);
+		return byLevel != null ? byLevel : config.playerNameColor();
 	}
 
 	/** Small skull badge to the left of an NPC's HP bar, marking it as currently aggressive. */

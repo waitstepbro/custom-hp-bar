@@ -218,6 +218,10 @@ of your own.
 | Name Color | Color of the player name text, separate from the HP number's color | White |
 | Highlight Friends | Draws a friend's name in the friend color instead of the normal one. Overrides "Color Names By Combat Level". | On |
 | Friend Name Color | Color of a friend's name. Requires "Highlight Friends". | Green |
+| Highlight Groups | Draws the names of party, Group Ironman and clan members in their group's color. Overrides "Color Names By Combat Level". | On |
+| Party Name Color | Color of a RuneLite party member's name. Requires "Highlight Groups". | Orange |
+| GIM Name Color | Color of a Group Ironman groupmate's name. Requires "Highlight Groups". | Light purple |
+| Clan Name Color | Color of a clan member's name. Requires "Highlight Groups". | Light blue |
 | Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
 | Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 

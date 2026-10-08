@@ -1344,12 +1344,61 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "highlightGroups",
+		name = "Highlight Groups",
+		description = "Draws the names of party, Group Ironman and clan members in their group's color. " +
+			"Overrides 'Color Names By Combat Level'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 5
+	)
+	default boolean highlightGroups()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "partyNameColor",
+		name = "Party Name Color",
+		description = "Color of a RuneLite party member's name. Requires 'Highlight Groups'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 6
+	)
+	default Color partyNameColor()
+	{
+		return new Color(234, 123, 91);
+	}
+
+	@ConfigItem(
+		keyName = "groupIronmanNameColor",
+		name = "GIM Name Color",
+		description = "Color of a Group Ironman groupmate's name. Requires 'Highlight Groups'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 7
+	)
+	default Color groupIronmanNameColor()
+	{
+		return new Color(200, 150, 255);
+	}
+
+	@ConfigItem(
+		keyName = "clanNameColor",
+		name = "Clan Name Color",
+		description = "Color of a clan member's name. Requires 'Highlight Groups'.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 8
+	)
+	default Color clanNameColor()
+	{
+		return new Color(110, 190, 255);
+	}
+
+	@ConfigItem(
 		keyName = "playerNameStackLimit",
 		name = "Stack Limit",
 		description = "Caps how many other players (bar and/or name) render on the same tile at once - " +
 			"which ones is arbitrary, not distance-based. 0 = unlimited.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 5
+		position = 9
 	)
 	@Range(min = 0, max = 30)
 	default int playerNameStackLimit()
@@ -1362,7 +1411,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Blacklist",
 		description = "Comma-separated player names to hide. Supports * wildcards; leave blank to show all.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 6
+		position = 10
 	)
 	default String playerFilter()
 	{
