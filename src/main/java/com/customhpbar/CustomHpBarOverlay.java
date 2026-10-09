@@ -911,6 +911,7 @@ class CustomHpBarOverlay extends Overlay
 			int barOpacity = self ? config.playerBarOpacity() : config.otherPlayerBarOpacity();
 			Color textColor = self ? config.playerTextColor() : config.otherPlayerTextColor();
 			int textNudge = self ? config.playerTextVerticalNudge() : config.otherPlayerTextVerticalNudge();
+			int textHNudge = self ? config.playerTextHorizontalNudge() : config.otherPlayerTextHorizontalNudge();
 			CustomHpBarConfig.DamageTrailMode trailMode = self ? config.playerDamageTrail() : config.otherPlayerDamageTrail();
 			boolean damageTrail = trailMode.shown();
 			Color damageTrailColor = self ? config.playerDamageTrailColor() : config.otherPlayerDamageTrailColor();
@@ -921,7 +922,7 @@ class CustomHpBarOverlay extends Overlay
 				hpColorGradient, colorMid, colorLow, GRADIENT_MIDPOINT,
 				barBackground, barOpacity, damageTrail, damageTrailColor, damageTrailMatchBar, verticalOffset,
 				config.playerFontFamily(), config.playerFontStyle(), config.playerFontSize(),
-				textColor, config.playerTextOutline(), -textNudge,
+				textColor, config.playerTextOutline(), -textNudge, textHNudge,
 				config.playerTextAlignment());
 		}
 		return new BarStyle(
@@ -934,6 +935,7 @@ class CustomHpBarOverlay extends Overlay
 			config.targetVerticalOffset(),
 			config.targetFontFamily(), config.targetFontStyle(), config.targetFontSize(),
 			config.targetTextColor(), config.targetTextOutline(), -config.targetTextVerticalNudge(),
+			config.targetTextHorizontalNudge(),
 			config.targetTextAlignment());
 	}
 
@@ -1651,7 +1653,9 @@ class CustomHpBarOverlay extends Overlay
 			String label = buildLabel(actor, hpFraction, maxHp);
 			if (label != null)
 			{
-				drawLabel(g, style, label, x, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor), style.textAlignment);
+				int labelX = x + scaled(style.textHorizontalNudge, zoom);
+				drawLabel(g, style, label, labelX, hpY, w, h, zoom, style.textColor, hpTextSpacing(actor),
+					style.textAlignment);
 			}
 		}
 
@@ -2325,7 +2329,7 @@ class CustomHpBarOverlay extends Overlay
 		Color prayerColor = config.prayerBarColor();
 		int restoreValue = config.showPreviews() ? hoveredRestoreValue(Skill.PRAYER) : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, max, prayerColor,
-			config.prayerTextColor(), restoreValue);
+			config.prayerTextColor(), restoreValue, config.prayerDisplayMode());
 
 		if (config.showPrayerTickTimer().shown(plugin.isPrayerActive()))
 		{
@@ -2362,13 +2366,23 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Fills and labels a simple current/max bar (Prayer/Special/Run). restoreValue < 0 skips the preview. */
 	private void drawSimpleBar(Graphics2D g, BarStyle style, int x, int y, int w, int h, int border, int arc,
-			double zoom, int current, int max, Color color, Color textColor, int restoreValue)
+			double zoom, int current, int max, Color color, Color textColor, int restoreValue,
+			CustomHpBarConfig.StatDisplayMode mode)
 	{
 		double fraction = max > 0 ? (double) current / max : 0;
 		drawBarShape(g, style, x, y, w, h, border, arc, fraction, color, fraction, null,
 			restoredFraction(current, max, restoreValue), translucent(color));
 
-		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, textColor, 0, style.textAlignment);
+		if (mode == CustomHpBarConfig.StatDisplayMode.NEITHER)
+		{
+			return;
+		}
+		// Boosted prayer can exceed the real level, so the percentage is allowed past 100.
+		String label = mode == CustomHpBarConfig.StatDisplayMode.PERCENT
+			? Math.round(fraction * 100) + "%"
+			: String.valueOf(current);
+		drawLabel(g, style, label, x + scaled(style.textHorizontalNudge, zoom), y, w, h, zoom, textColor, 0,
+			style.textAlignment);
 	}
 
 	/** No restore preview, unlike Prayer/Run: itemstats has no special-attack Stat to match on. */
@@ -2377,7 +2391,7 @@ class CustomHpBarOverlay extends Overlay
 		int current = plugin.specialAttackEnergy();
 		Color specialColor = config.specialAttackBarColor();
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, specialColor,
-			config.specialAttackTextColor(), -1);
+			config.specialAttackTextColor(), -1, CustomHpBarConfig.StatDisplayMode.PERCENT);
 	}
 
 	/** Fill swaps to STAMINA_BAR_COLOR while a Stamina buff is active - mirrors core's own run orb. */
@@ -2387,7 +2401,7 @@ class CustomHpBarOverlay extends Overlay
 		Color runColor = plugin.isStaminaActive() ? STAMINA_BAR_COLOR : config.runEnergyBarColor();
 		int restoreValue = config.showPreviews() ? hoveredRestoreValue("Run Energy") : -1;
 		drawSimpleBar(g, style, x, y, w, h, border, arc, zoom, current, FULL_PERCENT_ENERGY, runColor,
-			config.runEnergyTextColor(), restoreValue);
+			config.runEnergyTextColor(), restoreValue, CustomHpBarConfig.StatDisplayMode.NUMBER);
 	}
 
 	/** Bar Color at full HP, blending through Mid at the midpoint to Low at empty. */
@@ -2881,6 +2895,7 @@ class CustomHpBarOverlay extends Overlay
 		final Color textColor;
 		final boolean textOutline;
 		final int textNudge;
+		final int textHorizontalNudge;
 		final CustomHpBarConfig.TextAlignment textAlignment;
 	}
 }
