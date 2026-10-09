@@ -45,9 +45,11 @@ import java.awt.Graphics2D;
 import java.awt.Paint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextLayout;
+import java.awt.geom.Area;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -1640,14 +1642,11 @@ class CustomHpBarOverlay extends Overlay
 					? matchedTrailColor(overrideColor != null ? overrideColor : hpFillColor(style, trailFraction))
 					: style.damageTrailColor;
 			}
-			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor, trailFraction, trailColor);
-
-			if (self && config.showPreviews())
-			{
-				// ratio/scale are the local player's real current/max HP already, not a bucket.
-				drawHealPreview(g, x, hpY, w, h, border, ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS),
-					translucent(fillColor));
-			}
+			// ratio/scale are the local player's real current/max HP already, not a bucket.
+			double previewFraction = self && config.showPreviews()
+				? restoredFraction(ratio, maxHp, hoveredRestoreValue(Skill.HITPOINTS)) : -1;
+			drawBarShape(g, style, x, hpY, w, h, border, arc, hpFraction, fillColor, trailFraction, trailColor,
+				previewFraction, translucent(fillColor));
 
 			String label = buildLabel(actor, hpFraction, maxHp);
 			if (label != null)
@@ -1781,33 +1780,14 @@ class CustomHpBarOverlay extends Overlay
 		return -1;
 	}
 
-	/** Extends a bar past its fill with a preview of where the stat would land if healAmount landed now. */
-	private void drawHealPreview(Graphics2D g, int x, int y, int w, int h, int border, int currentHp, int maxHp,
-			int healAmount, Color previewColor)
+	/** Fraction the stat would sit at if healAmount landed now, for drawBarShape()'s preview; -1 when none. */
+	private static double restoredFraction(int current, int max, int healAmount)
 	{
-		if (healAmount <= 0 || maxHp <= 0)
+		if (healAmount <= 0 || max <= 0)
 		{
-			return;
+			return -1;
 		}
-
-		int innerW = Math.max(0, w - border * 2);
-		int innerH = Math.max(0, h - border * 2);
-
-		int currentFillWidth = (int) Math.round(innerW * ((double) currentHp / maxHp));
-		currentFillWidth = Math.max(0, Math.min(currentFillWidth, innerW));
-
-		int healedHp = Math.min(maxHp, currentHp + healAmount);
-		int healedFillWidth = (int) Math.round(innerW * ((double) healedHp / maxHp));
-		healedFillWidth = Math.max(currentFillWidth, Math.min(healedFillWidth, innerW));
-
-		int previewWidth = healedFillWidth - currentFillWidth;
-		if (previewWidth <= 0)
-		{
-			return;
-		}
-
-		g.setColor(previewColor);
-		g.fillRect(x + border + currentFillWidth, y + border, previewWidth, innerH);
+		return (double) Math.min(max, current + healAmount) / max;
 	}
 
 	/** Whether the debuff icon row draws for actor, by actor type - independent of the Color By Status toggle. */
@@ -2385,12 +2365,8 @@ class CustomHpBarOverlay extends Overlay
 			double zoom, int current, int max, Color color, Color textColor, int restoreValue)
 	{
 		double fraction = max > 0 ? (double) current / max : 0;
-		drawBarShape(g, style, x, y, w, h, border, arc, fraction, color);
-
-		if (restoreValue > 0)
-		{
-			drawHealPreview(g, x, y, w, h, border, current, max, restoreValue, translucent(color));
-		}
+		drawBarShape(g, style, x, y, w, h, border, arc, fraction, color, fraction, null,
+			restoredFraction(current, max, restoreValue), translucent(color));
 
 		drawLabel(g, style, String.valueOf(current), x, y, w, h, zoom, textColor, 0, style.textAlignment);
 	}
@@ -2472,16 +2448,17 @@ class CustomHpBarOverlay extends Overlay
 	private void drawBarShape(Graphics2D g, BarStyle style, int x, int y, int w, int h,
 			int border, int arc, double fraction, Color fillColor)
 	{
-		drawBarShape(g, style, x, y, w, h, border, arc, fraction, fillColor, fraction, null);
+		drawBarShape(g, style, x, y, w, h, border, arc, fraction, fillColor, fraction, null, fraction, null);
 	}
 
 	/**
-	 * As above, plus the damage trail: the same fill shape drawn once more at trailFraction and underneath the
-	 * real fill, so only the segment between the two shows. A second RoundRectangle2D, not a rect over the
-	 * gap, so it inherits the rounded right edge. A null trailColor skips it entirely.
+	 * As above, plus the damage trail and restore preview: the same fill shape drawn again at trailFraction /
+	 * previewFraction and underneath the real fill, so only the segment past it shows. A second RoundRectangle2D,
+	 * not a rect over the gap, so it inherits the rounded right edge. A null color skips that layer entirely.
 	 */
 	private void drawBarShape(Graphics2D g, BarStyle style, int x, int y, int w, int h,
-			int border, int arc, double fraction, Color fillColor, double trailFraction, Color trailColor)
+			int border, int arc, double fraction, Color fillColor, double trailFraction, Color trailColor,
+			double previewFraction, Color previewColor)
 	{
 		int innerW = Math.max(0, w - border * 2);
 		int innerH = Math.max(0, h - border * 2);
@@ -2508,23 +2485,19 @@ class CustomHpBarOverlay extends Overlay
 
 		if (trailColor != null && trailFraction > fraction)
 		{
-			int trailWidth = (int) Math.round(innerW * trailFraction);
-			trailWidth = Math.max(0, Math.min(trailWidth, innerW));
-			if (trailWidth > 0)
-			{
-				g.setColor(trailColor);
-				g.fill(new RoundRectangle2D.Float(x + border, y + border, trailWidth, innerH, fillArc, fillArc));
-			}
+			fillUnderlay(g, x + border, y + border, innerW, innerH, fillArc, trailFraction, trailColor);
+		}
+
+		if (previewColor != null && previewFraction > fraction)
+		{
+			fillUnderlay(g, x + border, y + border, innerW, innerH, fillArc, previewFraction, previewColor);
 		}
 
 		if (fillWidth > 0)
 		{
-			RoundRectangle2D fillShape = new RoundRectangle2D.Float(
-				x + border, y + border, fillWidth, innerH, fillArc, fillArc);
-
 			Paint previousPaint = g.getPaint();
 			g.setPaint(glossPaint(fillColor, x + border, y + border, innerH));
-			g.fill(fillShape);
+			g.fill(fillShape(x + border, y + border, fillWidth, innerW, innerH, fillArc));
 			g.setPaint(previousPaint);
 		}
 
@@ -2542,6 +2515,34 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		g.setComposite(previousComposite);
+	}
+
+	/** One of drawBarShape()'s under-the-fill layers: the fill shape out to fraction, rounded the same way. */
+	private static void fillUnderlay(Graphics2D g, int x, int y, int innerW, int innerH, int fillArc,
+			double fraction, Color color)
+	{
+		int width = (int) Math.round(innerW * clamp01(fraction));
+		if (width > 0)
+		{
+			g.setColor(color);
+			g.fill(fillShape(x, y, width, innerW, innerH, fillArc));
+		}
+	}
+
+	/**
+	 * A fill out to width inside the bar. RoundRectangle2D caps the arc at width, so a narrow sliver is
+	 * clipped to the full-width track or it pokes out past the bar's rounded left end.
+	 */
+	private static Shape fillShape(int x, int y, int width, int innerW, int innerH, int fillArc)
+	{
+		RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, width, innerH, fillArc, fillArc);
+		if (width >= fillArc)
+		{
+			return shape;
+		}
+		Area clipped = new Area(shape);
+		clipped.intersect(new Area(new RoundRectangle2D.Float(x, y, innerW, innerH, fillArc, fillArc)));
+		return clipped;
 	}
 
 	/** Vertical gradient from a lightened highlight at the top to the base color at the bottom. */
