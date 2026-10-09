@@ -1136,11 +1136,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "playerBarSpacing",
+		name = "Bar Spacing",
+		description = "Pixels between the bars in your stack. Negative values overlap their borders, down to one shared line.",
+		section = PLAYER_INFO_SECTION,
+		position = 17
+	)
+	@Range(min = -4, max = 10)
+	default int playerBarSpacing()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "selfColorByStatusEffect",
 		name = "Status Effects",
 		description = "How poison, venom, burns, bleeds, disease and corruption show on your bar: as a tint, an icon, both, or not at all.",
 		section = PLAYER_INFO_SECTION,
-		position = 17
+		position = 18
 	)
 	default StatusEffectMode selfColorByStatusEffect()
 	{
@@ -1154,7 +1167,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews what a hovered food, potion or restore item would give, as an extra segment " +
 			"on the HP, prayer or run bar. Requires your own bar to be showing.",
 		section = PLAYER_INFO_SECTION,
-		position = 18
+		position = 19
 	)
 	default boolean showPreviews()
 	{
@@ -1167,7 +1180,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long in seconds a player's bar keeps showing the last known HP after the " +
 			"native bar fades (0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 19
+		position = 20
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
