@@ -187,6 +187,7 @@ in this section, including the color settings in the shared table, is self-only 
 | Run Energy Fill | Fill color of the run energy bar. Requires Run Energy Bar. | Gold |
 | Run Energy Text | Color of the run energy number. Requires Run Energy Bar. | White |
 | Bar 1 / Bar 2 / Bar 3 / Bar 4 | Four independent pickers choosing which bar (HP, Prayer, Special, Run Energy) is drawn in each stack position, top to bottom. A bar picked in more than one position only shows at its topmost pick. | HP, Prayer, Special, Run Energy |
+| Bar Spacing | Pixels between the bars in your stack. Negative values overlap their borders, down to one shared line. | 0 |
 | Status Effects | How poison, venom, burns, bleeds, disease and corruption show: Off, Bar tint, Icon, or Both. | Both |
 | Restore Previews | Previews what a hovered food, potion or restore item would give, as an extra segment on the HP, prayer or run bar. Requires your own bar to be showing. | On |
 | Persist Duration | How long in seconds the bar keeps showing the last known HP after the native bar fades (0 = hide immediately). | 5 |

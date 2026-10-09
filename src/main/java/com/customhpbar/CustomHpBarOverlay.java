@@ -1597,7 +1597,8 @@ class CustomHpBarOverlay extends Overlay
 
 		// hpY is where the HP bar actually lands once the configured order is applied - y stays the
 		// top of the whole stack, which is what the name, overhead icon, and same-tile shift key off.
-		int hpY = stack == null ? y : y + h * stack.indexOf(CustomHpBarConfig.BarKind.HP);
+		int pitch = stackPitch(h, border, zoom);
+		int hpY = stack == null ? y : y + pitch * stack.indexOf(CustomHpBarConfig.BarKind.HP);
 
 		double hpFraction = (double) ratio / scale;
 		// One shared read feeds both the fill and the icon.
@@ -1693,10 +1694,9 @@ class CustomHpBarOverlay extends Overlay
 
 		if (stack != null)
 		{
-			// Flush against each other, mirroring the Player Bar profile rather than each bar
-			// getting its own size/shape config.
+			// Every bar mirrors the Player Bar profile rather than getting its own size/shape config.
 			drawStackedBars(g, style, stack, x, y, w, h, border, arc, zoom);
-			bottomY = y + h * stack.size();
+			bottomY = y + pitch * (stack.size() - 1) + h;
 		}
 
 		if (!statusEffects.isEmpty())
@@ -1996,13 +1996,20 @@ class CustomHpBarOverlay extends Overlay
 		drawStackedBars(g, style, stack, rect[0], rect[1], rect[2], rect[3], border, arc, zoom);
 	}
 
+	/** Distance from one stacked bar's top edge to the next. Overlap stops at the border so fills never cover. */
+	private int stackPitch(int h, int border, double zoom)
+	{
+		return h + Math.max(scaled(config.playerBarSpacing(), zoom), -border);
+	}
+
 	/** Draws every non-HP bar at its configured slot; HP belongs to drawBar(), so its slot is left empty. */
 	private void drawStackedBars(Graphics2D g, BarStyle style, List<CustomHpBarConfig.BarKind> stack,
 			int x, int stackTop, int w, int h, int border, int arc, double zoom)
 	{
+		int pitch = stackPitch(h, border, zoom);
 		for (int i = 0; i < stack.size(); i++)
 		{
-			int y = stackTop + h * i;
+			int y = stackTop + pitch * i;
 			switch (stack.get(i))
 			{
 				case PRAYER:
