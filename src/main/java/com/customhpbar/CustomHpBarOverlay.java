@@ -56,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -240,6 +241,9 @@ class CustomHpBarOverlay extends Overlay
 	private Map<Actor, WorldPoint> stackTiles = new HashMap<>();
 	private Map<Actor, WorldPoint> previousStackTiles = new HashMap<>();
 
+	/** NPCs whose name row actually drew this frame, so their redrawn overhead icons sit above it. */
+	private final Set<NPC> npcNamesDrawn = new HashSet<>();
+
 	@Inject
 	CustomHpBarOverlay(CustomHpBarPlugin plugin, CustomHpBarConfig config, Client client, SpriteManager spriteManager,
 			ItemStatChangesService itemStatService, PartyService partyService)
@@ -274,6 +278,7 @@ class CustomHpBarOverlay extends Overlay
 		// consults the old one for hysteresis.
 		previousStackTiles = stackTiles;
 		stackTiles = new HashMap<>();
+		npcNamesDrawn.clear();
 
 		// "Prioritize Self on Same Tile": self's tile when the feature applies, else null. See
 		// suppressedForSelfTile().
@@ -571,6 +576,29 @@ class CustomHpBarOverlay extends Overlay
 					drawNpcNameOnly(g, npc, anchor, targetStyle, zoom);
 				}
 			}
+		}
+
+		// Every NPC whose native overheads are suppressed, after all three NPC passes so their stacked anchors
+		// and drawn names are known. Also covers the ones those passes skipped (stack cap, self tile).
+		for (NPC npc : plugin.getOverheadEligibleNpcs())
+		{
+			if (!plugin.isOverheadSuppressed(npc))
+			{
+				continue;
+			}
+
+			Point anchor = appliedStacks.get(npc);
+			if (anchor == null)
+			{
+				anchor = actorAnchor(npc);
+			}
+			if (anchor != null)
+			{
+				targetStyle = targetStyle != null ? targetStyle : resolveStyle(npc);
+				drawNpcOverheadIcons(g, npc, anchor, targetStyle, npcNamesDrawn.contains(npc));
+			}
+			drawHitsplats(g, npc);
+			drawOverheadChatText(g, npc);
 		}
 
 		// "Always Show Player Bar"/"Always Show Player Name" in one shared loop, so they don't double-claim
@@ -1015,6 +1043,28 @@ class CustomHpBarOverlay extends Overlay
 		return clearance;
 	}
 
+	/** Same as overheadRowClearance(Player) for an NPC's redrawn icons - 0 unless its native ones are suppressed. */
+	private int overheadRowClearance(NPC npc, double zoom)
+	{
+		if (!plugin.isOverheadSuppressed(npc))
+		{
+			return 0;
+		}
+
+		int clearance = 0;
+		int[] archives = npc.getOverheadArchiveIds();
+		short[] sprites = npc.getOverheadSpriteIds();
+		for (int i = 0; i < Math.min(archives.length, sprites.length); i++)
+		{
+			if (archives[i] >= 0 && sprites[i] >= 0)
+			{
+				BufferedImage image = clientSprite(archives[i], sprites[i]);
+				clearance += scaled((image != null ? image.getHeight() : STACK_ICON_CLEARANCE) + OVERHEAD_ICON_GAP, zoom);
+			}
+		}
+		return clearance;
+	}
+
 	/**
 	 * Claims self's own same-tile slot before either claim pass runs, so self is effectively first at
 	 * its tile whatever the iteration order - others get pushed above it rather than overlapping it.
@@ -1072,6 +1122,10 @@ class CustomHpBarOverlay extends Overlay
 		boolean nameShown = (actor instanceof NPC ? config.showNpcName() : config.showPlayerName()).shown();
 		int[] rect = barRect(anchor, style, zoom);
 		int top = nameShown ? rect[1] - rect[3] - scaled(NAME_GAP, zoom) : rect[1];
+		if (actor instanceof NPC)
+		{
+			top -= overheadRowClearance((NPC) actor, zoom);
+		}
 		return claimStackSlot(tileStacks, tile, anchor, top, rect[1] + rect[3],
 			stackPullLimit(actor, anchor), zoom);
 	}
@@ -1091,7 +1145,12 @@ class CustomHpBarOverlay extends Overlay
 
 		int[] rect = barRect(anchor, style, zoom);
 		int nameGap = scaled(NAME_GAP, zoom);
-		return claimStackSlot(tileStacks, tile, anchor, rect[1] - rect[3] - nameGap, rect[1] - nameGap,
+		int top = rect[1] - rect[3] - nameGap;
+		if (actor instanceof NPC)
+		{
+			top -= overheadRowClearance((NPC) actor, zoom);
+		}
+		return claimStackSlot(tileStacks, tile, anchor, top, rect[1] - nameGap,
 			stackPullLimit(actor, anchor), zoom);
 	}
 
@@ -1293,6 +1352,7 @@ class CustomHpBarOverlay extends Overlay
 		String levelSuffix = config.showNpcCombatLevel() && level > 0 ? " (lvl " + level + ")" : null;
 		drawNameLabel(g, style, label, levelSuffix, x, y - h - nameGap, w, h, zoom, nameColor,
 			levelSuffixColor(level));
+		npcNamesDrawn.add(npc);
 	}
 
 	/**
@@ -2020,6 +2080,44 @@ class CustomHpBarOverlay extends Overlay
 		g.drawImage(image, x, y, w, h, null);
 	}
 
+	/**
+	 * Draws an NPC's replacement overhead icons above its bar (and name, if nameShown), stacked upwards in
+	 * array order. Each archive/index pair is a client sprite frame, so custom boss icons draw too.
+	 */
+	private void drawNpcOverheadIcons(Graphics2D g, NPC npc, Point anchor, BarStyle style, boolean nameShown)
+	{
+		int[] archives = npc.getOverheadArchiveIds();
+		short[] sprites = npc.getOverheadSpriteIds();
+		if (archives == null || sprites == null)
+		{
+			return;
+		}
+
+		double zoom = zoomFactor();
+		int[] rect = barRect(anchor, style, zoom);
+		int gap = scaled(OVERHEAD_ICON_GAP, zoom);
+		int nameClearance = nameShown ? rect[3] + scaled(NAME_GAP, zoom) : 0;
+		int bottom = rect[1] - nameClearance;
+		for (int i = 0; i < Math.min(archives.length, sprites.length); i++)
+		{
+			if (archives[i] < 0 || sprites[i] < 0)
+			{
+				continue;
+			}
+			BufferedImage image = clientSprite(archives[i], sprites[i]);
+			if (image == null)
+			{
+				continue;
+			}
+
+			int w = scaled(image.getWidth(), zoom);
+			int h = scaled(image.getHeight(), zoom);
+			int y = bottom - gap - h;
+			g.drawImage(image, rect[0] + (rect[2] - w) / 2, y, w, h, null);
+			bottom = y;
+		}
+	}
+
 	/** All 15 overhead icon graphics are sub-frames of one client sprite, indexed by HeadIcon.ordinal(). */
 	private BufferedImage headIconImage(HeadIcon headIcon)
 	{
@@ -2106,17 +2204,17 @@ class CustomHpBarOverlay extends Overlay
 		}
 	}
 
-	/** Redraws hitsplats on player (sprite + amount), replacing the ones the render callback suppresses. */
-	private void drawHitsplats(Graphics2D g, Player player)
+	/** Redraws hitsplats on actor (sprite + amount), replacing the ones the render callback suppresses. */
+	private void drawHitsplats(Graphics2D g, Actor actor)
 	{
-		List<OverheadHitsplat> hitsplats = plugin.getOverheadHitsplats().get(player);
+		List<OverheadHitsplat> hitsplats = plugin.getOverheadHitsplats().get(actor);
 		if (hitsplats == null || hitsplats.isEmpty())
 		{
 			return;
 		}
 
 		// Native hitsplats render at roughly chest height, not above the head like the bar/text.
-		Point anchor = actorAnchor(player, player.getLogicalHeight() / 2);
+		Point anchor = actorAnchor(actor, actor.getLogicalHeight() / 2);
 		if (anchor == null)
 		{
 			return;
@@ -2196,14 +2294,14 @@ class CustomHpBarOverlay extends Overlay
 	 * Actor.getCanvasTextLocation(), never derived from the bar/name/icon stack below it. Explicit
 	 * instruction: chat keeps its default position and the stack stays clear of it, not the reverse.
 	 */
-	private void drawOverheadChatText(Graphics2D g, Player player)
+	private void drawOverheadChatText(Graphics2D g, Actor actor)
 	{
-		if (player.getOverheadCycle() <= 0)
+		if (actor.getOverheadCycle() <= 0)
 		{
 			return;
 		}
 
-		String rawText = player.getOverheadText();
+		String rawText = actor.getOverheadText();
 		if (rawText == null)
 		{
 			return;
@@ -2220,7 +2318,7 @@ class CustomHpBarOverlay extends Overlay
 		Font font = FontManager.getRunescapeBoldFont().deriveFont((float) scaled(16, zoom));
 		g.setFont(font);
 
-		Point location = player.getCanvasTextLocation(g, text, player.getLogicalHeight());
+		Point location = actor.getCanvasTextLocation(g, text, actor.getLogicalHeight());
 		if (location == null)
 		{
 			return;

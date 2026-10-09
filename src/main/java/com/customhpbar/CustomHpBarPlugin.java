@@ -160,6 +160,16 @@ public class CustomHpBarPlugin extends Plugin
 		"enraged blood moon", "enraged blue moon", "enraged eclipse moon"
 	));
 
+	/**
+	 * NPCs whose native overheads carry bars or icons we don't redraw, so their native bundle is never
+	 * suppressed - Nameplates' own exclusion list, plus Doom's other two forms.
+	 */
+	private static final Set<Integer> NATIVE_OVERHEAD_NPC_IDS = new HashSet<>(Arrays.asList(
+		NpcID.ENT_TOTEMS_SITE_ICON, NpcID.GATHERING_EVENT_SAPLING_NPC_HPBAR_1X1,
+		NpcID.GATHERING_EVENT_SAPLING_NPC_HPBAR_2X2, NpcID.YAMA_VOIDFLARE, NpcID.RAIDS_ICEDEMON_NONCOMBAT,
+		14707, 14708, 14709
+	));
+
 	/** NPC IDs with no drop table of their own - never greyed out, since there's no loot to taint. */
 	private static final Set<Integer> LOOTLESS_NPC_IDS = new HashSet<>(Arrays.asList(
 		NpcID.PMOON_BOSS_JAGUAR,
@@ -454,6 +464,46 @@ public class CustomHpBarPlugin extends Plugin
 		return overheadEligiblePlayers.contains(player);
 	}
 
+	/**
+	 * NPCs with an overhead icon that we draw a bar or name for, recomputed per tick like
+	 * overheadEligiblePlayers. Only the ones still showing an icon are suppressed - see isOverheadSuppressed().
+	 */
+	private volatile Set<NPC> overheadEligibleNpcs = Collections.emptySet();
+
+	/** This tick's overheadEligibleNpcs - the overlay redraws whichever of them isOverheadSuppressed(). */
+	Set<NPC> getOverheadEligibleNpcs()
+	{
+		return overheadEligibleNpcs;
+	}
+
+	/**
+	 * Whether npc's native overhead UI is suppressed this frame, so the overlay owes it a redrawn icon,
+	 * hitsplats and chat. The icon is read live, so a prayer dropping hands it straight back to native.
+	 */
+	boolean isOverheadSuppressed(NPC npc)
+	{
+		return overheadEligibleNpcs.contains(npc) && hasOverheadIcon(npc) && client.getHintArrowNpc() != npc;
+	}
+
+	/** Whether npc has at least one drawable overhead icon - a pair with both archive and sprite index set. */
+	static boolean hasOverheadIcon(NPC npc)
+	{
+		int[] archives = npc.getOverheadArchiveIds();
+		short[] sprites = npc.getOverheadSpriteIds();
+		if (archives == null || sprites == null)
+		{
+			return false;
+		}
+		for (int i = 0; i < Math.min(archives.length, sprites.length); i++)
+		{
+			if (archives[i] >= 0 && sprites[i] >= 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Suppresses the native overhead UI (bar, icon, hitsplats, chat) for self and eligible players. */
 	private final RenderCallback renderCallback = new RenderCallback()
 	{
@@ -468,17 +518,21 @@ public class CustomHpBarPlugin extends Plugin
 			{
 				return !suppressSelfOverheads;
 			}
+			if (renderable instanceof NPC)
+			{
+				return !isOverheadSuppressed((NPC) renderable);
+			}
 			return !overheadEligiblePlayers.contains(renderable);
 		}
 	};
 
 	/**
-	 * Overhead hitsplats per player, redrawn since renderCallback suppresses the native ones - self
-	 * plus overheadEligiblePlayers. Copies, not the client's own Hitsplat objects, which it pools and
-	 * reuses - see CLAUDE.md.
+	 * Overhead hitsplats per actor, redrawn since renderCallback suppresses the native ones - self,
+	 * overheadEligiblePlayers and overheadEligibleNpcs. Copies, not the client's own Hitsplat objects,
+	 * which it pools and reuses - see CLAUDE.md.
 	 */
 	@Getter
-	private final Map<Player, List<OverheadHitsplat>> overheadHitsplats = new ConcurrentHashMap<>();
+	private final Map<Actor, List<OverheadHitsplat>> overheadHitsplats = new ConcurrentHashMap<>();
 
 	/** Actors whose bars are active; value = tick of last valid health-ratio read. */
 	@Getter
@@ -808,6 +862,7 @@ public class CustomHpBarPlugin extends Plugin
 		statusEffectTicks.clear();
 		overheadHitsplats.clear();
 		overheadEligiblePlayers = Collections.emptySet();
+		overheadEligibleNpcs = Collections.emptySet();
 		otherPlayersInScene = false;
 		pendingClickActor = null;
 		mm2Complete = false;
@@ -960,9 +1015,10 @@ public class CustomHpBarPlugin extends Plugin
 		// Captured regardless of hitsplat type (unlike HP tracking below) - a redrawn hitsplat should show for
 		// anything the native client would, e.g. PRAYER_DRAIN. overheadEligiblePlayers being tick-granular, a
 		// player who just became eligible can miss their first splat; accepted.
-		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor)))
+		if (actor == client.getLocalPlayer() || (actor instanceof Player && overheadEligiblePlayers.contains(actor))
+			|| (actor instanceof NPC && overheadEligibleNpcs.contains(actor)))
 		{
-			overheadHitsplats.computeIfAbsent((Player) actor, k -> new CopyOnWriteArrayList<>())
+			overheadHitsplats.computeIfAbsent(actor, k -> new CopyOnWriteArrayList<>())
 				.add(new OverheadHitsplat(hitsplat.getHitsplatType(), hitsplat.getAmount(),
 					hitsplat.getDisappearsOnGameCycle()));
 		}
@@ -1214,6 +1270,7 @@ public class CustomHpBarPlugin extends Plugin
 		// Last, so this tick's tracking additions/evictions above are reflected immediately rather
 		// than lagging a further tick behind.
 		updateOverheadEligiblePlayers();
+		updateOverheadEligibleNpcs();
 
 		trackSecondaryBars();
 
@@ -1269,6 +1326,28 @@ public class CustomHpBarPlugin extends Plugin
 
 		overheadEligiblePlayers = eligible.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(eligible);
 		otherPlayersInScene = anyOtherPlayer;
+	}
+
+	/**
+	 * Recomputes overheadEligibleNpcs: NPCs with an overhead icon that the overlay draws a bar or name for,
+	 * so the native icon can't land on them. Gated on the icon so every other NPC keeps native hitsplats.
+	 */
+	private void updateOverheadEligibleNpcs()
+	{
+		boolean alwaysShown = config.alwaysShowNpcBar() || config.showNpcName().always();
+		Set<NPC> eligible = new HashSet<>();
+		for (NPC npc : client.getTopLevelWorldView().npcs())
+		{
+			if (npc == null || NATIVE_OVERHEAD_NPC_IDS.contains(npc.getId()) || !hasOverheadIcon(npc))
+			{
+				continue;
+			}
+			if (trackedActors.containsKey(npc) || (alwaysShown && isTrackedNpcCached(npc)))
+			{
+				eligible.add(npc);
+			}
+		}
+		overheadEligibleNpcs = eligible.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(eligible);
 	}
 
 	/** Ends active tracking on persist-timeout without clearing lastKnownHp/preciseNpcHp. */
