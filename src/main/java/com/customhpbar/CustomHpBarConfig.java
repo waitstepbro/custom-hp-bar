@@ -300,7 +300,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "targetTextVerticalNudge",
-		name = "Text Nudge",
+		name = "Vertical Text Nudge",
 		description = "Nudges the HP text up (positive) or down (negative) if it looks off-center.",
 		section = TARGET_SECTION,
 		position = 18
@@ -312,11 +312,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "targetTextHorizontalNudge",
+		name = "Horizontal Text Nudge",
+		description = "Nudges the HP text right (positive) or left (negative).",
+		section = TARGET_SECTION,
+		position = 19
+	)
+	@Range(min = -50, max = 50)
+	default int targetTextHorizontalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "targetDamageTrail",
 		name = "Damage Trail",
 		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = TARGET_SECTION,
-		position = 19
+		position = 20
 	)
 	default DamageTrailMode targetDamageTrail()
 	{
@@ -328,7 +341,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Trail Color",
 		description = "Color of the health an NPC just lost. Requires a Damage Trail of 'Custom color'.",
 		section = TARGET_SECTION,
-		position = 20
+		position = 21
 	)
 	default Color targetDamageTrailColor()
 	{
@@ -865,7 +878,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "playerTextVerticalNudge",
-		name = "Text Nudge",
+		name = "Vertical Text Nudge",
 		description = "Nudges the HP text up (positive) or down (negative) if it looks off-center.",
 		section = PLAYER_SECTION,
 		position = 19
@@ -877,11 +890,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "playerTextHorizontalNudge",
+		name = "Horizontal Text Nudge",
+		description = "Nudges each bar's text right (positive) or left (negative) - HP, Prayer, Special, and Run.",
+		section = PLAYER_SECTION,
+		position = 20
+	)
+	@Range(min = -50, max = 50)
+	default int playerTextHorizontalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "playerDamageTrail",
 		name = "Damage Trail",
 		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = PLAYER_SECTION,
-		position = 20
+		position = 21
 	)
 	default DamageTrailMode playerDamageTrail()
 	{
@@ -893,7 +919,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Trail Color",
 		description = "Color of the health you just lost. Requires a Damage Trail of 'Custom color'.",
 		section = PLAYER_SECTION,
-		position = 21
+		position = 22
 	)
 	default Color playerDamageTrailColor()
 	{
@@ -939,11 +965,23 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "prayerDisplayMode",
+		name = "Prayer Display Mode",
+		description = "Show Prayer as a raw number, a percentage, or neither (bar only, no text). Requires 'Prayer Bar'.",
+		section = PLAYER_INFO_SECTION,
+		position = 3
+	)
+	default StatDisplayMode prayerDisplayMode()
+	{
+		return StatDisplayMode.NUMBER;
+	}
+
+	@ConfigItem(
 		keyName = "showPrayerTickTimer",
 		name = "Prayer Bar Tick",
 		description = "Whether the prayer tick timer draws: never, only while praying, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 3
+		position = 4
 	)
 	default PrayerTimerVisibility showPrayerTickTimer()
 	{
@@ -955,7 +993,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Tick Color",
 		description = "Color of the tick timer indicator. Requires 'Prayer Bar Tick'.",
 		section = PLAYER_INFO_SECTION,
-		position = 4
+		position = 5
 	)
 	default Color prayerTickTimerColor()
 	{
@@ -967,7 +1005,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Special Attack Bar",
 		description = "Whether the special attack bar draws: never, only while you are in combat, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 5
+		position = 6
 	)
 	default Visibility showSpecialAttackBar()
 	{
@@ -979,7 +1017,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Special Attack Fill",
 		description = "Fill color of the special attack bar. Requires 'Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 6
+		position = 7
 	)
 	default Color specialAttackBarColor()
 	{
@@ -989,9 +1027,9 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "specialAttackTextColor",
 		name = "Special Attack Text",
-		description = "Color of the special attack number. Requires 'Special Attack Bar'.",
+		description = "Color of the special attack percentage. Requires 'Special Attack Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 7
+		position = 8
 	)
 	default Color specialAttackTextColor()
 	{
@@ -1003,7 +1041,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Run Energy Bar",
 		description = "Whether the run energy bar draws: never, only while it is draining or recently drained, or always.",
 		section = PLAYER_INFO_SECTION,
-		position = 8
+		position = 9
 	)
 	default RunBarVisibility showRunEnergyBar()
 	{
@@ -1016,7 +1054,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Hides the run energy bar this many seconds after you last ran (0 = never time " +
 			"out). Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 9
+		position = 10
 	)
 	@Range(min = 0, max = 300)
 	default int runEnergyBarTimeout()
@@ -1029,7 +1067,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Run Energy Fill",
 		description = "Fill color of the run energy bar. Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 10
+		position = 11
 	)
 	default Color runEnergyBarColor()
 	{
@@ -1041,7 +1079,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Run Energy Text",
 		description = "Color of the run energy number. Requires 'Run Energy Bar'.",
 		section = PLAYER_INFO_SECTION,
-		position = 11
+		position = 12
 	)
 	default Color runEnergyTextColor()
 	{
@@ -1054,7 +1092,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Which bar is drawn topmost in your stack, with any bar picked twice showing " +
 			"only at its topmost pick.",
 		section = PLAYER_INFO_SECTION,
-		position = 12
+		position = 13
 	)
 	default BarKind barPosition1()
 	{
@@ -1066,7 +1104,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 2",
 		description = "Which bar is drawn second in your stack. See 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 13
+		position = 14
 	)
 	default BarKind barPosition2()
 	{
@@ -1078,7 +1116,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 3",
 		description = "Which bar is drawn third in your stack. See 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 14
+		position = 15
 	)
 	default BarKind barPosition3()
 	{
@@ -1090,7 +1128,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Bar 4",
 		description = "Which bar is drawn bottommost in your stack, following the same rules as 'Bar 1'.",
 		section = PLAYER_INFO_SECTION,
-		position = 15
+		position = 16
 	)
 	default BarKind barPosition4()
 	{
@@ -1102,7 +1140,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Status Effects",
 		description = "How poison, venom, burns, bleeds, disease and corruption show on your bar: as a tint, an icon, both, or not at all.",
 		section = PLAYER_INFO_SECTION,
-		position = 16
+		position = 17
 	)
 	default StatusEffectMode selfColorByStatusEffect()
 	{
@@ -1116,7 +1154,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Previews what a hovered food, potion or restore item would give, as an extra segment " +
 			"on the HP, prayer or run bar. Requires your own bar to be showing.",
 		section = PLAYER_INFO_SECTION,
-		position = 17
+		position = 18
 	)
 	default boolean showPreviews()
 	{
@@ -1129,7 +1167,7 @@ public interface CustomHpBarConfig extends Config
 		description = "How long in seconds a player's bar keeps showing the last known HP after the " +
 			"native bar fades (0 = hide immediately).",
 		section = PLAYER_INFO_SECTION,
-		position = 18
+		position = 19
 	)
 	@Range(min = 0, max = 300)
 	default int playerPersistDuration()
@@ -1244,7 +1282,7 @@ public interface CustomHpBarConfig extends Config
 
 	@ConfigItem(
 		keyName = "otherPlayerTextVerticalNudge",
-		name = "Text Nudge",
+		name = "Vertical Text Nudge",
 		description = "Nudges the HP text up (positive) or down (negative) on other players' bars if it looks off-center.",
 		section = OTHER_PLAYER_SECTION,
 		position = 8
@@ -1256,11 +1294,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "otherPlayerTextHorizontalNudge",
+		name = "Horizontal Text Nudge",
+		description = "Nudges the HP text right (positive) or left (negative) on other players' bars.",
+		section = OTHER_PLAYER_SECTION,
+		position = 9
+	)
+	@Range(min = -50, max = 50)
+	default int otherPlayerTextHorizontalNudge()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
 		keyName = "otherPlayerDamageTrail",
 		name = "Damage Trail",
 		description = "Whether a darker trail follows damage down the bar, and whether it matches the bar color or uses its own.",
 		section = OTHER_PLAYER_SECTION,
-		position = 9
+		position = 10
 	)
 	default DamageTrailMode otherPlayerDamageTrail()
 	{
@@ -1273,7 +1324,7 @@ public interface CustomHpBarConfig extends Config
 		description = "Color of the health another player just lost. Requires a Damage Trail of " +
 			"'Custom color'.",
 		section = OTHER_PLAYER_SECTION,
-		position = 10
+		position = 11
 	)
 	default Color otherPlayerDamageTrailColor()
 	{
@@ -1691,6 +1742,20 @@ public interface CustomHpBarConfig extends Config
 		public String toString()
 		{
 			return this == NEVER ? "Never" : this == TRACKED ? "When tracked" : "Always";
+		}
+	}
+
+	/** Text for the Prayer/Special/Run bars - no BOTH, unlike the HP bars' DisplayMode. */
+	enum StatDisplayMode
+	{
+		NUMBER,
+		PERCENT,
+		NEITHER;
+
+		@Override
+		public String toString()
+		{
+			return this == NUMBER ? "Number" : this == PERCENT ? "Percent" : "Neither";
 		}
 	}
 

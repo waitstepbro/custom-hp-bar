@@ -120,7 +120,8 @@ in Other Player Bar — Style.
 | Text Outline | Full outline around the text for readability at small sizes | On |
 | Text Alignment | Where each bar's text sits horizontally within it. | Center |
 | HP Text Spacing | Pushes the HP number and percentage apart, up to the width of the bar. Requires a Display Mode of Both. | 0 |
-| Text Nudge | Nudges the HP text up (positive) or down (negative) if it looks off-center | 0 |
+| Vertical Text Nudge | Nudges the HP text up (positive) or down (negative) if it looks off-center | 0 |
+| Horizontal Text Nudge | Nudges the HP text right (positive) or left (negative). On your own bars it moves Prayer, Special, and Run text too | 0 |
 | Damage Trail | Whether a darker trail follows damage down the bar: Off, Match bar color, or Custom color. Healing has no trail. | Off |
 | Trail Color | Color of the health just lost. Requires a Damage Trail of Custom color. | Red |
 
@@ -175,11 +176,12 @@ in this section, including the color settings in the shared table, is self-only 
 | Prayer Bar | Whether the Prayer bar draws: Never, While praying, When tracked, or Always. | When tracked |
 | Prayer Fill | Fill color of the Prayer bar. Requires Prayer Bar. | Blue |
 | Prayer Text | Color of the Prayer number. Requires Prayer Bar. | White |
+| Prayer Display Mode | Show Prayer as a raw number, a percentage, or neither (bar only, no text). Requires Prayer Bar. | Number |
 | Prayer Bar Tick | Whether the tick timer sweeps across the Prayer bar: Never, While praying, or Always. | Never |
 | Tick Color | Color of the tick timer indicator. Requires Prayer Bar Tick. | White |
 | Special Attack Bar | Whether the special attack bar draws: Never, When tracked, or Always. | Never |
 | Special Attack Fill | Fill color of the special attack bar. Requires Special Attack Bar. | Green |
-| Special Attack Text | Color of the special attack number. Requires Special Attack Bar. | White |
+| Special Attack Text | Color of the special attack percentage. Requires Special Attack Bar. | White |
 | Run Energy Bar | Whether the run energy bar draws: Never, While draining, or Always. | Never |
 | Run Energy Timeout | Hides the run energy bar this many seconds after you last ran (0 = never time out). Requires Run Energy Bar. | 0 |
 | Run Energy Fill | Fill color of the run energy bar. Requires Run Energy Bar. | Gold |
@@ -205,7 +207,8 @@ of your own.
 | Background Color | Color of the empty portion of other players' bars | Dark gray (translucent) |
 | Bar Opacity | Overall transparency of other players' bar background, fill, and border. 100 = fully opaque | 100 |
 | HP Text Color | Color of the HP number on other players' bars | White |
-| Text Nudge | Nudges the HP text up (positive) or down (negative) on other players' bars if it looks off-center | 0 |
+| Vertical Text Nudge | Nudges the HP text up (positive) or down (negative) on other players' bars if it looks off-center | 0 |
+| Horizontal Text Nudge | Nudges the HP text right (positive) or left (negative) on other players' bars | 0 |
 | Damage Trail | Whether a darker trail follows damage down the bar: Off, Match bar color, or Custom color. Healing has no trail. | Off |
 | Trail Color | Color of the health another player just lost. Requires a Damage Trail of Custom color. | Red |
 
