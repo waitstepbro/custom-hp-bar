@@ -1808,6 +1808,7 @@ public interface CustomHpBarConfig extends Config
 		RUNESCAPE_BOLD,
 		RUNESCAPE,
 		RUNESCAPE_SMALL,
+		QUILL_8,
 		SYSTEM_DEFAULT;
 
 		@Override
@@ -1821,6 +1822,8 @@ public interface CustomHpBarConfig extends Config
 					return "RuneScape";
 				case RUNESCAPE_SMALL:
 					return "RuneScape Small";
+				case QUILL_8:
+					return "Quill 8";
 				case SYSTEM_DEFAULT:
 					return "System Default";
 				default:

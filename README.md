@@ -113,7 +113,7 @@ in Other Player Bar — Style.
 | Border Color | Color of the bar's outline | Black (translucent) |
 | Background Color | Color of the empty portion of the bar | Dark gray (translucent) |
 | Bar Opacity | Overall transparency of the bar's background, fill, and border. 100 = fully opaque; text is unaffected. | 100 |
-| Font | Typeface for the HP text | System Default |
+| Font | Typeface for the HP text: RuneScape Bold, RuneScape, RuneScape Small, Quill 8, or System Default | System Default |
 | Font Style | Applied on top of the chosen font | Bold |
 | Font Size | Size of the HP number text | 11 |
 | HP Text Color | Color of the HP number. Prayer, special attack, and run energy have their own colors. | White |
