@@ -40,6 +40,7 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontFormatException;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.Paint;
@@ -98,6 +99,16 @@ class CustomHpBarOverlay extends Overlay
 
 	/** Gap between the NPC name label and the HP bar's top edge. Not configurable yet. */
 	private static final int NAME_GAP = 2;
+
+	// Loaded from the TTFs, not FontManager's getters: those share one "RuneScape" family, so deriveFont(style)
+	// picked the regular or bold face by style alone and the Font option had no effect.
+	private static final Font RUNESCAPE_FONT = loadFont(FontManager.class, "runescape.ttf", FontManager.getRunescapeFont());
+	private static final Font RUNESCAPE_BOLD_FONT =
+		loadFont(FontManager.class, "runescape_bold.ttf", FontManager.getRunescapeBoldFont());
+	private static final Font RUNESCAPE_SMALL_FONT =
+		loadFont(FontManager.class, "runescape_small.ttf", FontManager.getRunescapeSmallFont());
+	private static final Font QUILL_8_FONT =
+		loadFont(CustomHpBarOverlay.class, "runescape_quill_8.ttf", FontManager.getRunescapeFont());
 
 	/** Trailing whitespace left behind by a name truncation, non-breaking space included. */
 	private static final Pattern TRAILING_SPACE = Pattern.compile("[\\s\\u00A0]+$");
@@ -2735,13 +2746,16 @@ class CustomHpBarOverlay extends Overlay
 		switch (family)
 		{
 			case RUNESCAPE_BOLD:
-				base = FontManager.getRunescapeBoldFont();
+				base = RUNESCAPE_BOLD_FONT;
 				break;
 			case RUNESCAPE:
-				base = FontManager.getRunescapeFont();
+				base = RUNESCAPE_FONT;
 				break;
 			case RUNESCAPE_SMALL:
-				base = FontManager.getRunescapeSmallFont();
+				base = RUNESCAPE_SMALL_FONT;
+				break;
+			case QUILL_8:
+				base = QUILL_8_FONT;
 				break;
 			case SYSTEM_DEFAULT:
 			default:
@@ -2749,6 +2763,23 @@ class CustomHpBarOverlay extends Overlay
 				break;
 		}
 		return base.deriveFont(style.getAwtStyle(), size);
+	}
+
+	/** Loads a TTF off owner's classpath, or returns fallback so a bad font never breaks rendering. */
+	private static Font loadFont(Class<?> owner, String resourceName, Font fallback)
+	{
+		try (InputStream in = owner.getResourceAsStream(resourceName))
+		{
+			if (in != null)
+			{
+				return Font.createFont(Font.TRUETYPE_FONT, in);
+			}
+		}
+		catch (IOException | FontFormatException e)
+		{
+			log.warn("Couldn't load font {}", resourceName, e);
+		}
+		return fallback;
 	}
 
 	private static int scaled(int value, double zoom)
