@@ -1162,7 +1162,16 @@ public class CustomHpBarPlugin extends Plugin
 		// that stops being drawn without ever despawning. The overlay checks elapsed time itself
 		// rather than trusting this to have run - this only stops the maps growing.
 		long nowMs = System.currentTimeMillis();
-		deathFades.values().removeIf(start -> nowMs - start >= DEATH_FADE_DURATION_MS || nowMs < start);
+		deathFades.entrySet().removeIf(fade ->
+		{
+			long start = fade.getValue();
+			boolean done = nowMs - start >= DEATH_FADE_DURATION_MS || nowMs < start;
+			if (done)
+			{
+				releaseFadeState(fade.getKey());
+			}
+			return done;
+		});
 		damageTrails.values().removeIf(trail -> nowMs - trail.lastSeenMs > TRAIL_STALE_MS || nowMs < trail.lastSeenMs);
 
 		// onScriptPostFired only fires while the native HUD is actively updating, so this clears
@@ -1337,12 +1346,23 @@ public class CustomHpBarPlugin extends Plugin
 	{
 		trackedActors.remove(actor);
 		lastKnownHp.remove(actor);
-		statusEffectTicks.remove(actor);
-		if (actor instanceof NPC)
+		preciseNpcHp.remove(actor);
+		// A fading corpse keeps its grey/status tint until the fade ends - see releaseFadeState().
+		if (!deathFades.containsKey(actor))
 		{
-			preciseNpcHp.remove(actor);
-			otherPlayerDamaged.remove(actor);
+			releaseFadeState(actor);
 		}
+	}
+
+	/** The tint state a death fade keeps alive past evict(), dropped once nothing can draw it. */
+	private void releaseFadeState(Actor actor)
+	{
+		if (trackedActors.containsKey(actor))
+		{
+			return;
+		}
+		statusEffectTicks.remove(actor);
+		otherPlayerDamaged.remove(actor);
 	}
 
 	/** True while actor's native health bar is actively refreshing - governs the persist-duration eviction clock. */
