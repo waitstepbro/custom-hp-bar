@@ -351,11 +351,23 @@ public interface CustomHpBarConfig extends Config
 	// ==================== Target bar NPC info ====================
 
 	@ConfigItem(
+		keyName = "showNpcBar",
+		name = "Show Bar",
+		description = "When NPCs get a bar: only once you hit them or they hit you, or on every attackable NPC.",
+		section = TARGET_NPC_SECTION,
+		position = 0
+	)
+	default NpcBarVisibility showNpcBar()
+	{
+		return NpcBarVisibility.ALWAYS;
+	}
+
+	@ConfigItem(
 		keyName = "showNpcName",
 		name = "NPC Name",
 		description = "Whether NPCs get a name label: never, only while in combat with you, or always.",
 		section = TARGET_NPC_SECTION,
-		position = 0
+		position = 1
 	)
 	default Visibility showNpcName()
 	{
@@ -367,7 +379,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Combat Level",
 		description = "Appends the NPC's combat level to its name. Requires 'NPC Name'.",
 		section = TARGET_NPC_SECTION,
-		position = 1
+		position = 2
 	)
 	default boolean showNpcCombatLevel()
 	{
@@ -379,7 +391,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Combat NPCs Only",
 		description = "Hides NPCs that have no combat level and no Attack option, like bankers and shop keepers.",
 		section = TARGET_NPC_SECTION,
-		position = 2
+		position = 3
 	)
 	default boolean onlyShowCombatNpcNames()
 	{
@@ -391,7 +403,7 @@ public interface CustomHpBarConfig extends Config
 		name = "Name Length Limit",
 		description = "Shortens NPC names past this many characters and appends a period. 0 = no limit.",
 		section = TARGET_NPC_SECTION,
-		position = 3
+		position = 4
 	)
 	@Range(min = 0, max = 50)
 	default int npcNameMaxLength()
@@ -404,23 +416,11 @@ public interface CustomHpBarConfig extends Config
 		name = "Name Color",
 		description = "Color of the NPC name text, separate from the HP number's color.",
 		section = TARGET_NPC_SECTION,
-		position = 4
+		position = 5
 	)
 	default Color npcNameColor()
 	{
 		return new Color(255, 255, 0);
-	}
-
-	@ConfigItem(
-		keyName = "alwaysShowNpcBar",
-		name = "Always Show Bar",
-		description = "Shows the HP bar on every attackable NPC, not just once engaged.",
-		section = TARGET_NPC_SECTION,
-		position = 5
-	)
-	default boolean alwaysShowNpcBar()
-	{
-		return false;
 	}
 
 	@ConfigItem(
@@ -1205,7 +1205,7 @@ public interface CustomHpBarConfig extends Config
 	@ConfigItem(
 		keyName = "otherPlayerDisplayMode",
 		name = "Display Mode",
-		description = "Show other players' HP as a percentage, or neither (bar only, no text).",
+		description = "Show other players' HP as a percentage, or none (bar only, no text).",
 		section = OTHER_PLAYER_SECTION,
 		position = 1
 	)
@@ -1734,6 +1734,24 @@ public interface CustomHpBarConfig extends Config
 		}
 	}
 
+	/** Visibility without NEVER - the NPC bar is the plugin's whole point, so it can't be turned off. */
+	enum NpcBarVisibility
+	{
+		TRACKED,
+		ALWAYS;
+
+		public boolean always()
+		{
+			return this == ALWAYS;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this == TRACKED ? "When tracked" : "Always";
+		}
+	}
+
 	/** Two former checkboxes - "show" and "always show" - as the one three-state choice they described. */
 	enum Visibility
 	{
@@ -1775,12 +1793,13 @@ public interface CustomHpBarConfig extends Config
 	enum OtherPlayerDisplayMode
 	{
 		PERCENT,
+		// Shown as "None"; the constant name is what saved configs store, so it stays.
 		NEITHER;
 
 		@Override
 		public String toString()
 		{
-			return this == PERCENT ? "Percent" : "Neither";
+			return this == PERCENT ? "Percent" : "None";
 		}
 	}
 
