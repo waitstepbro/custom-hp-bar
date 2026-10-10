@@ -52,8 +52,8 @@ If you would like to support in some way, please consider joining the
   instead of overlapping.
 - **Prioritize self on same tile** — optionally hide an NPC's or other player's bar/name entirely
   when they're standing on your own tile, instead of stacking with yours.
-- **Always show NPC bars** — optionally show the bar on every attackable NPC, not just once you
-  engage it.
+- **Always show NPC bars** — every attackable NPC gets a bar by default; set Show Bar to When tracked
+  to only show it once you hit the NPC or it hits you.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
   show an icon by its bar.
 - **Elemental weakness icon** — optionally show the matching surge spell icon beside an NPC's bar,
@@ -135,12 +135,12 @@ in Other Player Bar — Style.
 
 | Setting | Description | Default |
 |---|---|---|
+| Show Bar | When NPCs get a bar: When tracked (once you hit them or they hit you) or Always (every attackable NPC). | Always |
 | NPC Name | Whether NPCs get a name label: Never, When tracked, or Always. | Always |
 | Combat Level | Appends the NPC's combat level to its name. Requires NPC Name. | Off |
 | Combat NPCs Only | Hides NPCs that have no combat level and no Attack option, like bankers and shop keepers. Pets are hidden either way. | On |
 | Name Length Limit | Shortens NPC names past this many characters and appends a period. 0 = no limit. | 0 |
 | Name Color | Color of the NPC name text, separate from the HP number's color | Yellow |
-| Always Show Bar | Shows the HP bar on every attackable NPC, not just once engaged. | Off |
 | Death Fade | Fades an NPC's bar and name out when it dies instead of hiding them the instant the killing blow lands. | On |
 | Persist Duration | How long in seconds the bar keeps showing the last known HP after the native bar fades (0 = hide immediately). | 5 |
 | Stack Limit | Caps how many NPCs (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |

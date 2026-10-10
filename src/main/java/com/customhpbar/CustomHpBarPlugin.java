@@ -32,8 +32,6 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
-import net.runelite.api.events.InteractingChanged;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
@@ -133,6 +131,9 @@ public class CustomHpBarPlugin extends Plugin
 		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE,
 		HitsplatID.BLOCK_OTHER
 	));
+
+	/** Ticks after a hit taken that an NPC attacking you is credited with it - 1 absorbs event ordering. */
+	private static final int SELF_HIT_ATTRIBUTION_TICKS = 1;
 
 	/** Hitsplat type -> the status effect it signals, and the source of truth for which are status-relevant. */
 	private static final Map<Integer, StatusEffect> STATUS_HITSPLAT_EFFECTS = buildStatusHitsplatEffects();
@@ -624,9 +625,8 @@ public class CustomHpBarPlugin extends Plugin
 	private final Map<NPC, int[]> toaDamageTally = new ConcurrentHashMap<>();
 	private final Set<NPC> toaTallyLogged = ConcurrentHashMap.newKeySet();
 
-	/** Actor + whether the last actor-targeted menu click was "Attack" - see isGenuineAttackTarget(). */
-	private Actor pendingClickActor;
-	private boolean pendingClickIsAttack;
+	/** Tick the local player last took a damage hitsplat - gates crediting attackers in onGameTick. */
+	private int lastSelfHitTick = Integer.MIN_VALUE / 2;
 
 	/** Cached because Quest.getState() runs a client script; refreshed on login and MM2 progress changes. */
 	private boolean mm2Complete;
@@ -703,6 +703,16 @@ public class CustomHpBarPlugin extends Plugin
 
 		configManager.setConfiguration(CONFIG_GROUP, CONFIG_MIGRATION_KEY, true);
 		log.debug("Migrated merged config items to their dropdown equivalents");
+	}
+
+	/** Postdates the mergedItemsMigrated marker, so it runs on the old key's presence instead. */
+	private void migrateNpcBarVisibility()
+	{
+		if (Boolean.FALSE.equals(oldFlag("alwaysShowNpcBar")))
+		{
+			configManager.setConfiguration(CONFIG_GROUP, "showNpcBar", "TRACKED");
+		}
+		configManager.unsetConfiguration(CONFIG_GROUP, "alwaysShowNpcBar");
 	}
 
 	/** A "show" plus "always show" pair. Absent keys leave the new item alone, so defaults still apply. */
@@ -831,6 +841,7 @@ public class CustomHpBarPlugin extends Plugin
 	protected void startUp()
 	{
 		migrateMergedConfigItems();
+		migrateNpcBarVisibility();
 		suppressSelfOverheads = config.showForSelf().shown();
 		overlayManager.add(overlay);
 		renderCallbackManager.register(renderCallback);
@@ -864,7 +875,7 @@ public class CustomHpBarPlugin extends Plugin
 		overheadEligiblePlayers = Collections.emptySet();
 		overheadEligibleNpcs = Collections.emptySet();
 		otherPlayersInScene = false;
-		pendingClickActor = null;
+		lastSelfHitTick = Integer.MIN_VALUE / 2;
 		mm2Complete = false;
 		doomDelveLevel = 1;
 		setNativeHudBossName(null);
@@ -1057,6 +1068,11 @@ public class CustomHpBarPlugin extends Plugin
 			track(actor, client.getTickCount());
 		}
 
+		if (actor == client.getLocalPlayer() && DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
+		{
+			lastSelfHitTick = client.getTickCount();
+		}
+
 		// A hit you dealt to someone else - Hitsplat.isMine(), which includes BLOCK_ME - keeps your own bar's
 		// clock refreshed while you take no damage yourself. Without it the bar can expire mid-fight against
 		// something that never hits back.
@@ -1118,52 +1134,6 @@ public class CustomHpBarPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked event)
-	{
-		Actor actor = event.getMenuEntry().getActor();
-		if (actor != null)
-		{
-			pendingClickActor = actor;
-			pendingClickIsAttack = "attack".equalsIgnoreCase(event.getMenuOption());
-		}
-	}
-
-	/** Whether actor is a genuine attack target - combat level plus the last Attack-click override. */
-	private boolean isGenuineAttackTarget(Actor actor)
-	{
-		if (actor.getCombatLevel() <= 0)
-		{
-			return false;
-		}
-		return actor != pendingClickActor || pendingClickIsAttack;
-	}
-
-	@Subscribe
-	public void onInteractingChanged(InteractingChanged event)
-	{
-		Actor source = event.getSource();
-		Actor target = event.getTarget();
-
-		// target == null when the interacting reference is just cleared (e.g. zone transitions).
-		if (source != client.getLocalPlayer() || target == null || !isGenuineAttackTarget(target))
-		{
-			return;
-		}
-
-		// Track whatever the player is attacking, and the player themselves, so "Show for Self"
-		// reflects entering combat immediately rather than waiting for the first hitsplat.
-		if (isTrackedType(target))
-		{
-			track(target, client.getTickCount());
-		}
-
-		if (isTrackedType(source))
-		{
-			track(source, client.getTickCount());
-		}
-	}
-
-	@Subscribe
 	public void onGameTick(GameTick event)
 	{
 		int currentTick = client.getTickCount();
@@ -1206,32 +1176,25 @@ public class CustomHpBarPlugin extends Plugin
 			}
 		}
 
-		// Covers starting/toggling tracking mid-fight, without waiting for a fresh
-		// HitsplatApplied/InteractingChanged event.
+		// Tracking starts on damage, never on a click or aggro - see CLAUDE.md "Discovery paths".
 		Actor localPlayer = client.getLocalPlayer();
 		if (localPlayer != null)
 		{
-			// Same isGenuineAttackTarget() exclusion as onInteractingChanged, so this doesn't
-			// keep re-tracking a lingering non-combat interacting reference every tick.
-			Actor interacting = localPlayer.getInteracting();
-			if (interacting != null && isGenuineAttackTarget(interacting)
-					&& isTrackedType(interacting) && !trackedActors.containsKey(interacting))
-			{
-				track(interacting, currentTick);
-			}
 			if (isTrackedType(localPlayer) && isInCombat(localPlayer) && !trackedActors.containsKey(localPlayer))
 			{
 				track(localPlayer, currentTick);
 			}
 
-			// The other direction: an NPC already attacking the player (aggro, or resuming combat
-			// after login/teleport) never fires InteractingChanged for the player's own side.
-			for (NPC npc : client.getTopLevelWorldView().npcs())
+			// A hit taken carries no attacker, so whoever is attacking you right then is credited with it.
+			if (currentTick - lastSelfHitTick <= SELF_HIT_ATTRIBUTION_TICKS)
 			{
-				if (npc != null && npc.getInteracting() == localPlayer
-						&& isTrackedType(npc) && !trackedActors.containsKey(npc))
+				for (NPC npc : client.getTopLevelWorldView().npcs())
 				{
-					track(npc, currentTick);
+					if (npc != null && npc.getInteracting() == localPlayer
+							&& isTrackedType(npc) && !trackedActors.containsKey(npc))
+					{
+						track(npc, currentTick);
+					}
 				}
 			}
 		}
@@ -1334,7 +1297,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	private void updateOverheadEligibleNpcs()
 	{
-		boolean alwaysShown = config.alwaysShowNpcBar() || config.showNpcName().always();
+		boolean alwaysShown = config.showNpcBar().always() || config.showNpcName().always();
 		Set<NPC> eligible = new HashSet<>();
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
@@ -1434,12 +1397,12 @@ public class CustomHpBarPlugin extends Plugin
 			return;
 		}
 
-		// The "Always Show NPC Bar" half mirrors that pass's own conditions exactly - without
+		// The always-shown NPC bar half mirrors that pass's own conditions exactly - without
 		// isTrackedNpcCached() a blacklisted or non-combat NPC would qualify here despite never
 		// having had a bar to fade.
 		NPC npc = (NPC) actor;
 		if (trackedActors.containsKey(npc)
-			|| (config.alwaysShowNpcBar() && isTrackedNpcCached(npc)
+			|| (config.showNpcBar().always() && isTrackedNpcCached(npc)
 				&& (isAttackableNpc(npc) || hudDrivenNpc(npc))))
 		{
 			deathFades.putIfAbsent(npc, System.currentTimeMillis());

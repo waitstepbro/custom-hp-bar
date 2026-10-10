@@ -340,6 +340,11 @@ class CustomHpBarOverlay extends Overlay
 			// Filtering already happened in CustomHpBarPlugin.isTrackedType() - nothing to re-check.
 			int maxHp = resolveMaxHp(actor);
 			int[] hp = resolveHp(actor, maxHp);
+			// An NPC credited with a hit on you has no HP data until you damage it - full, as the Always pass does.
+			if (hp == null && actor instanceof NPC && !plugin.hudDrivenNpc((NPC) actor))
+			{
+				hp = new int[]{1, 1};
+			}
 			if (hp == null)
 			{
 				continue;
@@ -502,9 +507,9 @@ class CustomHpBarOverlay extends Overlay
 			}
 		}
 
-		// Second pass for "regardless of combat" behaviors: Always Show NPC Bar/Name, one shared
+		// Second pass for "regardless of combat" behaviors: NPC bar/name set to Always, one shared
 		// loop so they don't double-claim same-tile stack slots.
-		boolean alwaysBar = config.alwaysShowNpcBar();
+		boolean alwaysBar = config.showNpcBar().always();
 		boolean alwaysName = config.showNpcName().always();
 		if (alwaysBar || alwaysName)
 		{
