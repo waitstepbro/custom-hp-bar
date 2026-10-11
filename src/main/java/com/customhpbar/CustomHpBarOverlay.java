@@ -972,13 +972,24 @@ class CustomHpBarOverlay extends Overlay
 
 	/**
 	 * Whether actor gets no bar or name at all this frame under "Prioritize Self on Same Tile" - an NPC or
-	 * other player on selfPriorityTile exactly, never self. A null tile (feature off, no local player, Show
-	 * for Self off) suppresses nobody. Checked before any stack-limit charge or seeding, not at draw time.
+	 * other player on selfPriorityTile, or sharing self's stackTile(), never self. A null tile (feature off,
+	 * no local player, Show for Self off) suppresses nobody. Checked before any stack-limit charge or
+	 * seeding, not at draw time.
 	 */
 	private boolean suppressedForSelfTile(Actor actor, WorldPoint selfPriorityTile)
 	{
-		return selfPriorityTile != null && actor != client.getLocalPlayer()
-			&& selfPriorityTile.equals(actor.getWorldLocation());
+		Player self = client.getLocalPlayer();
+		if (selfPriorityTile == null || actor == self)
+		{
+			return false;
+		}
+		if (selfPriorityTile.equals(actor.getWorldLocation()))
+		{
+			return true;
+		}
+		// The server tile leads the model and skips tiles at a run; the stack tile catches the frames it misses.
+		WorldPoint selfStackTile = stackTile(self);
+		return selfStackTile != null && selfStackTile.equals(stackTile(actor));
 	}
 
 	/**
