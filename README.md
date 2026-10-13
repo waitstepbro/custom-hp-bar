@@ -51,7 +51,8 @@ If you would like to support in some way, please consider joining the
 - **Same-tile stacking** — actors sharing a tile get their bars and names stacked vertically
   instead of overlapping.
 - **Prioritize self on same tile** — optionally hide an NPC's or other player's bar/name entirely
-  when they're standing on your own tile, instead of stacking with yours.
+  when they're standing on your own tile, instead of stacking with yours. Other players get the same
+  priority over NPCs on their tile.
 - **Always show NPC bars** — every attackable NPC gets a bar by default; set Show Bar to When tracked
   to only show it once you hit the NPC or it hits you.
 - **Aggressive NPC indicator** — optionally color a known-aggressive monster's name and bar and
@@ -227,6 +228,7 @@ of your own.
 | GIM Name Color | Color of a Group Ironman groupmate's name. Requires "Highlight Groups". | Light purple |
 | Clan Name Color | Color of a clan member's name. Requires "Highlight Groups". | Light blue |
 | Stack Limit | Caps how many other players (bar and/or name) render on the same tile at once. 0 = unlimited. | 0 |
+| Prioritize Players | When an NPC shares a tile with another player whose bar or name is showing, hides the NPC's bar and name instead of stacking it with theirs. | On |
 | Blacklist | Comma-separated player names to hide. Supports `*` wildcards; leave blank to show all. | (blank) |
 
 ### Behavior & Hotkeys

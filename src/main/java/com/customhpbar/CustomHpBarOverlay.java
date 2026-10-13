@@ -297,6 +297,7 @@ class CustomHpBarOverlay extends Overlay
 		// suppressedForSelfTile().
 		WorldPoint selfPriorityTile = config.prioritizeSelfOnSameTile() && localPlayer != null && config.showForSelf().shown()
 			? localPlayer.getWorldLocation() : null;
+		Set<WorldPoint> playerPriorityTiles = resolvePlayerPriorityTiles(localPlayer);
 
 		// Resolved before anything draws - drawSkullIcon()/drawOverheadIcon() read iconOwners to
 		// suppress every non-owner's icon row, and the loops below defer each owner's entry.
@@ -343,7 +344,7 @@ class CustomHpBarOverlay extends Overlay
 
 		// Cheapest check first, before any HP resolution or stack-limit charge - a suppressed actor is
 		// invisible to the whole same-tile system, not just skipped at draw time.
-			if (suppressedForSelfTile(actor, selfPriorityTile))
+			if (suppressedForSelfTile(actor, selfPriorityTile) || suppressedForPlayerTile(actor, playerPriorityTiles))
 			{
 				continue;
 			}
@@ -446,6 +447,7 @@ class CustomHpBarOverlay extends Overlay
 				float alpha = 1f - (now - fade.getValue()) / (float) fadeMs;
 				if (alpha <= 0f || alpha > 1f || !plugin.isTrackedNpcCached(npc)
 					|| suppressedForSelfTile(npc, selfPriorityTile)
+					|| suppressedForPlayerTile(npc, playerPriorityTiles)
 					|| !npcStackAllowed(npcStackCounts, npcStackDecided, npc))
 				{
 					continue;
@@ -528,7 +530,8 @@ class CustomHpBarOverlay extends Overlay
 			for (NPC npc : client.getTopLevelWorldView().npcs())
 			{
 				// Cached per game tick, not recomputed every frame - see CustomHpBarPlugin.isTrackedNpcCached().
-				if (npc == null || !plugin.isTrackedNpcCached(npc) || suppressedForSelfTile(npc, selfPriorityTile))
+				if (npc == null || !plugin.isTrackedNpcCached(npc) || suppressedForSelfTile(npc, selfPriorityTile)
+					|| suppressedForPlayerTile(npc, playerPriorityTiles))
 				{
 					continue;
 				}
@@ -597,7 +600,7 @@ class CustomHpBarOverlay extends Overlay
 		}
 
 		// Every NPC whose native overheads are suppressed, after all three NPC passes so their stacked anchors
-		// and drawn names are known. Also covers the ones those passes skipped (stack cap, self tile).
+		// and drawn names are known. Also covers the ones those passes skipped (stack cap, self or player tile).
 		for (NPC npc : plugin.getOverheadEligibleNpcs())
 		{
 			if (!plugin.isOverheadSuppressed(npc))
@@ -990,6 +993,57 @@ class CustomHpBarOverlay extends Overlay
 		// The server tile leads the model and skips tiles at a run; the stack tile catches the frames it misses.
 		WorldPoint selfStackTile = stackTile(self);
 		return selfStackTile != null && selfStackTile.equals(stackTile(actor));
+	}
+
+	/**
+	 * "Prioritize Players": the server and stack tiles of every other player with a bar or name showing
+	 * this frame - suppressedForPlayerTile() hides any NPC on one. Empty with the option off.
+	 */
+	private Set<WorldPoint> resolvePlayerPriorityTiles(Player localPlayer)
+	{
+		if (!config.prioritizePlayersOnSameTile())
+		{
+			return Collections.emptySet();
+		}
+		boolean barShown = config.showForPlayers().shown();
+		boolean nameShown = config.showPlayerName().shown();
+		boolean alwaysShown = config.showForPlayers().always() || config.showPlayerName().always();
+		if (!barShown && !nameShown)
+		{
+			return Collections.emptySet();
+		}
+
+		Set<WorldPoint> tiles = new HashSet<>();
+		Map<Actor, Integer> tracked = plugin.getTrackedActors();
+		for (Player other : client.getTopLevelWorldView().players())
+		{
+			if (other == null || other == localPlayer || !plugin.isTrackedPlayer(other)
+				|| CustomHpBarPlugin.isConfirmedDead(other) || !(alwaysShown || tracked.containsKey(other)))
+			{
+				continue;
+			}
+			WorldPoint server = other.getWorldLocation();
+			WorldPoint stack = stackTile(other);
+			if (server != null)
+			{
+				tiles.add(server);
+			}
+			if (stack != null)
+			{
+				tiles.add(stack);
+			}
+		}
+		return tiles;
+	}
+
+	/** Whether an NPC loses its tile to another player under "Prioritize Players". Never suppresses a player. */
+	private boolean suppressedForPlayerTile(Actor actor, Set<WorldPoint> playerPriorityTiles)
+	{
+		if (!(actor instanceof NPC) || playerPriorityTiles.isEmpty())
+		{
+			return false;
+		}
+		return playerPriorityTiles.contains(actor.getWorldLocation()) || playerPriorityTiles.contains(stackTile(actor));
 	}
 
 	/**
