@@ -1471,11 +1471,24 @@ public interface CustomHpBarConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "prioritizePlayersOnSameTile",
+		name = "Prioritize Players",
+		description = "When an NPC shares a tile with another player whose bar or name is showing, hides the " +
+			"NPC's bar and name instead of stacking it with theirs.",
+		section = OTHER_PLAYER_INFO_SECTION,
+		position = 10
+	)
+	default boolean prioritizePlayersOnSameTile()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "playerFilter",
 		name = "Blacklist",
 		description = "Comma-separated player names to hide. Supports * wildcards; leave blank to show all.",
 		section = OTHER_PLAYER_INFO_SECTION,
-		position = 10
+		position = 11
 	)
 	default String playerFilter()
 	{
