@@ -20,6 +20,7 @@ import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SkullIcon;
 import net.runelite.api.SpritePixels;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
@@ -557,6 +558,12 @@ public class CustomHpBarPlugin extends Plugin
 	@Getter
 	private final Map<NPC, Integer> preciseNpcHp = new ConcurrentHashMap<>();
 
+	/** Tick of each NPC's last HP hitsplat - settlePreciseHp() waits HITSPLAT_SETTLE_TICKS past it. */
+	private final Map<NPC, Integer> lastHpHitsplatTick = new ConcurrentHashMap<>();
+
+	/** Ticks after a hitsplat before its NPC's tally is re-clamped, so a lagging ratio can't undo the hit. */
+	private static final int HITSPLAT_SETTLE_TICKS = 2;
+
 	/** NPCs damaged by someone other than the local player since last evicted - powers greyOutOtherPlayerDamage. */
 	private final Set<NPC> otherPlayerDamaged = ConcurrentHashMap.newKeySet();
 
@@ -624,6 +631,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** Debug-only: damage per live ToA NPC as {total, lastHit, hits, healthScale}, dumped on death. */
 	private final Map<NPC, int[]> toaDamageTally = new ConcurrentHashMap<>();
 	private final Set<NPC> toaTallyLogged = ConcurrentHashMap.newKeySet();
+
 
 	/** Tick the local player last took a damage hitsplat - gates crediting attackers in onGameTick. */
 	private int lastSelfHitTick = Integer.MIN_VALUE / 2;
@@ -857,24 +865,8 @@ public class CustomHpBarPlugin extends Plugin
 		overlayManager.remove(overlay);
 		keyManager.unregisterKeyListener(toggleNamesHotkeyListener);
 		keyManager.unregisterKeyListener(toggleHpBarsHotkeyListener);
-		trackedActors.clear();
-		lastKnownHp.clear();
-		damageTrails.clear();
-		pendingTrailDamage.clear();
-		deathFades.clear();
-		preciseNpcHp.clear();
-		doomShielded.clear();
-		chargeStart.clear();
-		chargeClosedTick.clear();
-		seededFlares.clear();
-		doomFormChangedTick.clear();
-		doomShieldEndedTick.clear();
-		otherPlayerDamaged.clear();
+		clearSceneActorState();
 		statusEffectTicks.clear();
-		overheadHitsplats.clear();
-		overheadEligiblePlayers = Collections.emptySet();
-		overheadEligibleNpcs = Collections.emptySet();
-		otherPlayersInScene = false;
 		lastSelfHitTick = Integer.MIN_VALUE / 2;
 		mm2Complete = false;
 		doomDelveLevel = 1;
@@ -883,16 +875,58 @@ public class CustomHpBarPlugin extends Plugin
 		lastTickTimeMs = System.currentTimeMillis();
 		bleedEndVarcCounting = false;
 		bleedEndedTick = Integer.MIN_VALUE;
-		trackedNpcCache.clear();
 		trackedNpcCacheTick = Integer.MIN_VALUE;
 		toaLoggedNpcIds.clear();
 		toaLoggedRegion = -1;
 		loggedHudMaxHp = -1;
 		loggedToaParty = null;
 		loggedHudName = null;
+		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
+	}
+
+	/**
+	 * Drops every per-actor record. A world hop or logout removes the scene's actors without despawn events,
+	 * so without this their bars drew on at stale coordinates until the persist timer ran out.
+	 */
+	private void clearSceneActorState()
+	{
+		trackedActors.clear();
+		lastKnownHp.clear();
+		damageTrails.clear();
+		pendingTrailDamage.clear();
+		deathFades.clear();
+		preciseNpcHp.clear();
+		lastHpHitsplatTick.clear();
+		doomShielded.clear();
+		chargeStart.clear();
+		chargeClosedTick.clear();
+		seededFlares.clear();
+		doomFormChangedTick.clear();
+		doomShieldEndedTick.clear();
+		otherPlayerDamaged.clear();
+		statusEffectTicks.keySet().removeIf(actor -> actor != client.getLocalPlayer());
+		overheadHitsplats.clear();
+		overheadEligiblePlayers = Collections.emptySet();
+		overheadEligibleNpcs = Collections.emptySet();
+		otherPlayersInScene = false;
+		trackedNpcCache.clear();
 		toaDamageTally.clear();
 		toaTallyLogged.clear();
-		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
+	}
+
+	/** Whether actor is still the object its scene holds at its index - see clearSceneActorState(). */
+	private static boolean isInScene(Actor actor)
+	{
+		WorldView wv = actor.getWorldView();
+		if (wv == null)
+		{
+			return false;
+		}
+		if (actor instanceof NPC)
+		{
+			return wv.npcs().byIndex(((NPC) actor).getIndex()) == actor;
+		}
+		return !(actor instanceof Player) || wv.players().byIndex(((Player) actor).getId()) == actor;
 	}
 
 	@Subscribe
@@ -923,6 +957,10 @@ public class CustomHpBarPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
+		if (event.getGameState() == GameState.HOPPING || event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			clearSceneActorState();
+		}
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
 			clientThread.invokeLater(this::syncNativeBarOverrides);
@@ -1211,6 +1249,14 @@ public class CustomHpBarPlugin extends Plugin
 		// ConcurrentHashMap.forEach allows safe reads and puts/removes during iteration.
 		trackedActors.forEach((actor, lastSeen) ->
 		{
+			// Backstop for clearSceneActorState(): any other way an actor leaves without a despawn event.
+			if (actor != localPlayer && !isInScene(actor))
+			{
+				clearAnimations(actor);
+				evict(actor);
+				return;
+			}
+
 			// Death first: isTrackedType() already returns false for a corpse, so testing it first
 			// swallowed every death before beginDeathFade() could see one. Same eviction either
 			// way - only which branch claims it changes.
@@ -1245,6 +1291,7 @@ public class CustomHpBarPlugin extends Plugin
 		updateOverheadEligibleNpcs();
 
 		trackSecondaryBars();
+		settlePreciseHp();
 
 		logToaScaling();
 	}
@@ -1347,6 +1394,7 @@ public class CustomHpBarPlugin extends Plugin
 		trackedActors.remove(actor);
 		lastKnownHp.remove(actor);
 		preciseNpcHp.remove(actor);
+		lastHpHitsplatTick.remove(actor);
 		// A fading corpse keeps its grey/status tint until the fade ends - see releaseFadeState().
 		if (!deathFades.containsKey(actor))
 		{
@@ -2055,21 +2103,56 @@ public class CustomHpBarPlugin extends Plugin
 		return TOA_REGION_IDS.contains(localPlayerRegion());
 	}
 
-	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact bound. */
-	private void updatePreciseHp(NPC npc, int ratio, int scale, boolean freshRead)
+	/** Whether an NPC's ratio/scale must not re-anchor its tally right now - hitsplats alone carry it. */
+	private boolean ignoresBarReading(NPC npc)
 	{
 		// Shielded and burrowed report a pool that is not hitpoints, and the bar still reports the old
 		// form's for a tick after a swap. Taken as real readings these refilled Doom to max mid-burrow and
 		// zeroed him leaving it; hitsplats carry his HP through instead - see applyHitsplatDamage().
-		if (DOOM_ALT_BAR_FORMS.contains(npc.getId())
-			|| Integer.valueOf(client.getTickCount()).equals(doomFormChangedTick.get(npc)))
-		{
-			return;
-		}
+		// A flare's ratio is pinned full for its whole life - see seedFlareHp().
+		return DOOM_ALT_BAR_FORMS.contains(npc.getId())
+			|| Integer.valueOf(client.getTickCount()).equals(doomFormChangedTick.get(npc))
+			|| seededFlares.contains(npc);
+	}
 
-		// Same reasoning for a flare: its ratio is pinned full for its whole life, so re-anchoring would
-		// clamp the tally straight back to max after every hit - see seedFlareHp().
-		if (seededFlares.contains(npc))
+	/**
+	 * Clamps each tally into its current reading's bound once its last hitsplat has settled, even when the
+	 * reading hasn't changed. HP gained without a hitsplat otherwise sits unseen until death - see CLAUDE.md.
+	 */
+	private void settlePreciseHp()
+	{
+		int tick = client.getTickCount();
+		for (Map.Entry<NPC, Integer> entry : preciseNpcHp.entrySet())
+		{
+			NPC npc = entry.getKey();
+			Integer lastHit = lastHpHitsplatTick.get(npc);
+			if ((lastHit != null && tick - lastHit < HITSPLAT_SETTLE_TICKS) || ignoresBarReading(npc))
+			{
+				continue;
+			}
+
+			int ratio = npc.getHealthRatio();
+			int scale = npc.getHealthScale();
+			int maxHp = resolveNpcMaxHp(npc.getId());
+			if (ratio <= 0 || scale <= 1 || ratio >= scale || maxHp <= 0)
+			{
+				continue;
+			}
+
+			int[] bound = hpBound(maxHp, ratio, scale);
+			int tally = entry.getValue();
+			int clamped = Math.max(bound[0], Math.min(bound[1], tally));
+			if (clamped != tally)
+			{
+				preciseNpcHp.put(npc, clamped);
+			}
+		}
+	}
+
+	/** Establishes/clamps the precise HP baseline from a fresh ratio/scale read into core's exact bound. */
+	private void updatePreciseHp(NPC npc, int ratio, int scale, boolean freshRead)
+	{
+		if (ignoresBarReading(npc))
 		{
 			return;
 		}
@@ -2113,8 +2196,9 @@ public class CustomHpBarPlugin extends Plugin
 
 		// Inverse of the server's ratio = 1 + (scale - 1) * hp / maxHp (see OpponentInfoOverlay) -
 		// bounds the true HP to an exact interval, clamped into rather than snapped to. See CLAUDE.md.
-		int minHealth = ratio == 1 ? 1 : (maxHp * (ratio - 1) + scale - 2) / (scale - 1);
-		int maxHealth = Math.min(maxHp, (maxHp * ratio - 1) / (scale - 1));
+		int[] bound = hpBound(maxHp, ratio, scale);
+		int minHealth = bound[0];
+		int maxHealth = bound[1];
 
 		if (current == null)
 		{
@@ -2128,6 +2212,14 @@ public class CustomHpBarPlugin extends Plugin
 		{
 			preciseNpcHp.put(npc, maxHealth);
 		}
+	}
+
+	/** [min, max] true HP for a 0 < ratio < scale reading, with scale > 1. */
+	private static int[] hpBound(int maxHp, int ratio, int scale)
+	{
+		int minHealth = ratio == 1 ? 1 : (maxHp * (ratio - 1) + scale - 2) / (scale - 1);
+		int maxHealth = Math.min(maxHp, (maxHp * ratio - 1) / (scale - 1));
+		return new int[]{minHealth, maxHealth};
 	}
 
 	/**
@@ -2353,6 +2445,7 @@ public class CustomHpBarPlugin extends Plugin
 
 	private void applyHitsplatDamage(NPC npc, Hitsplat hitsplat)
 	{
+		lastHpHitsplatTick.put(npc, client.getTickCount());
 		Integer current = preciseNpcHp.get(npc);
 		if (current == null)
 		{
@@ -2383,6 +2476,11 @@ public class CustomHpBarPlugin extends Plugin
 		int maxHp = resolveNpcMaxHp(npc.getId());
 		int updated = current + delta;
 		updated = Math.max(0, maxHp > 0 ? Math.min(updated, maxHp) : updated);
+		// The reading arriving with a hit already includes it, so a living one rules out 0 - see CLAUDE.md.
+		if (updated == 0 && npc.getHealthRatio() > 0 && !ignoresBarReading(npc))
+		{
+			updated = 1;
+		}
 		preciseNpcHp.put(npc, updated);
 	}
 
