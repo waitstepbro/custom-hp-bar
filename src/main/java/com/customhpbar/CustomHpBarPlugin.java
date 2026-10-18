@@ -20,6 +20,7 @@ import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.SkullIcon;
 import net.runelite.api.SpritePixels;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
@@ -864,6 +865,31 @@ public class CustomHpBarPlugin extends Plugin
 		overlayManager.remove(overlay);
 		keyManager.unregisterKeyListener(toggleNamesHotkeyListener);
 		keyManager.unregisterKeyListener(toggleHpBarsHotkeyListener);
+		clearSceneActorState();
+		statusEffectTicks.clear();
+		lastSelfHitTick = Integer.MIN_VALUE / 2;
+		mm2Complete = false;
+		doomDelveLevel = 1;
+		setNativeHudBossName(null);
+		prayerActive = false;
+		lastTickTimeMs = System.currentTimeMillis();
+		bleedEndVarcCounting = false;
+		bleedEndedTick = Integer.MIN_VALUE;
+		trackedNpcCacheTick = Integer.MIN_VALUE;
+		toaLoggedNpcIds.clear();
+		toaLoggedRegion = -1;
+		loggedHudMaxHp = -1;
+		loggedToaParty = null;
+		loggedHudName = null;
+		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
+	}
+
+	/**
+	 * Drops every per-actor record. A world hop or logout removes the scene's actors without despawn events,
+	 * so without this their bars drew on at stale coordinates until the persist timer ran out.
+	 */
+	private void clearSceneActorState()
+	{
 		trackedActors.clear();
 		lastKnownHp.clear();
 		damageTrails.clear();
@@ -878,29 +904,29 @@ public class CustomHpBarPlugin extends Plugin
 		doomFormChangedTick.clear();
 		doomShieldEndedTick.clear();
 		otherPlayerDamaged.clear();
-		statusEffectTicks.clear();
+		statusEffectTicks.keySet().removeIf(actor -> actor != client.getLocalPlayer());
 		overheadHitsplats.clear();
 		overheadEligiblePlayers = Collections.emptySet();
 		overheadEligibleNpcs = Collections.emptySet();
 		otherPlayersInScene = false;
-		lastSelfHitTick = Integer.MIN_VALUE / 2;
-		mm2Complete = false;
-		doomDelveLevel = 1;
-		setNativeHudBossName(null);
-		prayerActive = false;
-		lastTickTimeMs = System.currentTimeMillis();
-		bleedEndVarcCounting = false;
-		bleedEndedTick = Integer.MIN_VALUE;
 		trackedNpcCache.clear();
-		trackedNpcCacheTick = Integer.MIN_VALUE;
-		toaLoggedNpcIds.clear();
-		toaLoggedRegion = -1;
-		loggedHudMaxHp = -1;
-		loggedToaParty = null;
-		loggedHudName = null;
 		toaDamageTally.clear();
 		toaTallyLogged.clear();
-		clientThread.invoke(() -> removeSpriteOverride(NativeHealthBarSprites.ALL));
+	}
+
+	/** Whether actor is still the object its scene holds at its index - see clearSceneActorState(). */
+	private static boolean isInScene(Actor actor)
+	{
+		WorldView wv = actor.getWorldView();
+		if (wv == null)
+		{
+			return false;
+		}
+		if (actor instanceof NPC)
+		{
+			return wv.npcs().byIndex(((NPC) actor).getIndex()) == actor;
+		}
+		return !(actor instanceof Player) || wv.players().byIndex(((Player) actor).getId()) == actor;
 	}
 
 	@Subscribe
@@ -931,6 +957,10 @@ public class CustomHpBarPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
+		if (event.getGameState() == GameState.HOPPING || event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			clearSceneActorState();
+		}
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
 			clientThread.invokeLater(this::syncNativeBarOverrides);
@@ -1219,6 +1249,14 @@ public class CustomHpBarPlugin extends Plugin
 		// ConcurrentHashMap.forEach allows safe reads and puts/removes during iteration.
 		trackedActors.forEach((actor, lastSeen) ->
 		{
+			// Backstop for clearSceneActorState(): any other way an actor leaves without a despawn event.
+			if (actor != localPlayer && !isInScene(actor))
+			{
+				clearAnimations(actor);
+				evict(actor);
+				return;
+			}
+
 			// Death first: isTrackedType() already returns false for a corpse, so testing it first
 			// swallowed every death before beginDeathFade() could see one. Same eviction either
 			// way - only which branch claims it changes.
