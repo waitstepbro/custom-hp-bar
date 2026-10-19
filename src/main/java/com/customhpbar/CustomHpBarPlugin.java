@@ -35,7 +35,9 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
+import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.PlayerDespawned;
+import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.widgets.Widget;
@@ -126,11 +128,10 @@ public class CustomHpBarPlugin extends Plugin
 	/** How long a dead NPC's bar takes to fade out. Read by the overlay's death-fade pass too. */
 	static final int DEATH_FADE_DURATION_MS = 600;
 
-	/** Hitsplats meaning another player hit the NPC - powers greyOutOtherPlayerDamage. Includes BLOCK_OTHER. */
-	private static final Set<Integer> OTHER_PLAYER_DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
+	/** Another player's damage, which powers greyOutOtherPlayerDamage. Not BLOCK_OTHER - see CLAUDE.md. */
+	static final Set<Integer> OTHER_PLAYER_DAMAGE_HITSPLATS = new HashSet<>(Arrays.asList(
 		HitsplatID.DAMAGE_OTHER, HitsplatID.DAMAGE_OTHER_CYAN, HitsplatID.DAMAGE_OTHER_ORANGE,
-		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE,
-		HitsplatID.BLOCK_OTHER
+		HitsplatID.DAMAGE_OTHER_YELLOW, HitsplatID.DAMAGE_OTHER_WHITE, HitsplatID.DAMAGE_OTHER_POISE
 	));
 
 	/** Ticks after a hit taken that an NPC attacking you is credited with it - 1 absorbs event ordering. */
@@ -413,6 +414,9 @@ public class CustomHpBarPlugin extends Plugin
 	@Inject
 	private ConfigManager configManager;
 
+	@Inject
+	private HitAttribution hitAttribution;
+
 	/**
 	 * Runtime-only show/hide state for "Toggle Names"/"Toggle HP Bars", flipped by the hotkey listeners
 	 * below. Not config-backed and not reset on startUp()/shutDown() - a hotkey is a temporary override,
@@ -446,12 +450,6 @@ public class CustomHpBarPlugin extends Plugin
 	/** Cached showForSelf - volatile since onConfigChanged isn't guaranteed on the client thread. */
 	private volatile boolean suppressSelfOverheads;
 
-	/**
-	 * Whether anyone but the local player is in the scene, sampled once per tick - the guard on
-	 * DAMAGE_OTHER meaning what greyOutOtherPlayerDamage assumes it means. Volatile and
-	 * tick-granular for the same reason overheadEligiblePlayers is: hitsplats arrive off the tick.
-	 */
-	private volatile boolean otherPlayersInScene;
 
 	/**
 	 * Other players currently eligible for the overhead icon/hitsplat/chat-text replacement self gets -
@@ -908,10 +906,10 @@ public class CustomHpBarPlugin extends Plugin
 		overheadHitsplats.clear();
 		overheadEligiblePlayers = Collections.emptySet();
 		overheadEligibleNpcs = Collections.emptySet();
-		otherPlayersInScene = false;
 		trackedNpcCache.clear();
 		toaDamageTally.clear();
 		toaTallyLogged.clear();
+		hitAttribution.reset();
 	}
 
 	/** Whether actor is still the object its scene holds at its index - see clearSceneActorState(). */
@@ -1072,6 +1070,9 @@ public class CustomHpBarPlugin extends Plugin
 					hitsplat.getDisappearsOnGameCycle()));
 		}
 
+		// Every hitsplat, before the HP-type gate below - other players' hits are judged in onGameTick().
+		hitAttribution.onHitsplatApplied(actor, hitsplat);
+
 		// A hitsplat existing at all doesn't mean HP changed (e.g. PRAYER_DRAIN), so only
 		// trackable types drive HP tracking/caching below.
 		if (!isTrackableHitsplat(hitsplat.getHitsplatType()))
@@ -1121,15 +1122,6 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		trackStatusEffect(actor, hitsplat.getHitsplatType());
-
-		// otherPlayersInScene is the whole point: the client types an NPC's own mechanic damage as
-		// DAMAGE_OTHER exactly as it types another player's hit, so the splat alone can't tell them apart.
-		// An empty scene can. The chat-message path stays untouched - that's the game's verdict, not ours.
-		if (actor instanceof NPC && otherPlayersInScene
-			&& OTHER_PLAYER_DAMAGE_HITSPLATS.contains(hitsplat.getHitsplatType()))
-		{
-			otherPlayerDamaged.add((NPC) actor);
-		}
 
 		// Hide the bar the instant the killing blow lands, rather than waiting out
 		// persistTicks()/the death animation - see isConfirmedDead().
@@ -1184,6 +1176,15 @@ public class CustomHpBarPlugin extends Plugin
 		prayerActive = isAnyPrayerActive();
 
 		trackRunEnergyChange();
+
+		// isInScene(): a killing blow can despawn its NPC before its tick is judged.
+		for (HitAttribution.Verdict verdict : hitAttribution.judgeTick())
+		{
+			if (verdict.isPlayerHit() && isInScene(verdict.getNpc()))
+			{
+				otherPlayerDamaged.add(verdict.getNpc());
+			}
+		}
 
 		// The overlay's render-time check against getDisappearsOnGameCycle() is what actually
 		// controls when a hitsplat stops drawing; this just bounds each list's size between prunes.
@@ -1304,7 +1305,6 @@ public class CustomHpBarPlugin extends Plugin
 	private void updateOverheadEligiblePlayers()
 	{
 		Player localPlayer = client.getLocalPlayer();
-		boolean anyOtherPlayer = false;
 		Set<Player> eligible = new HashSet<>();
 		for (Actor actor : trackedActors.keySet())
 		{
@@ -1323,10 +1323,6 @@ public class CustomHpBarPlugin extends Plugin
 				continue;
 			}
 
-			// Set before the blacklist gate below: a blacklisted player still damages things, so
-			// hiding their bar must not also make their hits read as the NPC's own mechanic.
-			anyOtherPlayer = true;
-
 			// Player Blacklist excludes them here as well as from trackedActors: without this a filtered
 			// player's native overhead icon would still be suppressed, with nothing redrawing it.
 			if (!isTrackedPlayer(player))
@@ -1344,7 +1340,6 @@ public class CustomHpBarPlugin extends Plugin
 		}
 
 		overheadEligiblePlayers = eligible.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(eligible);
-		otherPlayersInScene = anyOtherPlayer;
 	}
 
 	/**
@@ -1595,15 +1590,29 @@ public class CustomHpBarPlugin extends Plugin
 		doomFormChangedTick.remove(event.getNpc());
 		toaDamageTally.remove(event.getNpc());
 		toaTallyLogged.remove(event.getNpc());
+		hitAttribution.onNpcDespawned(event.getNpc());
 		clearAnimations(event.getNpc());
 		evict(event.getNpc());
 	}
 
 	@Subscribe
+	public void onNpcSpawned(NpcSpawned event)
+	{
+		hitAttribution.onNpcSpawned(event.getNpc());
+	}
+
+	@Subscribe
 	public void onPlayerDespawned(PlayerDespawned event)
 	{
+		hitAttribution.onPlayerDespawned(event.getPlayer());
 		clearAnimations(event.getPlayer());
 		evict(event.getPlayer());
+	}
+
+	@Subscribe
+	public void onProjectileMoved(ProjectileMoved event)
+	{
+		hitAttribution.onProjectileMoved(event.getProjectile());
 	}
 
 	/** Advances doomDelveLevel from the "Delve level: N duration:" end-of-fight message. */
@@ -1881,6 +1890,7 @@ public class CustomHpBarPlugin extends Plugin
 	@Subscribe
 	public void onAnimationChanged(AnimationChanged event)
 	{
+		hitAttribution.onAnimationChanged(event.getActor());
 		if (!(event.getActor() instanceof NPC))
 		{
 			return;
