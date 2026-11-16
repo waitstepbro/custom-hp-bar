@@ -72,6 +72,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -643,6 +644,9 @@ public class CustomHpBarPlugin extends Plugin
 	/** Latched once per game tick, exactly as core PrayerPlugin latches prayersActive - never sampled mid-tick. */
 	private boolean prayerActive;
 
+	/** Wall clock for every timing read; the replay harness swaps in a simulated one. */
+	LongSupplier clock = System::currentTimeMillis;
+
 	/** Wall-clock ms the last GameTick was observed - powers tickProgress(), the Prayer bar's sweeping tick timer. */
 	private long lastTickTimeMs = System.currentTimeMillis();
 
@@ -870,7 +874,7 @@ public class CustomHpBarPlugin extends Plugin
 		doomDelveLevel = 1;
 		setNativeHudBossName(null);
 		prayerActive = false;
-		lastTickTimeMs = System.currentTimeMillis();
+		lastTickTimeMs = clock.getAsLong();
 		bleedEndVarcCounting = false;
 		bleedEndedTick = Integer.MIN_VALUE;
 		trackedNpcCacheTick = Integer.MIN_VALUE;
@@ -1170,7 +1174,7 @@ public class CustomHpBarPlugin extends Plugin
 
 		// Latched first, before anything else in this handler - tickProgress() measures elapsed
 		// wall-clock time since this exact moment, so it must be set at the true start of the tick.
-		lastTickTimeMs = System.currentTimeMillis();
+		lastTickTimeMs = clock.getAsLong();
 
 		// The only prayer sample there is, exactly as core PrayerPlugin.onGameTick does it.
 		prayerActive = isAnyPrayerActive();
@@ -1200,7 +1204,7 @@ public class CustomHpBarPlugin extends Plugin
 		// Both animation maps are keyed by Actor, so they need a bound of their own for anything
 		// that stops being drawn without ever despawning. The overlay checks elapsed time itself
 		// rather than trusting this to have run - this only stops the maps growing.
-		long nowMs = System.currentTimeMillis();
+		long nowMs = clock.getAsLong();
 		deathFades.entrySet().removeIf(fade ->
 		{
 			long start = fade.getValue();
@@ -1468,7 +1472,7 @@ public class CustomHpBarPlugin extends Plugin
 			|| (config.showNpcBar().always() && isTrackedNpcCached(npc)
 				&& (isAttackableNpc(npc) || hudDrivenNpc(npc))))
 		{
-			deathFades.putIfAbsent(npc, System.currentTimeMillis());
+			deathFades.putIfAbsent(npc, clock.getAsLong());
 		}
 	}
 
@@ -1479,7 +1483,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	double damageTrailFraction(Actor actor, double fraction, int maxHp)
 	{
-		long now = System.currentTimeMillis();
+		long now = clock.getAsLong();
 		Integer pending = pendingTrailDamage.remove(actor);
 		TrailState state = damageTrails.get(actor);
 
@@ -2436,7 +2440,7 @@ public class CustomHpBarPlugin extends Plugin
 	/** Progress through the current tick, 0-1. Clamped, not wrapped like tickProgress() - a bar must not run backwards. */
 	private double tickFraction()
 	{
-		double elapsed = (System.currentTimeMillis() - lastTickTimeMs) / MS_PER_TICK;
+		double elapsed = (clock.getAsLong() - lastTickTimeMs) / MS_PER_TICK;
 		return Math.min(1.0, Math.max(0.0, elapsed));
 	}
 
@@ -2697,7 +2701,7 @@ public class CustomHpBarPlugin extends Plugin
 	 */
 	double tickProgress()
 	{
-		double elapsedMs = System.currentTimeMillis() - lastTickTimeMs;
+		double elapsedMs = clock.getAsLong() - lastTickTimeMs;
 		double fraction = (elapsedMs % MS_PER_TICK) / MS_PER_TICK;
 		return fraction * Math.PI;
 	}
@@ -2729,7 +2733,7 @@ public class CustomHpBarPlugin extends Plugin
 		int current = runEnergy();
 		if (lastRunEnergyValue >= 0 && current < lastRunEnergyValue)
 		{
-			lastRunEnergyDrainMs = System.currentTimeMillis();
+			lastRunEnergyDrainMs = clock.getAsLong();
 		}
 		lastRunEnergyValue = current;
 	}
@@ -2747,7 +2751,7 @@ public class CustomHpBarPlugin extends Plugin
 			// Never actually run this session - nothing to justify showing the bar yet.
 			return true;
 		}
-		long elapsedMs = System.currentTimeMillis() - lastRunEnergyDrainMs;
+		long elapsedMs = clock.getAsLong() - lastRunEnergyDrainMs;
 		return elapsedMs >= timeoutSeconds * 1000L;
 	}
 

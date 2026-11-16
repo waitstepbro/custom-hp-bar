@@ -85,3 +85,13 @@ task runPlugin(type: JavaExec) {
     mainClass = pluginMainClass
     jvmArgs "-ea", "-Xmx2048m", "-Xss2m"
 }
+
+// Headless replay of a ReplayRecorderPlugin recording: gradlew replay --args="<recording dir> <out dir> [...]"
+task replay(type: JavaExec) {
+    group = "runelite"
+    description = "Replay a recorded fight into the plugin and write one PNG per tick"
+
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "com.customhpbar.ReplayHarness"
+    jvmArgs "-ea", "-Djava.awt.headless=true"
+}

@@ -431,7 +431,7 @@ class CustomHpBarOverlay extends Overlay
 		// Runs straight after the tracked loop so a corpse claims its slot ahead of the "Always Show" passes.
 		if (config.fadeNpcBarOnDeath() && !plugin.getDeathFades().isEmpty())
 		{
-			long now = System.currentTimeMillis();
+			long now = plugin.clock.getAsLong();
 			int fadeMs = CustomHpBarPlugin.DEATH_FADE_DURATION_MS;
 			double zoom = zoomFactor();
 			for (Map.Entry<Actor, Long> fade : plugin.getDeathFades().entrySet())

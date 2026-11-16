@@ -7,7 +7,7 @@ public class CustomHpBarPluginTest
 {
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(CustomHpBarPlugin.class);
+		ExternalPluginManager.loadBuiltin(CustomHpBarPlugin.class, ReplayRecorderPlugin.class);
 
 		// --developer-mode unlocks the core Developer Tools plugin; --debug is what actually lets log.debug
 		// through, without which logToaScaling() prints nothing. Appended so :runPlugin's own args survive.
